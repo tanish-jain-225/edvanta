@@ -1,21 +1,23 @@
 """Visual Content Generation API endpoints.
 
-Adds endpoints for generating short videos from text, PDF URL, and audio URL.
-Implementation follows the approach outlined in demo.py, but uses utils to
-keep routes lean. Each route:
-  1) Generates key moments (script + image prompts) via Vertex AI
-  2) Produces AI images, speech, captions, and merges into a video
-  3) Uploads the final video to Cloudinary and returns the URL
+Provides endpoints for generating videos from text, PDF, and audio sources.
+Implementation uses Gemini AI for script generation and MoviePy for video creation.
 
-Note: Audio transcription is not implemented in the utils yet; provide
-`transcript` directly when using the audio route or extend utils accordingly.
+IMPORTANT - SERVERLESS COMPATIBILITY:
+- Threading is disabled on serverless (Vercel) environments
+- Async job endpoints return immediate errors on serverless
+- Use synchronous endpoints for serverless deployment
+- For production with background jobs, use a proper job queue (Redis Queue, Celery, etc.)
+
+Endpoints:
+  - Synchronous: /api/visual/text-to-video, /api/visual/pdf-url-to-video, /api/visual/audio-url-to-video
+  - Async (local only): /api/visual/job/text, /api/visual/job/pdf, /api/visual/job/audio
 """
 from flask import Blueprint, request, jsonify
-import uuid, threading, time
+import uuid
+import time
+import os
 from datetime import datetime
-from email.utils import formatdate
-from .email import _build_email  # reuse email builder for HTML alternative
-import os, smtplib, ssl
 
 from ..utils.visual_utils import (
   generate_video_from_transcript_text,
@@ -23,45 +25,24 @@ from ..utils.visual_utils import (
   extract_text_from_audio_url,
 )
 
-
 visual_bp = Blueprint("visual", __name__)
 
-# In-memory job store (simple; replace with persistent store / queue in prod)
-_VIDEO_JOBS = {}
-_LOCK = threading.Lock()
+# Detect if running on Vercel/serverless (no threading support)
+IS_SERVERLESS = os.getenv('VERCEL') == '1' or os.getenv('AWS_LAMBDA_FUNCTION_NAME') is not None
 
-def _notify_user(email: str, goal: str, video_url: str):  # best-effort
-  sender = os.getenv("SENDER_EMAIL", "").strip()
-  password = os.getenv("SENDER_PASSWORD", "").strip()
-  if not sender or not password or not email:
-    return
-  subject = f"Your Video is Ready: {goal[:50]}" if goal else "Your Video is Ready"
-  plain = f"Your generated video is ready.\n\nURL:\n{video_url}\n\nYou can open it now inside the app as well.\n\n— Edvanta"
-  html = f"""<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;background:#f6f8fb;padding:24px'>
-  <table width='100%' style='max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px' cellpadding='0' cellspacing='0'>
-    <tr><td style='padding:20px 24px;background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;'>
-      <h2 style='margin:0;font-size:20px;font-weight:600'>Your Video is Ready</h2>
-      <p style='margin:6px 0 0 0;font-size:13px;opacity:.9'>{goal or 'Generated video'}</p>
-    </td></tr>
-    <tr><td style='padding:24px'>
-      <p style='font-size:14px;color:#111827;margin:0 0 16px'>Your generated video has finished processing.</p>
-      <p style='font-size:13px;margin:0 0 12px;color:#374151'><strong>Video URL:</strong><br><a href='{video_url}' style='color:#2563eb'>{video_url}</a></p>
-      <p style='font-size:12px;color:#6b7280;margin:24px 0 0'>You can also find this in your in-app history.</p>
-    </td></tr>
-    <tr><td style='background:#f1f5f9;padding:14px;text-align:center'>
-      <p style='margin:0;font-size:11px;color:#64748b'>&copy; {datetime.utcnow().year} Edvanta</p>
-    </td></tr>
-  </table></body></html>"""
-  try:
-    msg = _build_email(sender, email, subject, plain, html)
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=30) as server:
-      server.login(sender, password)
-      server.send_message(msg)
-  except Exception:
-    pass
+# In-memory job store (only used in non-serverless environments)
+if not IS_SERVERLESS:
+    import threading
+    _VIDEO_JOBS = {}
+    _LOCK = threading.Lock()
+else:
+    _VIDEO_JOBS = {}
+    _LOCK = None
 
 def _run_video_job(job_id: str):
+  """Background job runner (only works in non-serverless environments)"""
+  if IS_SERVERLESS:
+    return
   with _LOCK:
     job = _VIDEO_JOBS.get(job_id)
   if not job:
@@ -90,8 +71,6 @@ def _run_video_job(job_id: str):
       job['status'] = 'completed'
       job['url'] = url
       job['completed_at'] = time.time()
-    if email:
-      _notify_user(email, goal, url)
   except Exception as e:
     with _LOCK:
       job['status'] = 'failed'
@@ -100,6 +79,13 @@ def _run_video_job(job_id: str):
 
 @visual_bp.route('/api/visual/job/text', methods=['POST'])
 def enqueue_text_video():
+  if IS_SERVERLESS:
+    return jsonify({
+      'error': 'Background jobs not supported on serverless. Use synchronous endpoint: /api/visual/text-to-video',
+      'alternative_endpoint': '/api/visual/text-to-video',
+      'method': 'POST'
+    }), 501
+  
   data = request.get_json(silent=True) or {}
   text = data.get('text')
   user_email = data.get('user_email')
@@ -115,6 +101,13 @@ def enqueue_text_video():
 
 @visual_bp.route('/api/visual/job/pdf', methods=['POST'])
 def enqueue_pdf_video():
+  if IS_SERVERLESS:
+    return jsonify({
+      'error': 'Background jobs not supported on serverless. Use synchronous endpoint: /api/visual/pdf-url-to-video',
+      'alternative_endpoint': '/api/visual/pdf-url-to-video',
+      'method': 'POST'
+    }), 501
+  
   data = request.get_json(silent=True) or {}
   pdf_url = data.get('pdf_url')
   user_email = data.get('user_email')
@@ -130,6 +123,13 @@ def enqueue_pdf_video():
 
 @visual_bp.route('/api/visual/job/audio', methods=['POST'])
 def enqueue_audio_video():
+  if IS_SERVERLESS:
+    return jsonify({
+      'error': 'Background jobs not supported on serverless. Use synchronous endpoint: /api/visual/audio-url-to-video',
+      'alternative_endpoint': '/api/visual/audio-url-to-video',
+      'method': 'POST'
+    }), 501
+  
   data = request.get_json(silent=True) or {}
   audio_url = data.get('audio_url')
   transcript = data.get('transcript')
@@ -163,7 +163,7 @@ def text_to_video():
 
   Expected JSON: {"text": "..."}
   Steps:
-    - Use Vertex AI to extract key moments and image prompts
+    - Use Gemini AI to extract key moments and image prompts
     - Generate AI images, synthesize TTS, render captions, merge clips
     - Upload final video to Cloudinary and return the secure URL
   """

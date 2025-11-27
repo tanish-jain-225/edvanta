@@ -1,522 +1,519 @@
-"""Utilities for generating short videos from text/pdf/audio using Google GenAI (Vertex AI backend).
+"""Video generation utilities using Gemini API and simple placeholder images.
 
-This follows the pipeline demonstrated in demo.py:
-- Generate key moments with scripts and image prompts via Vertex AI (Gemini)
-- Generate images for each moment via Imagen
-- Synthesize voiceover via gTTS
-- Render caption overlays with PIL
-- Compose video with MoviePy
+This module generates educational videos from text using:
+1. Gemini AI for script generation and scene breakdown
+2. Colored placeholder images (no external image API needed)
+3. gTTS for voiceover generation
+4. PIL for text overlays
+5. MoviePy for video composition
 
-Environment requirements (see .env.example):
-- GOOGLE_CREDENTIALS_JSON_BASE64: base64-encoded GCP service account JSON
-- GOOGLE_PROJECT_ID: GCP project for Vertex AI text model
-- GOOGLE_LOCATION: Vertex region (e.g., us-central1)
-- Optional override for image generation project:
-  - GCP_IMAGE_PROJECT_ID (defaults to GOOGLE_PROJECT_ID)
+Dependencies:
+- GEMINI_API_KEY: Required for AI text generation
+- gtts: Text-to-speech (auto-install: pip install gtts)
+- PIL/Pillow: Image manipulation (auto-install: pip install pillow)
+- moviepy: Video composition (auto-install: pip install moviepy)
+- CLOUDINARY_*: Optional for cloud video hosting
 """
-from __future__ import annotations
 
-# Suppress Vertex AI SDK deprecation warnings to keep logs clean
-import warnings
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    message=r".*This feature is deprecated as of June 24, 2025.*genai-vertexai-sdk.*",
-)
-
-import base64
 import json
 import os
-import re
 import tempfile
-from typing import Any, List, Tuple
+import re
+from typing import List, Dict, Any
+from ..config import Config
 
-import requests
+# Optional dependencies with graceful fallback
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
 try:
     from gtts import gTTS
-except Exception:  # pragma: no cover - optional
+except ImportError:
     gTTS = None
 
 try:
     from PIL import Image, ImageDraw, ImageFont
-except Exception:  # pragma: no cover - optional
+except ImportError:
     Image = ImageDraw = ImageFont = None
 
 try:
-    from moviepy import (
-        AudioFileClip,
-        CompositeVideoClip,
-        ImageClip,
-        concatenate_videoclips,
-    )
-except Exception:  # pragma: no cover - optional
-    AudioFileClip = CompositeVideoClip = ImageClip = concatenate_videoclips = None
+    import moviepy
+    ImageClip = moviepy.ImageClip
+    AudioFileClip = moviepy.AudioFileClip
+    concatenate_videoclips = moviepy.concatenate_videoclips
+    CompositeVideoClip = moviepy.CompositeVideoClip
+    TextClip = getattr(moviepy, 'TextClip', None)
+except Exception as e:
+    print(f"MoviePy import warning: {e}")
+    ImageClip = AudioFileClip = CompositeVideoClip = concatenate_videoclips = TextClip = None
 
 try:
-    from google import genai
-    from google.genai import types as genai_types
-except Exception:  # pragma: no cover - optional
-    genai = None
-    genai_types = None
-from app.config import Config
-from .cloudinary_utils import upload_video_to_cloudinary
+    from .cloudinary_utils import upload_video_to_cloudinary
+except ImportError:
+    upload_video_to_cloudinary = None
+
+try:
+    from .pdf_utils import extract_text_from_pdf
+except ImportError:
+    extract_text_from_pdf = None
 
 
-# Canvas size (16:9)
-WIDTH, HEIGHT = 1280, 720
-DEFAULT_FONT_PATHS = [
-    # macOS (Homebrew cask installs to user fonts)
-    os.path.expanduser("~/Library/Fonts/DejaVuSans-Bold.ttf"),
-    # macOS system-wide (if manually copied)
-    "/Library/Fonts/DejaVuSans-Bold.ttf",
-    # Fallbacks (system fonts)
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+# Video configuration
+VIDEO_WIDTH = 1280
+VIDEO_HEIGHT = 720
+VIDEO_FPS = 24
+MAX_SCENES = 8
+MIN_SCENE_DURATION = 3
+MAX_SCENE_DURATION = 10
+
+# Color palette for placeholder images
+COLORS = [
+    "#FF6B6B",  # Red
+    "#4ECDC4",  # Teal
+    "#45B7D1",  # Blue
+    "#FFA07A",  # Light Salmon
+    "#98D8C8",  # Mint
+    "#F7DC6F",  # Yellow
+    "#BB8FCE",  # Purple
+    "#85C1E9",  # Sky Blue
 ]
-FONT_SIZE = 44
 
 
-AI_PROMPT = (
-    "You will be given a list of sentences from a script. For EACH sentence, produce EXACTLY ONE vivid, concrete "
-    "image prompt that best visualizes that sentence. Return ONLY JSON in the form:\n\n"
-    "{\n  \"image_prompts_per_sentence\": [\n    \"prompt for sentence 1\",\n    \"prompt for sentence 2\",\n    ...\n  ]\n}\n\n"
-    "- The number of prompts MUST equal the number of input sentences.\n"
-    "- Keep the same order as the provided sentences.\n"
-    "- Do NOT include any other keys or commentary.\n"
-)
+def check_dependencies() -> Dict[str, bool]:
+    """Check which optional dependencies are available."""
+    return {
+        "gemini": genai is not None and Config.GEMINI_API_KEY is not None,
+        "gtts": gTTS is not None,
+        "pil": Image is not None,
+        "moviepy": ImageClip is not None,
+        "cloudinary": upload_video_to_cloudinary is not None,
+    }
 
 
-def _load_font(size: int) -> Any:
-    for path in DEFAULT_FONT_PATHS:
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                pass
-    # Fallback to PIL default
-    return ImageFont.load_default()
-
-
-_GENAI_TEXT_CLIENT = None
-_GENAI_IMAGE_CLIENT = None
-
-
-def _ensure_google_credentials() -> None:
-    """Materialize GOOGLE_APPLICATION_CREDENTIALS from base64 env, if provided."""
-    # If already set and file exists, do nothing
-    existing = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    if existing and os.path.exists(existing):
-        return
-
-    raw = Config.VERTEX_DEFAULT_CREDENTIALS
-    if not raw:
-        return  # Nothing to materialize
-
-    # Allow either base64-encoded JSON or the literal JSON string
-    service_account_json = None
-    candidate = raw.strip().strip('"').strip("'")
-    try:
-        if candidate.startswith("{"):
-            # Literal JSON
-            json.loads(candidate)  # validate
-            service_account_json = candidate
-        else:
-            decoded = base64.b64decode(candidate).decode("utf-8")
-            json.loads(decoded)  # validate
-            service_account_json = decoded
-    except Exception as e:  # pragma: no cover - best effort
-        print(f"[warn] Failed to decode GOOGLE_CREDENTIALS_JSON_BASE64: {e}")
-        return
-
-    try:
-        # Stable file name derived from hash to avoid rewriting unnecessarily
-        import hashlib
-        digest = hashlib.sha1(service_account_json.encode("utf-8")).hexdigest()[:10]
-        key_file_path = os.path.join(tempfile.gettempdir(), f"gcp_key_{digest}.json")
-        if not os.path.exists(key_file_path):
-            with open(key_file_path, "w") as f:
-                f.write(service_account_json)
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = key_file_path
-    except Exception as e:  # pragma: no cover
-        print(f"[warn] Could not write service account file: {e}")
-
-
-def _get_project_and_location(for_images: bool = False) -> tuple[str, str]:
-    """Resolve project and location from environment with sensible fallbacks."""
-    # Use Config values
-    project = Config.GOOGLE_CLOUD_PROJECT
-    location = Config.GOOGLE_CLOUD_LOCATION
-    if not project:
-        raise RuntimeError("Project ID not set in Config.GOOGLE_CLOUD_PROJECT")
-    return project, location
-
-
-def _get_genai_text_client() -> Any:
-    global _GENAI_TEXT_CLIENT
-    if _GENAI_TEXT_CLIENT is None:
-        _ensure_google_credentials()
-        project, location = _get_project_and_location()
-        _GENAI_TEXT_CLIENT = genai.Client(vertexai=True, project=project, location=location)
-    return _GENAI_TEXT_CLIENT
-
-
-def _get_genai_image_client() -> Any:
-    global _GENAI_IMAGE_CLIENT
-    if _GENAI_IMAGE_CLIENT is None:
-        _ensure_google_credentials()
-        project, location = _get_project_and_location(for_images=True)
-        _GENAI_IMAGE_CLIENT = genai.Client(vertexai=True, project=project, location=location)
-    return _GENAI_IMAGE_CLIENT
-
-
-def generate_content_with_vertex_ai(prompt: str) -> str:
-    """Generate content using Gemini via google-genai (returns plain text)."""
-    if genai is None or genai_types is None:
-        # genai SDK not installed in this lightweight deployment
-        raise RuntimeError("Vertex AI SDK not available in this deployment")
-    client = _get_genai_text_client()
-    model_id = Config.GENAI_TEXT_MODEL
-    chat = client.chats.create(
-        model=model_id,
-        config=genai_types.GenerateContentConfig(),
-    )
-    response = chat.send_message(prompt)
-    return getattr(response, "text", "").strip()
-
-
-def _summarize_text_for_video(text: str) -> str:
-    """Summarize input text into a concise narration script.
-
-    Falls back to the original text if summarization fails or is too short.
-    """
-    instruction = (
-        "Summarize the following text into a concise, coherent script suitable for a short narration video. "
-        "Preserve key information, keep the original language, and prefer clear and short sentences. "
-        "Return ONLY the summarized script as plain text without any headings or labels.\n\nText:\n"
-    )
-    try:
-        result = generate_content_with_vertex_ai(instruction + text)
-        result = (result or "").strip()
-        if len(result) >= 20:
-            return result
-    except Exception:
-        # Vertex AI not available; fall back to original text
-        pass
-    return text
-
-
-def _split_into_sentences(text: str) -> List[str]:
-    """Basic sentence splitter on ., !, ? with whitespace handling."""
-    # Normalize spaces and newlines
-    cleaned = re.sub(r"\s+", " ", text.strip())
-    if not cleaned:
-        return []
-    parts = re.split(r"(?<=[.!?])\s+", cleaned)
-    # Remove empty parts and super short items
-    sentences = [p.strip() for p in parts if p and p.strip()]
-    return sentences
-
-
-def _extract_prompts_for_sentences(sentences: List[str]) -> List[str]:
-    """Ask the LLM to produce 1 image prompt per sentence in order."""
-    payload = {"sentences": sentences}
-    prompt = (
-        f"{AI_PROMPT}\nInput (JSON):\n" + json.dumps(payload, ensure_ascii=False)
-    )
-    result = generate_content_with_vertex_ai(prompt)
-    try:
-        data = json.loads(result)
-        arr = data.get("image_prompts_per_sentence") if isinstance(data, dict) else data
-        # Prefer a flat list of strings
-        if isinstance(arr, list) and all(isinstance(x, str) for x in arr):
-            return [str(p) for p in arr]
-        # Accept list of lists (take first item of each)
-        if isinstance(arr, list) and all(isinstance(x, list) and x for x in arr):
-            return [str(x[0]) for x in arr]
-    except Exception:
-        pass
-    # Fallback: parse any top-level JSON array of strings
-    match = re.search(r"\[\s*\".*?\"\s*(?:,\s*\".*?\"\s*)*\]", result, re.DOTALL)
-    if match:
-        try:
-            parsed = json.loads(match.group(0))
-            if isinstance(parsed, list):
-                # If nested, take first; else use as-is
-                if all(isinstance(x, list) and x for x in parsed):
-                    return [str(x[0]) for x in parsed]
-                return [str(x) for x in parsed]
-        except Exception:
-            pass
-    raise ValueError("LLM did not return image_prompts_per_sentence in expected format")
-
-
-def generate_images_with_vertex_ai(prompts: List[str]) -> List[str]:
-    """Generate images for each prompt using Imagen via google-genai; return file paths.
-
-    Note: aspect_ratio set to 16:9 to match output video.
-    """
-    client = _get_genai_image_client()
-    model_id = Config.GENAI_IMAGE_MODEL
-
-    generated_images: List[str] = []
-    for i, prompt in enumerate(prompts):
-        try:
-            resp = client.models.generate_images(
-                model=model_id,
-                prompt=prompt,
-                config=genai_types.GenerateImagesConfig(
-                    aspect_ratio="16:9",
-                    number_of_images=1,
-                    image_size="2K",
-                    safety_filter_level="BLOCK_MEDIUM_AND_ABOVE",
-                    person_generation="ALLOW_ADULT",
-                ),
-            )
-
-            image_bytes = None
-            # Try expected shapes
-            if hasattr(resp, "images") and resp.images:
-                img0 = resp.images[0]
-                image_bytes = getattr(img0, "image_bytes", None) or getattr(img0, "bytes", None)
-            elif hasattr(resp, "generated_images") and resp.generated_images:
-                img0 = resp.generated_images[0]
-                image_bytes = getattr(img0, "image_bytes", None) or getattr(img0, "bytes", None)
-
-            if not image_bytes:
-                raise RuntimeError("No image bytes returned by Imagen")
-
-            image_path = os.path.join(tempfile.gettempdir(), f"ai_image_{i}.png")
-            print(image_path)
-            with open(image_path, "wb") as f:
-                f.write(image_bytes)
-            generated_images.append(image_path)
-        except Exception as e:  # pragma: no cover - best-effort generation
-            print(f"[warn] Failed to generate image for prompt: {prompt[:60]}... Error: {e}")
-            continue
-
-    return generated_images
-
-def _generate_caption_clips(script: str, idx: int, total_dur: float) -> Tuple[List[Any], List[str]]:
-    """Create caption overlays as short ImageClips and return (clips, temp_files)."""
-    words = script.split()
-    chunks = [" ".join(words[i : i + 4]) for i in range(0, len(words), 4)]  # 4-word chunks
-    if not chunks:
-        chunks = [script]
-    dur = max(total_dur / max(1, len(chunks)), 0.1)
-    font = _load_font(FONT_SIZE)
-
-    clips: List[Any] = []
-    img_files: List[str] = []
-
-    for j, chunk in enumerate(chunks):
-        img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        bbox = draw.textbbox((0, 0), chunk, font=font)
-        x = (WIDTH - (bbox[2] - bbox[0])) // 2
-        y = HEIGHT - (bbox[3] - bbox[1]) - 60
-        # background rectangle for readability
-        draw.rectangle(
-            [(x - 10, y - 10), (x + (bbox[2] - bbox[0]) + 10, y + (bbox[3] - bbox[1]) + 10)],
-            fill=(0, 0, 0, 180),
-        )
-        draw.text((x, y), chunk, font=font, fill="white")
-        fname = os.path.join(tempfile.gettempdir(), f"ai_caption_{idx}_{j}.png")
-        img.save(fname)
-        img_files.append(fname)
-        clip = (
-            ImageClip(fname)
-            .with_start(j * dur)
-            .with_duration(dur)
-            .with_position(("center", "bottom"))
-        )
-        clips.append(clip)
-
-    return clips, img_files
-
-
-def _create_key_moment_clip(moment: dict, idx: int) -> Tuple[Any, List[str]]:
-    """Create a CompositeVideoClip for a single key moment and return (clip, temp_files)."""
-    temp_files: List[str] = []
-
-    # Voiceover
-    audio_file = os.path.join(tempfile.gettempdir(), f"ai_speech_{idx}.mp3")
-    tts = gTTS(text=moment["script"], lang="en")
-    tts.save(audio_file)
-    audio = AudioFileClip(audio_file)
-    total_dur = max(audio.duration, 1.0)
-    temp_files.append(audio_file)
-
-    # Images
-    image_paths = generate_images_with_vertex_ai(moment["image_prompts"])
-    if not image_paths:
-        audio.close()
-        raise RuntimeError("No AI images could be generated")
-
-    per_image_duration = total_dur / len(image_paths)
-    image_clips: List[Any] = []
-    for image_path in image_paths:
-        try:
-            img_clip = (
-                ImageClip(image_path)
-                .with_duration(per_image_duration)
-                .resized((WIDTH, HEIGHT))
-            )
-            image_clips.append(img_clip)
-            temp_files.append(image_path)
-        except Exception as e:  # pragma: no cover
-            print(f"[warn] Error processing image {image_path}: {e}")
-            continue
-
-    if not image_clips:
-        audio.close()
-        raise RuntimeError("No valid image clips could be created")
-
-    base_video = concatenate_videoclips(image_clips).with_duration(total_dur)
-
-    # Captions
-    captions, caption_files = _generate_caption_clips(moment["script"], idx, total_dur)
-    temp_files.extend(caption_files)
-
-    final = (
-        CompositeVideoClip([base_video, *captions])
-        .with_audio(audio)
-        .with_duration(total_dur)
-    )
-    # Do not write file or close audio here; caller will concatenate and write.
-
-    return final, temp_files
-
-
-def _cleanup_temp_files(files: List[str]) -> None:
-    for f in files:
-        try:
-            if os.path.exists(f):
-                os.remove(f)
-        except Exception:
-            pass
-
-
-def generate_video_from_transcript_text(transcript_text: str, upload: bool = True) -> str:
-    """Generate a single video by:
-    - Summarizing the input into a concise script
-    - Splitting the summarized script into sentences
-    - Generating 1 image prompt per sentence via LLM
-    - Creating a clip per sentence (images + TTS + captions)
-    - Concatenating all clips in order
-    - Optionally uploading the final MP4 to Cloudinary and returning the secure URL
-    """
-    summarized = _summarize_text_for_video(transcript_text)
-    sentences = _split_into_sentences(summarized)
-    if not sentences:
-        raise ValueError("No sentences found in input text")
+def generate_script_from_text(text: str, max_scenes: int = MAX_SCENES) -> List[Dict[str, str]]:
+    """Generate video script with scenes from text using Gemini AI.
     
-    print(sentences)
-
-    prompts_per_sentence = _extract_prompts_for_sentences(sentences)
-    # Ensure alignment; retry re-extraction if mismatch
-    attempts = 1
-    while len(prompts_per_sentence) != len(sentences) and attempts < 3:
-        print(
-            f"[info] Re-extracting prompts (attempt {attempts+1}) because got {len(prompts_per_sentence)} prompts for {len(sentences)} sentences"
-        )
-        prompts_per_sentence = _extract_prompts_for_sentences(sentences)
-        attempts += 1
-    if len(prompts_per_sentence) != len(sentences):
-        raise ValueError(
-            f"Mismatch between sentence count ({len(sentences)}) and prompts returned by LLM ({len(prompts_per_sentence)})"
-        )
+    Args:
+        text: Input text to convert to video script
+        max_scenes: Maximum number of scenes to generate
+        
+    Returns:
+        List of scenes, each with 'narration' and 'visual_description'
+    """
+    if not genai or not Config.GEMINI_API_KEY:
+        raise RuntimeError("Gemini API not configured. Set GEMINI_API_KEY in environment.")
     
-    print(prompts_per_sentence)
+    # Configure Gemini
+    genai.configure(api_key=Config.GEMINI_API_KEY)
+    model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
+    
+    # Create prompt for script generation
+    prompt = f"""You are a video script writer. Convert the following text into a video script with {max_scenes} scenes maximum.
 
-    clips: List[Any] = []
-    temp_files: List[str] = []
+For each scene, provide:
+1. Narration text (what the voiceover says) - keep it concise, 1-2 sentences
+2. Visual description (what appears on screen) - brief description for visual representation
+
+Return ONLY a valid JSON array in this exact format:
+[
+  {{
+    "narration": "Scene 1 narration text here",
+    "visual_description": "Simple visual description"
+  }},
+  {{
+    "narration": "Scene 2 narration text here", 
+    "visual_description": "Simple visual description"
+  }}
+]
+
+Important rules:
+- Maximum {max_scenes} scenes
+- Keep narration concise (10-20 words per scene)
+- Return ONLY the JSON array, no other text
+- Ensure proper JSON formatting
+
+Input text:
+{text[:2000]}"""  # Limit input text to avoid token limits
+    
     try:
-        for idx, sentence in enumerate(sentences):
-            moment = {"script": sentence, "image_prompts": [prompts_per_sentence[idx]]}
-            clip, files = _create_key_moment_clip(moment, idx)
-            clips.append(clip)
-            temp_files.extend(files)
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        # Extract JSON from response
+        # Remove markdown code blocks if present
+        response_text = re.sub(r'```json\s*', '', response_text)
+        response_text = re.sub(r'```\s*', '', response_text)
+        
+        # Parse JSON
+        scenes = json.loads(response_text)
+        
+        # Validate structure
+        if not isinstance(scenes, list):
+            raise ValueError("Response is not a list")
+        
+        # Ensure each scene has required fields
+        validated_scenes = []
+        for i, scene in enumerate(scenes[:max_scenes]):
+            if isinstance(scene, dict) and 'narration' in scene:
+                validated_scenes.append({
+                    'narration': scene.get('narration', f'Scene {i+1}'),
+                    'visual_description': scene.get('visual_description', 'Educational content')
+                })
+        
+        if not validated_scenes:
+            raise ValueError("No valid scenes generated")
+            
+        return validated_scenes
+        
+    except json.JSONDecodeError as e:
+        # Fallback: create simple scenes from text
+        print(f"JSON parse error: {e}. Using fallback scene generation.")
+        return create_fallback_scenes(text, max_scenes)
+    except Exception as e:
+        print(f"Script generation error: {e}. Using fallback scene generation.")
+        return create_fallback_scenes(text, max_scenes)
 
-        # Concatenate per-sentence clips
-        final_video = concatenate_videoclips(clips, method="compose")
-        outdir = os.path.join(tempfile.gettempdir(), "ai_sentence_video")
-        os.makedirs(outdir, exist_ok=True)
-        outfile = os.path.join(outdir, "ai_sentences_compiled.mp4")
-        final_video.write_videofile(outfile, fps=24, codec="libx264", audio_codec="aac")
-        final_video.close()
-        if upload:
-            try:
-                url = upload_video_to_cloudinary(outfile)
-                return url
-            finally:
-                # Remove local video after upload attempt
+
+def create_fallback_scenes(text: str, max_scenes: int = MAX_SCENES) -> List[Dict[str, str]]:
+    """Create simple scenes from text when AI generation fails."""
+    # Split text into sentences
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    # Group sentences into scenes
+    scenes = []
+    scene_size = max(1, len(sentences) // max_scenes)
+    
+    for i in range(0, len(sentences), scene_size):
+        if len(scenes) >= max_scenes:
+            break
+        scene_sentences = sentences[i:i+scene_size]
+        narration = '. '.join(scene_sentences)
+        if narration and not narration.endswith('.'):
+            narration += '.'
+        
+        scenes.append({
+            'narration': narration[:200],  # Limit length
+            'visual_description': f'Educational content - Scene {len(scenes) + 1}'
+        })
+    
+    return scenes if scenes else [{
+        'narration': text[:200],
+        'visual_description': 'Educational video content'
+    }]
+
+
+def create_placeholder_image(text: str, color: str, width: int = VIDEO_WIDTH, height: int = VIDEO_HEIGHT) -> str:
+    """Create a colored placeholder image with text overlay.
+    
+    Args:
+        text: Text to display on image
+        color: Hex color code for background
+        width: Image width
+        height: Image height
+        
+    Returns:
+        Path to generated image file
+    """
+    if not Image or not ImageDraw or not ImageFont:
+        raise RuntimeError("PIL/Pillow not installed. Install with: pip install pillow")
+    
+    # Create image with solid color background
+    img = Image.new('RGB', (width, height), color)
+    draw = ImageDraw.Draw(img)
+    
+    # Try to load a nice font, fallback to default
+    try:
+        font_size = 48
+        # Try common font locations
+        font_paths = [
+            "/System/Library/Fonts/Supplemental/Arial.ttf",  # macOS
+            "C:\\Windows\\Fonts\\arial.ttf",  # Windows
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux
+        ]
+        font = None
+        for path in font_paths:
+            if os.path.exists(path):
                 try:
-                    if os.path.exists(outfile):
-                        os.remove(outfile)
-                except Exception:
+                    font = ImageFont.truetype(path, font_size)
+                    break
+                except:
                     pass
-        return outfile  # Return local path if upload disabled
-    finally:
-        _cleanup_temp_files(temp_files)
-        for c in clips:
+        if not font:
+            font = ImageFont.load_default()
+    except:
+        font = ImageFont.load_default()
+    
+    # Wrap text to fit width
+    max_width = width - 100  # Padding
+    words = text.split()
+    lines = []
+    current_line = []
+    
+    for word in words:
+        current_line.append(word)
+        test_line = ' '.join(current_line)
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        if bbox[2] - bbox[0] > max_width:
+            if len(current_line) > 1:
+                current_line.pop()
+                lines.append(' '.join(current_line))
+                current_line = [word]
+            else:
+                lines.append(test_line)
+                current_line = []
+    
+    if current_line:
+        lines.append(' '.join(current_line))
+    
+    # Limit to 4 lines
+    lines = lines[:4]
+    
+    # Calculate text position (centered)
+    line_height = font_size + 10
+    total_height = len(lines) * line_height
+    y_start = (height - total_height) // 2
+    
+    # Draw text with shadow for better readability
+    for i, line in enumerate(lines):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_width = bbox[2] - bbox[0]
+        x = (width - text_width) // 2
+        y = y_start + (i * line_height)
+        
+        # Draw shadow
+        draw.text((x+2, y+2), line, font=font, fill='#000000')
+        # Draw text
+        draw.text((x, y), line, font=font, fill='#FFFFFF')
+    
+    # Save to temp file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+    img.save(temp_file.name, 'PNG')
+    temp_file.close()
+    
+    return temp_file.name
+
+
+def generate_audio_from_text(text: str) -> str:
+    """Generate audio file from text using gTTS.
+    
+    Args:
+        text: Text to convert to speech
+        
+    Returns:
+        Path to generated audio file
+    """
+    if not gTTS:
+        raise RuntimeError("gTTS not installed. Install with: pip install gtts")
+    
+    # Create audio
+    tts = gTTS(text=text, lang='en', slow=False)
+    
+    # Save to temp file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+    tts.save(temp_file.name)
+    temp_file.close()
+    
+    return temp_file.name
+
+
+def create_scene_clip(scene: Dict[str, str], color: str, min_duration: float = MIN_SCENE_DURATION) -> Any:
+    """Create a video clip for one scene.
+    
+    Args:
+        scene: Scene dict with 'narration' and 'visual_description'
+        color: Hex color for background
+        min_duration: Minimum duration in seconds
+        
+    Returns:
+        MoviePy VideoClip object
+    """
+    if not ImageClip or not AudioFileClip:
+        raise RuntimeError("MoviePy not installed. Install with: pip install moviepy")
+    
+    # Generate audio
+    audio_path = generate_audio_from_text(scene['narration'])
+    audio_clip = AudioFileClip(audio_path)
+    
+    # Duration is audio length or minimum duration, whichever is longer
+    duration = max(audio_clip.duration, min_duration)
+    duration = min(duration, MAX_SCENE_DURATION)  # Cap at max duration
+    
+    # Create image with visual description
+    image_path = create_placeholder_image(scene['visual_description'], color)
+    
+    # Create video clip from image (MoviePy 2.x: pass duration to constructor)
+    video_clip = ImageClip(image_path, duration=duration)
+    video_clip = video_clip.with_audio(audio_clip)
+    
+    return video_clip
+
+
+def generate_video_from_scenes(scenes: List[Dict[str, str]], output_path: str = None) -> str:
+    """Generate video from scenes.
+    
+    Args:
+        scenes: List of scene dicts
+        output_path: Optional output path, otherwise creates temp file
+        
+    Returns:
+        Path to generated video file
+    """
+    deps = check_dependencies()
+    if not deps['moviepy']:
+        raise RuntimeError("MoviePy not installed. Install with: pip install moviepy")
+    if not deps['gtts']:
+        raise RuntimeError("gTTS not installed. Install with: pip install gtts")
+    if not deps['pil']:
+        raise RuntimeError("PIL/Pillow not installed. Install with: pip install pillow")
+    
+    # Create clips for each scene
+    clips = []
+    temp_files = []
+    
+    try:
+        for i, scene in enumerate(scenes):
+            color = COLORS[i % len(COLORS)]
+            clip = create_scene_clip(scene, color)
+            clips.append(clip)
+        
+        # Concatenate all clips
+        final_video = concatenate_videoclips(clips, method="compose")
+        
+        # Determine output path
+        if not output_path:
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+            output_path = temp_file.name
+            temp_file.close()
+        
+        # Write video file
+        final_video.write_videofile(
+            output_path,
+            fps=VIDEO_FPS,
+            codec='libx264',
+            audio_codec='aac',
+            temp_audiofile=tempfile.mktemp(suffix='.m4a'),
+            remove_temp=True,
+            logger=None  # Suppress moviepy progress bar
+        )
+        
+        # Clean up clips
+        for clip in clips:
+            clip.close()
+        
+        return output_path
+        
+    except Exception as e:
+        # Clean up on error
+        for clip in clips:
             try:
-                c.close()
-            except Exception:
+                clip.close()
+            except:
                 pass
+        raise RuntimeError(f"Video generation failed: {e}")
+
+
+def generate_video_from_transcript_text(text: str, upload_to_cloudinary: bool = True) -> str:
+    """Main function: Generate video from text transcript.
+    
+    Args:
+        text: Input text to convert to video
+        upload_to_cloudinary: Whether to upload to Cloudinary (if configured)
+        
+    Returns:
+        Video URL (if uploaded to Cloudinary) or local file path
+    """
+    # Check dependencies
+    deps = check_dependencies()
+    if not deps['gemini']:
+        raise RuntimeError(
+            "Gemini API not configured. Set GEMINI_API_KEY in your .env file. "
+            "Get your API key from https://makersuite.google.com/app/apikey"
+        )
+    
+    print(f"[Video Generation] Starting for text length: {len(text)}")
+    
+    # Step 1: Generate script from text
+    print("[Video Generation] Step 1: Generating script with Gemini AI...")
+    scenes = generate_script_from_text(text)
+    print(f"[Video Generation] Generated {len(scenes)} scenes")
+    
+    # Step 2: Create video from scenes
+    print("[Video Generation] Step 2: Creating video clips...")
+    video_path = generate_video_from_scenes(scenes)
+    print(f"[Video Generation] Video created at: {video_path}")
+    
+    # Step 3: Upload to Cloudinary if configured
+    if upload_to_cloudinary and deps['cloudinary']:
+        try:
+            print("[Video Generation] Step 3: Uploading to Cloudinary...")
+            video_url = upload_video_to_cloudinary(video_path)
+            print(f"[Video Generation] Uploaded to: {video_url}")
+            
+            # Clean up local file after upload
+            try:
+                os.remove(video_path)
+            except:
+                pass
+            
+            return video_url
+        except Exception as e:
+            print(f"[Video Generation] Cloudinary upload failed: {e}")
+            print(f"[Video Generation] Returning local file path instead")
+            return video_path
+    else:
+        print("[Video Generation] Cloudinary not configured, returning local file")
+        return video_path
 
 
 def extract_text_from_pdf_url(pdf_url: str) -> str:
-    """Download a PDF from URL and extract text using PyPDF2."""
-    import PyPDF2
-
-    resp = requests.get(pdf_url, timeout=30)
-    resp.raise_for_status()
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        tmp.write(resp.content)
-        tmp_path = tmp.name
-
-    text_parts: List[str] = []
-    with open(tmp_path, "rb") as f:
-        reader = PyPDF2.PdfReader(f)
-        for page in reader.pages:
-            try:
-                text_parts.append(page.extract_text() or "")
-            except Exception:
-                continue
-    os.remove(tmp_path)
-    return "\n".join(text_parts).strip()
+    """Download PDF from URL and extract text.
+    
+    Args:
+        pdf_url: URL to PDF file
+        
+    Returns:
+        Extracted text from PDF
+    """
+    import requests
+    
+    # Download PDF
+    response = requests.get(pdf_url, timeout=30)
+    response.raise_for_status()
+    
+    # Save to temp file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+    temp_file.write(response.content)
+    temp_file.close()
+    
+    try:
+        # Extract text
+        if extract_text_from_pdf:
+            text = extract_text_from_pdf(temp_file.name)
+        else:
+            raise RuntimeError("PDF extraction not available. Install PyPDF2: pip install PyPDF2")
+        
+        return text
+    finally:
+        # Clean up
+        try:
+            os.remove(temp_file.name)
+        except:
+            pass
 
 
 def extract_text_from_audio_url(audio_url: str) -> str:
-    """Download audio URL and transcribe using openai-whisper.
-
-    Requirements: `openai-whisper` and ffmpeg installed on the system.
+    """Transcribe audio from URL (placeholder - not implemented).
+    
+    Args:
+        audio_url: URL to audio file
+        
+    Returns:
+        Transcribed text
     """
-    # Lazy import to avoid hard dependency at module import time
-    import whisper  # type: ignore
-
-    resp = requests.get(audio_url, stream=True, timeout=60)
-    resp.raise_for_status()
-    suffix = ".mp3"
-    ctype = resp.headers.get("Content-Type", "").lower()
-    if "wav" in ctype:
-        suffix = ".wav"
-    elif "m4a" in ctype:
-        suffix = ".m4a"
-    elif "mpeg" in ctype or "mp3" in ctype:
-        suffix = ".mp3"
-
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        for chunk in resp.iter_content(chunk_size=8192):
-            if chunk:
-                tmp.write(chunk)
-        audio_path = tmp.name
-
-    # Use a reasonable default model; adjust if needed for accuracy/speed
-    model = whisper.load_model("base")
-    result = model.transcribe(audio_path)
-    text = (result.get("text") or "").strip()
-    try:
-        os.remove(audio_path)
-    except Exception:
-        pass
-    return text
+    raise NotImplementedError(
+        "Audio transcription is not implemented. "
+        "Please provide the 'transcript' directly or integrate with a speech-to-text service."
+    )

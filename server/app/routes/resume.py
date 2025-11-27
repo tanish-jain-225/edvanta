@@ -1,6 +1,6 @@
-"""Resume Builder & Analysis endpoints (placeholders).
+"""Resume Builder & Analysis endpoints.
 
-Handles resume upload (Cloudinary) and analysis vs job description using AI.
+Handles resume upload (Cloudinary) and analysis vs job description using Gemini AI.
 """
 from flask import Blueprint, request, jsonify
 from app.utils.cloudinary_utils import upload_file_to_cloudinary, fetch_file_from_cloudinary
@@ -9,11 +9,6 @@ import os
 import requests
 import tempfile
 import json
-import base64
-try:
-    from google.oauth2 import service_account
-except Exception:
-    service_account = None
 from ..config import Config
 import re
 from app.utils.ai_utils import _get_fallback_response
@@ -186,25 +181,22 @@ def analyze_resume():
         except Exception as e:
             return jsonify({"error": f"Failed to fetch or parse resume: {str(e)}"}), 500
 
-    # Vertex AI Gemini setup (lazy import)
+    # Gemini AI setup
     try:
         try:
-            import vertexai
-            from vertexai.generative_models import GenerativeModel
+            import google.generativeai as genai
         except Exception:
             # Return a helpful fallback analysis when AI is not available
             fallback_text = _get_fallback_response(job_description or "resume analysis", context={"subject": "resume"})
             return jsonify({"analysis": {"strengths": [], "improvements": [], "match_score": 0, "summary": fallback_text}, "note": "AI service unavailable; returned fallback message."}), 200
 
-        project_id = Config.GOOGLE_CLOUD_PROJECT
-        location = Config.GOOGLE_CLOUD_LOCATION
-        credentials_base64 = Config.VERTEX_DEFAULT_CREDENTIALS
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(base64.b64decode(credentials_base64))
-        )
-        vertexai.init(project=project_id, location=location, credentials=credentials)
-        model_name = "gemini-2.5-pro"
-        model = GenerativeModel(model_name=model_name)
+        # Configure Gemini API
+        if not Config.GEMINI_API_KEY:
+            fallback_text = _get_fallback_response(job_description or "resume analysis", context={"subject": "resume"})
+            return jsonify({"analysis": {"strengths": [], "improvements": [], "match_score": 0, "summary": fallback_text}, "note": "Gemini API key not configured."}), 200
+            
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
         prompt = (
             "You are an expert career coach and resume analyst. "
             "Given the following resume and job description, analyze them and respond ONLY with a JSON object containing: "

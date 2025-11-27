@@ -6,16 +6,14 @@ Stores and retrieves roadmaps from MongoDB.
 from flask import Blueprint, request, jsonify, send_file
 import os
 import json
-import base64
 import uuid
 from datetime import datetime
 try:
-    from google.oauth2 import service_account
+    import google.generativeai as genai
 except Exception:
-    service_account = None
+    genai = None
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-from app.utils.ai_utils import _get_fallback_response
 from ..config import Config
 
 roadmap_bp = Blueprint("roadmap", __name__)
@@ -60,7 +58,7 @@ def generate_roadmap():
     Expected JSON: {"goal": "Become a ML Engineer", "background": "Python programmer", "duration_weeks": 12, "user_email": "user@example.com" }
     Steps:
       1. Validate request
-      2. Call Vertex AI to outline milestones & sequencing
+      2. Call Gemini AI to outline milestones & sequencing
       3. Store the generated roadmap in MongoDB
       4. Return the roadmap data
     """
@@ -81,49 +79,71 @@ def generate_roadmap():
     if not user_email:
         return jsonify({"error": "Missing user email"}), 400
 
-    # Vertex AI Gemini setup (same as chatbot.py)
+    # Use Gemini API
     try:
-        # Lazy import of Vertex SDK; return a friendly fallback if unavailable
-        try:
-            import vertexai
-            from vertexai.generative_models import GenerativeModel
-        except Exception:
+        # Check if Gemini API is available
+        if genai is None or not Config.GEMINI_API_KEY:
             # Return a helpful fallback roadmap structure
             fallback = {
                 "nodes": [
-                    {"id": "start", "title": f"Start: {goal}", "description": background, "recommended_weeks": 1, "resources": []},
-                    {"id": "fundamentals", "title": "Fundamentals", "description": "Core concepts and basics.", "recommended_weeks": 2, "resources": []},
-                    {"id": "project", "title": "Project Work", "description": "Build a project to apply learning.", "recommended_weeks": 2, "resources": []},
-                    {"id": "goal", "title": f"Achieve: {goal}", "description": "Target goal milestone.", "recommended_weeks": 1, "resources": []}
+                    {"id": "start", "title": f"Start: {goal}", "description": background, "recommended_weeks": 1, "resources": ["Begin your journey"]},
+                    {"id": "fundamentals", "title": "Learn Fundamentals", "description": "Master core concepts and basics", "recommended_weeks": max(2, (duration_weeks or 8) // 4), "resources": ["Online tutorials", "Documentation"]},
+                    {"id": "intermediate", "title": "Build Skills", "description": "Develop intermediate-level capabilities", "recommended_weeks": max(3, (duration_weeks or 8) // 3), "resources": ["Practice projects", "Courses"]},
+                    {"id": "advanced", "title": "Advanced Topics", "description": "Deep dive into specialized areas", "recommended_weeks": max(2, (duration_weeks or 8) // 4), "resources": ["Advanced courses", "Real projects"]},
+                    {"id": "goal", "title": f"Achieve: {goal}", "description": "Reach your target goal", "recommended_weeks": 1, "resources": ["Final project", "Portfolio"]}
                 ],
                 "edges": [
                     {"from": "start", "to": "fundamentals"},
-                    {"from": "fundamentals", "to": "project"},
-                    {"from": "project", "to": "goal"}
+                    {"from": "fundamentals", "to": "intermediate"},
+                    {"from": "intermediate", "to": "advanced"},
+                    {"from": "advanced", "to": "goal"}
                 ]
             }
-            return jsonify({"roadmap": fallback, "note": "AI service not available; returned a basic fallback roadmap."}), 200
+            roadmap_document = {
+                "id": str(uuid.uuid4()),
+                "user_email": user_email,
+                "title": goal,
+                "description": background,
+                "duration_weeks": duration_weeks,
+                "created_at": datetime.utcnow(),
+                "data": fallback
+            }
+            if db is not None and collection_name is not None:
+                try:
+                    roadmap_collection = db[collection_name]
+                    roadmap_collection.insert_one(roadmap_document)
+                except Exception:
+                    _in_memory_roadmaps[roadmap_document["id"]] = {
+                        **roadmap_document,
+                        "created_at": roadmap_document["created_at"].isoformat()
+                    }
+            else:
+                _in_memory_roadmaps[roadmap_document["id"]] = {
+                    **roadmap_document,
+                    "created_at": roadmap_document["created_at"].isoformat()
+                }
+            return jsonify({"roadmap": fallback, "roadmap_id": roadmap_document["id"], "note": "AI service not available; returned a fallback roadmap."}), 200
 
-        project_id = Config.GOOGLE_CLOUD_PROJECT
-        location = Config.GOOGLE_CLOUD_LOCATION
-        credentials_base64 = Config.VERTEX_DEFAULT_CREDENTIALS
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(base64.b64decode(credentials_base64))
-        )
-        vertexai.init(project=project_id, location=location,
-                      credentials=credentials)
-        model_name = Config.VERTEX_MODEL_NAME
-        model = GenerativeModel(model_name=model_name)
+        # Configure Gemini API
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
+        
         prompt = (
             "You are a career roadmap assistant. Given a user's goal and background, "
-            "generate a learning roadmap as a directed graph in JSON. "
+            "generate a detailed learning roadmap as a directed graph in JSON format. "
             "Each node should represent a milestone or skill, with edges showing dependencies. "
-            "Each node must have: id, title, description, recommended_weeks, resources (list of links or names). "
-            "The graph should have a start node and an end node (the goal). "
-            "Respond ONLY with a JSON object with keys: nodes (list), edges (list of {from, to}).\n\n"
+            "Each node must have: id (unique string), title, description, recommended_weeks (number), resources (array of specific resource names). "
+            "Create 5-8 meaningful nodes from start to goal. "
+            "The graph should have a 'start' node and a 'goal' node. "
+            "Respond ONLY with a valid JSON object with keys: nodes (array), edges (array of {from, to}).\n\n"
             f"Goal: {goal}\n"
             f"Background: {background}\n"
-            f"Target Duration (weeks): {duration_weeks if duration_weeks else 'Not specified'}"
+            f"Target Duration (weeks): {duration_weeks if duration_weeks else 'Not specified'}\n\n"
+            "Example format:\n"
+            "{\n"
+            '  "nodes": [{"id": "start", "title": "Begin", "description": "...", "recommended_weeks": 1, "resources": ["..."]}],\n'
+            '  "edges": [{"from": "start", "to": "next_id"}]\n'
+            "}"
         )
         response = model.generate_content(prompt)
         roadmap_json = response.text

@@ -1,6 +1,6 @@
 """Conversational Tutor endpoints.
 
-Combines AI tutoring responses with Vertex AI for seamless voice interaction
+Combines AI tutoring responses with Gemini AI for seamless voice interaction
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime
@@ -55,7 +55,7 @@ def tutor_ask():
             "session_id": session_id
         }
 
-        # Call Vertex AI for the response - optimized based on voice/text mode
+        # Call Gemini AI for the response - optimized based on voice/text mode
         response = get_vertex_response(prompt, context)
 
         result = {
@@ -142,7 +142,7 @@ def start_session():
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         session_id = f"tutor_{mode}_{subject.replace(' ', '_')}_{timestamp}"
 
-        # Create context for Vertex AI welcome message
+        # Create context for Gemini AI welcome message
         welcome_context = {
             "mode": mode,
             "subject": subject,
@@ -152,7 +152,7 @@ def start_session():
             "user_email": user_email
         }
 
-        # Get personalized welcome message from Vertex AI
+        # Get personalized welcome message from Gemini AI
         welcome_prompt = f"Generate a welcoming message for a {mode} session about {subject}"
         welcome_message = get_vertex_response(welcome_prompt, welcome_context)
 
@@ -258,7 +258,7 @@ def toggle_voice():
         session_parts = session_id.split('_')
         mode = session_parts[1] if len(session_parts) > 1 else 'tutor'
 
-        # Create context for Vertex AI voice toggle message
+        # Create context for Gemini AI voice toggle message
         voice_context = {
             "mode": mode,
             "session_id": session_id,
@@ -460,7 +460,7 @@ def check_voice_connection():
     Returns: { success: bool, status: str, timestamp: str }
     """
     try:
-        # Check if we can initialize Vertex AI
+        # Check if we can initialize Gemini AI
         from app.utils.ai_utils import init_vertex_ai
         ai_initialized = init_vertex_ai()
 

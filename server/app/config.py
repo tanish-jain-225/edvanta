@@ -9,15 +9,13 @@ Environment variables (required for deployment):
 - SECRET_KEY: Flask secret key for session security
 - MONGODB_URI: MongoDB connection string
 - MONGODB_DB_NAME: MongoDB database name
-- GOOGLE_PROJECT_ID: Google Cloud project ID
-- GOOGLE_LOCATION: Google Cloud region (e.g., us-central1)
-- GOOGLE_CREDENTIALS_JSON_BASE64: Base64-encoded GCP service account credentials
-- VERTEX_MODEL_NAME: Vertex AI model name to use
+- GEMINI_API_KEY: Google Gemini API key for AI features
 
 Optional environment variables:
 - CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET: For image uploads
 - ALLOWED_ORIGINS: Comma separated origins for CORS (default: "*")
-- VERTEX_TEMPERATURE/VERTEX_TOP_P/VERTEX_TOP_K: AI generation parameters
+- GEMINI_TEMPERATURE/GEMINI_TOP_P/GEMINI_TOP_K: AI generation parameters
+- GEMINI_MODEL_NAME: Gemini model to use (default: gemini-2.5-flash)
 """
 import os
 from typing import List
@@ -30,28 +28,21 @@ class Config:
     DEBUG = ENV == "development"
 
     # Server settings
-    PORT = int(os.getenv("PORT"))
+    PORT = int(os.getenv("PORT", "5000"))
     HOST = os.getenv("HOST", "0.0.0.0")
 
-    # Google Cloud / Vertex AI settings
-    GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_PROJECT_ID")
-    GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_LOCATION", "us-central1")
-    VERTEX_DEFAULT_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
-    VERTEX_MODEL_NAME = os.getenv("VERTEX_MODEL_NAME", "gemini-2.5-flash")
-
-    # AI model parameters
-    VERTEX_TEMPERATURE = float(os.getenv("VERTEX_TEMPERATURE", "0.7"))
-    VERTEX_TOP_P = float(os.getenv("VERTEX_TOP_P", "0.95"))
-    VERTEX_TOP_K = int(os.getenv("VERTEX_TOP_K", "40"))
-    VERTEX_MAX_OUTPUT_TOKENS = int(os.getenv("VERTEX_MAX_OUTPUT_TOKENS", "1024"))
-
-    # Model IDs for specialized tasks
-    GENAI_TEXT_MODEL = os.getenv("GENAI_TEXT_MODEL", "gemini-2.5-flash")
-    GENAI_IMAGE_MODEL = os.getenv("GENAI_IMAGE_MODEL", "imagen-4.0-generate-preview-06-06")
-
-    # API Keys
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    # Gemini AI settings (Primary AI provider)
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+
+    # Gemini AI model parameters
+    GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
+    GEMINI_TOP_P = float(os.getenv("GEMINI_TOP_P", "0.95"))
+    GEMINI_TOP_K = int(os.getenv("GEMINI_TOP_K", "40"))
+    GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "1024"))
+
+    # Alternative API Keys (optional)
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
     # Cloudinary settings (legacy naming)
     CLOUD_NAME = os.getenv("CLOUD_NAME")

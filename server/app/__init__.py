@@ -35,8 +35,6 @@ def create_app() -> Flask:
     from .routes.tutor import tutor_bp
     from .routes.roadmap import roadmap_bp
     from .routes.resume import resume_bp
-    from .routes.email import email_bp
-    from .routes.translate import translate_bp
     from .routes.user_stats import user_stats_bp
 
     # Register blueprints with the app
@@ -46,8 +44,6 @@ def create_app() -> Flask:
     app.register_blueprint(tutor_bp)
     app.register_blueprint(roadmap_bp)
     app.register_blueprint(resume_bp)
-    app.register_blueprint(email_bp)
-    app.register_blueprint(translate_bp)
     app.register_blueprint(user_stats_bp)
 
     @app.route("/", methods=["GET"])  # Simple health check
@@ -62,8 +58,7 @@ def create_app() -> Flask:
             import importlib
 
             optional_libs = [
-                "vertexai",
-                "google.genai",
+                "google.generativeai",
                 "moviepy",
                 "gtts",
                 "PIL",
@@ -127,12 +122,10 @@ def create_app() -> Flask:
 
         return response
 
-    # Explicitly handle preflight OPTIONS for any /api/* route so that
-    # proxies or upstream error pages still yield the proper CORS headers.
-    @app.route('/api/<path:_any>', methods=['OPTIONS'])
-    def _preflight(_any):
-        # Return empty 204; after_request will attach necessary CORS headers
-        from flask import make_response
-        return make_response(('', 204))
+    # Handle 404 errors with proper CORS headers
+    @app.errorhandler(404)
+    def not_found(error):
+        from flask import jsonify
+        return jsonify({"error": "Endpoint not found"}), 404
 
     return app

@@ -1,3 +1,15 @@
 venv/
 .env
 __pycache__/
+
+# Temporary video files from MoviePy
+*TEMP_MPY*.mp4
+*.mp4
+*.mp3
+*.wav
+*.avi
+*.mov
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,16 +1,14 @@
 """Doubt Solving Chatbot API endpoints.
 
 Handles conversational Q&A for student doubts with chat session management,
-message persistence, and AI responses using Vertex AI with conversation context.
+message persistence, and AI responses using Gemini API with conversation context.
 """
 from flask import Blueprint, request, jsonify
-import json
-import base64
 import time
 try:
-    from google.oauth2 import service_account
+    import google.generativeai as genai
 except Exception:
-    service_account = None
+    genai = None
 from pymongo import MongoClient
 from bson import ObjectId
 from ..config import Config
@@ -58,27 +56,13 @@ def fix_id(document):
 def get_ai_response(question: str, context: str = "", chat_history: list = None):
     """Generate AI response for doubt solving with conversation context."""
     try:
-        # Try to import Vertex SDK lazily; return None if unavailable
-        try:
-            import vertexai
-            from vertexai.generative_models import GenerativeModel
-        except Exception:
+        # Check if Gemini API is available
+        if genai is None or not Config.GEMINI_API_KEY:
             return None
 
-        # Set up credentials
-        project_id = Config.GOOGLE_CLOUD_PROJECT
-        location = Config.GOOGLE_CLOUD_LOCATION
-        credentials_base64 = Config.VERTEX_DEFAULT_CREDENTIALS
-
-        # Convert base64 to credentials
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(base64.b64decode(credentials_base64))
-        )
-
-        vertexai.init(project=project_id, location=location,
-                      credentials=credentials)
-        model_name = Config.VERTEX_MODEL_NAME
-        model = GenerativeModel(model_name=model_name)
+        # Configure Gemini API
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
 
         # Build comprehensive prompt with conversation context
         base_context = ""

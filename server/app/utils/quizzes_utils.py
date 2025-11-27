@@ -3,12 +3,10 @@
 
 import json
 import os
-import base64
-import tempfile
 try:
-    from google.oauth2 import service_account
+    import google.generativeai as genai
 except Exception:
-    service_account = None
+    genai = None
 from app import Config
 
 
@@ -23,27 +21,13 @@ def create_quiz(topic: str, difficulty: str = "medium", num_questions: int = 10)
     try:
         print("🤖 Attempting AI generation...")
 
-        # Lazy import Vertex SDK
-        try:
-            import vertexai
-            from vertexai.generative_models import GenerativeModel
-        except Exception:
-            raise RuntimeError("Vertex SDK not available")
+        # Check if Gemini is available
+        if genai is None or not Config.GEMINI_API_KEY:
+            raise RuntimeError("Gemini SDK not available or API key not configured")
 
-        # Set up credentials
-        project_id = Config.GOOGLE_CLOUD_PROJECT
-        location = Config.GOOGLE_CLOUD_LOCATION
-        credentials_base64 = Config.VERTEX_DEFAULT_CREDENTIALS
-
-        # Convert base64 to credentials
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(base64.b64decode(credentials_base64))
-        )
-
-        vertexai.init(project=project_id, location=location, credentials=credentials)
-
-        model_name = Config.VERTEX_MODEL_NAME
-        model = GenerativeModel(model_name=model_name)
+        # Configure Gemini API
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
 
         prompt = f"""Generate a quiz about "{topic}" with {num_questions} multiple choice questions.
 Difficulty: {difficulty}

@@ -1,27 +1,21 @@
-"""Vertex AI helper functions for Edvanta.
+"""Gemini AI helper functions for Edvanta.
 
 Provides functionality for:
 - Conversational AI for tutoring
 - Text summarization
 - Image generation
 - Voice chat history management
+
+Now using Google Gemini API instead of Vertex AI for simpler authentication and better reliability.
 """
 
 import json
 import os
-import traceback
-vertexai = None
-GenerativeModel = None
-Part = None
-GenerationConfig = None
-HarmCategory = None
-HarmBlockThreshold = None
-from app.config import Config
 try:
-    from google.oauth2 import service_account
-except Exception:  # pragma: no cover - optional dependency
-    service_account = None
-import base64
+    import google.generativeai as genai
+except Exception:
+    genai = None
+from app.config import Config
 from pymongo import MongoClient
 from datetime import datetime
 
@@ -552,35 +546,26 @@ This might be due to a temporary issue with the AI service. Here's what you can 
 
 I'm here to help with your {subject} questions when the service is working properly again."""
 
-def init_vertex_ai():
-    """Initialize the Vertex AI client."""
+def init_gemini_ai():
+    """Initialize the Gemini AI client using API key."""
     try:
-        # Lazy import Vertex SDK and relevant classes
-        try:
-            import vertexai
-            from vertexai.generative_models import GenerativeModel, Part
-            from vertexai.preview.generative_models import GenerationConfig, HarmCategory, HarmBlockThreshold
-        except Exception:
+        # Check if Gemini is available
+        if genai is None:
             return False
-
-        # Get credentials from environment or config
-        project_id = Config.GOOGLE_CLOUD_PROJECT
-        location = Config.GOOGLE_CLOUD_LOCATION
-        credentials_base64 = Config.VERTEX_DEFAULT_CREDENTIALS
-
-        # Convert base64 to credentials
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(base64.b64decode(credentials_base64))
-        )
-
-        vertexai.init(project=project_id, location=location, credentials=credentials)
+            
+        # Check if API key is configured
+        if not Config.GEMINI_API_KEY:
+            return False
+            
+        # Configure Gemini API
+        genai.configure(api_key=Config.GEMINI_API_KEY)
         return True
     except Exception:
         return False
 
 
-def get_vertex_response(prompt, context=None):
-    """Generate a response using Vertex AI optimized for voice interaction.
+def get_gemini_response(prompt, context=None):
+    """Generate a response using Gemini AI optimized for voice interaction.
     
     Args:
         prompt (str): The user's input text
@@ -589,17 +574,13 @@ def get_vertex_response(prompt, context=None):
     Returns:
         str: The AI-generated response optimized for voice playback
     """
-    # Try to lazy-initialize Vertex AI
-    if not init_vertex_ai():
-        return _get_fallback_response(prompt, context, error="Vertex AI SDK not available")
+    # Try to initialize Gemini AI
+    if not init_gemini_ai():
+        return _get_fallback_response(prompt, context, error="Gemini AI SDK not available or API key not configured")
 
-    # Default model to use - Gemini 2.5 Flash
-    model_name = Config.VERTEX_MODEL_NAME
     try:
-        from vertexai.generative_models import GenerativeModel
-        from vertexai.preview.generative_models import GenerationConfig, HarmCategory, HarmBlockThreshold
-
-        model = GenerativeModel(model_name)
+        # Create model instance
+        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
         
         # Check if this is a voice interaction
         is_voice_input = context.get('is_voice_input', False) if context else False
@@ -623,30 +604,22 @@ def get_vertex_response(prompt, context=None):
         # Include conversation history in the prompt if available
         if conversation_history:
             # Combine system instruction, conversation history, and current prompt
-            full_prompt = [system_instruction, conversation_history, prompt]
+            full_prompt = f"{system_instruction}\n\n{conversation_history}\n\nUser: {prompt}"
         else:
-            full_prompt = [system_instruction, prompt]
+            full_prompt = f"{system_instruction}\n\nUser: {prompt}"
         
-        # Configure safety settings and generation config
-        safety_settings = {
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        # Configure generation parameters
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 600 if is_voice_input else 1024,
         }
-
-        generation_config = GenerationConfig(
-            temperature=0.7,
-            top_p=0.95,
-            top_k=40,
-            max_output_tokens=600 if is_voice_input else 1024,
-        )
         
         # Generate the response
         response = model.generate_content(
             full_prompt,
-            generation_config=generation_config,
-            safety_settings=safety_settings,
+            generation_config=generation_config
         )
         
         response_text = response.text.strip()
@@ -757,14 +730,13 @@ def _build_system_instruction(context):
 
 
 def summarize_text(text: str):
-    """Return structured summary of input text using Vertex AI."""
-    # Initialize Vertex AI
-    if not init_vertex_ai():
-        raise RuntimeError("Vertex SDK not available")
+    """Return structured summary of input text using Gemini AI."""
+    # Initialize Gemini AI
+    if not init_gemini_ai():
+        raise RuntimeError("Gemini SDK not available or API key not configured")
 
     try:
-        from vertexai.generative_models import GenerativeModel
-        model = GenerativeModel("gemini-pro")
+        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or "gemini-2.5-flash")
         prompt = f"Please summarize the following text concisely, highlighting the key points:\n\n{text}"
         response = model.generate_content(prompt)
         return response.text
@@ -773,25 +745,20 @@ def summarize_text(text: str):
 
 
 def generate_images(prompts):
-    """Generate images based on prompts using Vertex AI's image generation capabilities."""
-    # Initialize Vertex AI
-    if not init_vertex_ai():
-        raise RuntimeError("Vertex SDK not available")
+    """Generate images based on prompts using Gemini AI's image generation capabilities.
+    
+    Note: Currently returns a placeholder as Gemini API doesn't support image generation via API.
+    Consider using DALL-E or other image generation services.
+    """
+    raise NotImplementedError("Image generation is not supported by Gemini API. Please use DALL-E or other image generation services.")
 
-    try:
-        from vertexai.generative_models import GenerativeModel
-        model = GenerativeModel("imagegeneration@002")
-        results = []
-        for prompt in prompts:
-            response = model.generate_content(prompt)
-            if response.parts:
-                for part in response.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data.mime_type.startswith('image/'):
-                        results.append({
-                            'prompt': prompt,
-                            'mime_type': part.inline_data.mime_type,
-                            'data': part.inline_data.data
-                        })
-        return results
-    except Exception:
-        raise
+
+# Backward compatibility aliases (for existing code that uses vertex naming)
+def init_vertex_ai():
+    """Backward compatibility alias for init_gemini_ai."""
+    return init_gemini_ai()
+
+
+def get_vertex_response(prompt, context=None):
+    """Backward compatibility alias for get_gemini_response."""
+    return get_gemini_response(prompt, context)
