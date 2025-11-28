@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Button } from './button';
 import { X, Eye, Monitor, Clock, Zap } from 'lucide-react';
 
+// Configuration: Reminder interval in minutes
+const REMINDER_INTERVAL_MINUTES = 10;
+
 const SCREEN_FATIGUE_TIPS = [
     {
         title: "Follow the 20-20-20 Rule",
@@ -60,24 +63,25 @@ export function ScreenFatigueReminder() {
     const [isTransitioning, setIsTransitioning] = useState(false);
 
     useEffect(() => {
-        // Check if user has seen a reminder recently (within last 6 minutes)
+        // Check if user has seen a reminder recently
         const lastReminderTime = localStorage.getItem('screenFatigueLastShown');
         const now = Date.now();
+        const reminderIntervalMs = REMINDER_INTERVAL_MINUTES * 60 * 1000;
 
         if (lastReminderTime) {
             const timeSinceLastReminder = now - parseInt(lastReminderTime);
-            // If less than 6 minutes have passed, set a shorter timer
-            if (timeSinceLastReminder < 6 * 60 * 1000) {
-                const remainingTime = (7 * 60 * 1000) - timeSinceLastReminder;
+            // If less than the interval has passed, set a timer for remaining time
+            if (timeSinceLastReminder < reminderIntervalMs) {
+                const remainingTime = reminderIntervalMs - timeSinceLastReminder;
                 setTimeout(() => showReminder(), remainingTime);
                 return;
             }
         }
 
-        // Set 7-minute timer
+        // Set timer for configured interval
         const timer = setTimeout(() => {
             showReminder();
-        }, 7 * 60 * 1000); // 7 minutes
+        }, reminderIntervalMs);
 
         return () => clearTimeout(timer);
     }, []);
@@ -113,10 +117,10 @@ export function ScreenFatigueReminder() {
     const handleClose = () => {
         setIsVisible(false);
 
-        // Set next reminder for 7 minutes from now
+        // Set next reminder for configured interval
         setTimeout(() => {
             showReminder();
-        }, 7 * 60 * 1000);
+        }, REMINDER_INTERVAL_MINUTES * 60 * 1000);
     };
 
     const handleTakeBreak = () => {
@@ -127,10 +131,10 @@ export function ScreenFatigueReminder() {
             alert("Great! Take a 5-10 minute break. Walk around, hydrate, and rest your eyes. 👀✨");
         }, 100);
 
-        // Set next reminder for 7 minutes from now
+        // Set next reminder for configured interval
         setTimeout(() => {
             showReminder();
-        }, 7 * 60 * 1000);
+        }, REMINDER_INTERVAL_MINUTES * 60 * 1000);
     };
 
     const handleNextTip = () => {
