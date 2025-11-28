@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Progress } from '../components/ui/progress'
 import { useAuth } from '../hooks/useAuth'
+import { useOfflineSync } from '../hooks/useOfflineSync'
+import { useOfflineUserStats, useOfflineDashboard } from '../hooks/useOfflineStorage'
+import { useOnlineStatus } from '../hooks/usePWA'
 import { Link, useNavigate } from 'react-router-dom'
-import backEndURL from '../hooks/helper'  // Import the backend URL helper
+import { edvantaAPI } from '../lib/api'
 import {
   Brain,
   Palette,
@@ -22,191 +25,526 @@ import {
   Loader2,
   Target,
   Star,
-  Plus
+  Plus,
+  Wifi,
+  WifiOff,
+  BarChart3,
+  Users,
+  Calendar,
+  Sparkles
 } from 'lucide-react'
 
-const quickActions = [
+// Learning tools configuration
+const learningTools = [
   {
     icon: Palette,
-    title: 'Generate Visual Lesson',
-    description: 'Create animated content from your notes',
+    title: 'Visual Generator',
+    description: 'Create educational slideshows from text, PDF, or audio',
     href: '/tools/visual-generator',
-    color: 'bg-pink-100 text-pink-700'
+    color: 'bg-pink-100 text-pink-700',
+    category: 'Content Creation'
   },
   {
     icon: Brain,
-    title: 'Take a Quiz',
-    description: 'Test your knowledge with AI quizzes',
+    title: 'AI Quizzes',
+    description: 'Generate personalized quizzes with instant feedback',
     href: '/tools/quizzes',
-    color: 'bg-green-100 text-green-700'
+    color: 'bg-green-100 text-green-700',
+    category: 'Assessment'
   },
   {
     icon: MessageSquare,
-    title: 'Ask Questions',
-    description: 'Get help from our AI tutor',
+    title: 'Doubt Solver',
+    description: 'Get instant answers from AI-powered chatbot',
     href: '/tools/doubt-solving',
-    color: 'bg-blue-100 text-blue-700'
+    color: 'bg-blue-100 text-blue-700',
+    category: 'Q&A'
+  },
+  {
+    icon: Mic,
+    title: 'Voice Tutor',
+    description: 'Interactive voice-based learning sessions',
+    href: '/tools/conversational-tutor',
+    color: 'bg-purple-100 text-purple-700',
+    category: 'Tutoring'
   },
   {
     icon: MapPin,
-    title: 'Voice Tutor',
-    description: 'Create your learning roadmap',
-    href: '/tools/conversational-tutor',
-    color: 'bg-purple-100 text-purple-700'
-  },
-  {
-    icon: Award,
-    title: 'Home Page',
-    description: 'Explore all features',
-    href: '/',
-    color: 'bg-orange-100 text-orange-700'
+    title: 'Learning Roadmaps',
+    description: 'AI-generated personalized learning paths',
+    href: '/tools/roadmap',
+    color: 'bg-indigo-100 text-indigo-700',
+    category: 'Planning'
   },
   {
     icon: FileText,
     title: 'Resume Builder',
-    description: 'Build your resume with AI',
+    description: 'Build and optimize resumes with AI analysis',
     href: '/tools/resume-builder',
-    color: 'bg-yellow-100 text-yellow-700'
-  },
+    color: 'bg-yellow-100 text-yellow-700',
+    category: 'Career'
+  }
 ]
 
-const recentActivities = [
+// Recent activities mock data (will be replaced with real API data)
+const getRecentActivities = (userStats) => [
   {
     type: 'quiz',
-    title: 'JavaScript Fundamentals Quiz',
-    score: '85%',
+    title: 'Latest Quiz Attempt',
+    detail: `${userStats?.quizzesTaken || 0} quizzes completed`,
     time: '2 hours ago',
-    icon: Brain
+    icon: Brain,
+    color: 'text-green-600'
   },
   {
-    type: 'lesson',
-    title: 'React Components Visual Guide',
-    status: 'Generated',
+    type: 'visual',
+    title: 'Visual Content Generated',
+    detail: 'Learning material created',
     time: '1 day ago',
-    icon: Palette
+    icon: Palette,
+    color: 'text-pink-600'
   },
   {
     type: 'chat',
-    title: 'Asked about API Integration',
-    status: 'Resolved',
+    title: 'AI Tutor Session',
+    detail: 'Questions answered',
     time: '2 days ago',
-    icon: MessageSquare
+    icon: MessageSquare,
+    color: 'text-blue-600'
+  },
+  {
+    type: 'roadmap',
+    title: 'Roadmap Progress',
+    detail: `${userStats?.activeRoadmaps || 0} active paths`,
+    time: '3 days ago',
+    icon: MapPin,
+    color: 'text-indigo-600'
   }
 ]
 
-// Function to format learning time with points for minutes
+// Format learning time utility
 const formatLearningTime = (totalMinutes) => {
-  if (!totalMinutes || totalMinutes === 0) {
-    return "0m";
-  }
-
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours === 0) {
-    return `${minutes}m`; // Show only minutes if less than 1 hour
-  } else if (minutes === 0) {
-    return `${hours}h`; // Show only hours if no remaining minutes
-  } else {
-    return `${hours}.${minutes}h`; // Show hours with decimal points for minutes
-  }
-};
-
-// Alternative format showing both hours and minutes separately
-const formatLearningTimeDetailed = (totalMinutes) => {
-  if (!totalMinutes || totalMinutes === 0) {
-    return "0m";
-  }
-
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours === 0) {
-    return `${minutes}m`;
-  } else if (minutes === 0) {
-    return `${hours}h`;
-  } else {
-    return `${hours}h ${minutes}m`;
-  }
-};
+  if (!totalMinutes || totalMinutes === 0) return "0m"
+  
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  
+  if (hours === 0) return `${minutes}m`
+  if (minutes === 0) return `${hours}h`
+  return `${hours}h ${minutes}m`
+}
 
 export function Dashboard() {
-  const { user, userProfile } = useAuth();
-  const navigate = useNavigate();
+  const { user, userProfile } = useAuth()
+  const navigate = useNavigate()
+  const isOnline = useOnlineStatus()
+  const { syncUserStats, syncDashboard } = useOfflineSync()
+  
+  // Offline data hooks
+  const userStatsOffline = useOfflineUserStats()
+  const dashboardOffline = useOfflineDashboard()
 
   // State management
-  const [savedRoadmaps, setSavedRoadmaps] = useState([]);
-  const [isLoadingRoadmaps, setIsLoadingRoadmaps] = useState(false);
-
-  // Add quiz history state
-  const [quizHistory, setQuizHistory] = useState([]);
   const [userStats, setUserStats] = useState({
-    totalLearningHours: 0,
+    totalLearningMinutes: 0,
     quizzesTaken: 0,
     activeRoadmaps: 0,
     skillsLearning: 0
-  });
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  })
+  const [recentActivity, setRecentActivity] = useState([])
+  const [roadmaps, setRoadmaps] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [sessionStartTime] = useState(Date.now())
 
-  // Session tracking
-  const [sessionStartTime] = useState(Date.now());
+  // Performance tracking
+  const [lastSyncTime, setLastSyncTime] = useState(null)
+  const [syncStatus, setSyncStatus] = useState('idle')
 
-  // Quick Actions Carousel State - ADD THESE MISSING VARIABLES
-  const [quickIndex, setQuickIndex] = useState(0);
-  const [isHovered, setIsHovered] = useState(false);
-
-  // Mobile detection - ADD THIS
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Quick actions for mobile (first 4 actions) - ADD THIS
-  const mobileQuickActions = quickActions.slice(0, 4);
-
-  // Carousel logic - ADD THIS
-  const quickLength = quickActions.length;
-  const visibleCards = 4;
-  const intervalRef = useRef();
-
-  // Calculate current cards to show - ADD THIS
-  const currentCards = quickActions.slice(quickIndex, quickIndex + visibleCards);
-  const cardsToShow = currentCards.length < visibleCards
-    ? [...currentCards, ...quickActions.slice(0, visibleCards - currentCards.length)]
-    : currentCards;
-
-  // Mobile detection effect - ADD THIS
+  // Load offline data on component mount
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.matchMedia("(max-width: 640px)").matches);
-    };
-
-    checkMobile();
-    const mediaQuery = window.matchMedia("(max-width: 640px)");
-    mediaQuery.addEventListener('change', checkMobile);
-
-    return () => mediaQuery.removeEventListener('change', checkMobile);
-  }, []);
-
-  // Auto-slide logic for carousel - ADD THIS
-  useEffect(() => {
-    if (!isHovered && !isMobile) {
-      intervalRef.current = setInterval(() => {
-        setQuickIndex((prev) => (prev + visibleCards) % quickLength);
-      }, 6000);
+    const loadOfflineData = () => {
+      if (userStatsOffline.isAvailable) {
+        const offlineStats = userStatsOffline.getData()
+        setUserStats(offlineStats)
+      }
+      
+      if (dashboardOffline.isAvailable) {
+        const offlineDashboard = dashboardOffline.getData()
+        if (offlineDashboard.roadmaps) setRoadmaps(offlineDashboard.roadmaps)
+        if (offlineDashboard.recentActivity) setRecentActivity(offlineDashboard.recentActivity)
+      }
+      
+      setLoading(false)
     }
-    return () => clearInterval(intervalRef.current);
-  }, [quickLength, isHovered, isMobile]);
 
-  // Manual navigation functions - ADD THESE
-  const handlePrev = () => {
-    setQuickIndex((prev) =>
-      prev - visibleCards < 0
-        ? quickLength - (quickLength % visibleCards || visibleCards)
-        : prev - visibleCards
-    );
-  };
+    loadOfflineData()
+  }, [userStatsOffline.isAvailable, dashboardOffline.isAvailable])
 
-  const handleNext = () => {
-    setQuickIndex((prev) => (prev + visibleCards) % quickLength);
-  };
+  // Fetch online data when available
+  const fetchOnlineData = useCallback(async () => {
+    if (!user?.email || !isOnline) return
+
+    try {
+      setSyncStatus('syncing')
+      
+      // Fetch user stats
+      const statsResponse = await edvantaAPI.getUserStats(user.email)
+      if (statsResponse.success) {
+        const freshStats = {
+          totalLearningMinutes: statsResponse.data.total_learning_minutes || 0,
+          quizzesTaken: statsResponse.data.quizzes_taken || 0,
+          activeRoadmaps: statsResponse.data.active_roadmaps || 0,
+          skillsLearning: statsResponse.data.skills_learning || 0
+        }
+        
+        setUserStats(freshStats)
+        await syncUserStats(freshStats)
+      }
+
+      // Fetch recent activities (placeholder - implement when API ready)
+      const activities = getRecentActivities(userStats)
+      setRecentActivity(activities)
+
+      // Update dashboard offline data
+      await syncDashboard({
+        roadmaps,
+        recentActivity: activities,
+        lastSync: new Date().toISOString()
+      })
+
+      setLastSyncTime(new Date())
+      setSyncStatus('success')
+      setError(null)
+      
+    } catch (err) {
+      console.error('Error fetching online data:', err)
+      setError(err.message)
+      setSyncStatus('error')
+    }
+  }, [user, isOnline, syncUserStats, syncDashboard])
+
+  // Fetch data on user change or online status change
+  useEffect(() => {
+    if (user?.email && isOnline) {
+      fetchOnlineData()
+    }
+  }, [user, isOnline, fetchOnlineData])
+
+  // Save session time on unmount
+  useEffect(() => {
+    return () => {
+      if (user?.email) {
+        const sessionDuration = Math.round((Date.now() - sessionStartTime) / (1000 * 60))
+        if (sessionDuration >= 1) {
+          // Save session data - implement when API ready
+        }
+      }
+    }
+  }, [user, sessionStartTime])
+
+  // Generate dynamic stats
+  const dynamicStats = [
+    {
+      label: 'Learning Time',
+      value: formatLearningTime(userStats.totalLearningMinutes),
+      icon: Clock,
+      change: userStats.totalLearningMinutes > 0 
+        ? `${userStats.totalLearningMinutes} minutes total`
+        : 'Start your journey',
+      color: 'text-blue-600',
+      trend: '+12%'
+    },
+    {
+      label: 'Quizzes Taken',
+      value: userStats.quizzesTaken,
+      icon: Brain,
+      change: userStats.quizzesTaken > 0 
+        ? 'Great progress!'
+        : 'Take your first quiz',
+      color: 'text-green-600',
+      trend: '+8%'
+    },
+    {
+      label: 'Active Roadmaps',
+      value: userStats.activeRoadmaps,
+      icon: MapPin,
+      change: userStats.activeRoadmaps > 0 
+        ? `${userStats.skillsLearning} skills learning`
+        : 'Create a roadmap',
+      color: 'text-purple-600',
+      trend: '+5%'
+    },
+    {
+      label: 'Skills Learning',
+      value: userStats.skillsLearning,
+      icon: Award,
+      change: userStats.skillsLearning > 0 
+        ? 'Keep it up!'
+        : 'Start learning',
+      color: 'text-orange-600',
+      trend: '+15%'
+    }
+  ]
+
+  if (loading && !userStatsOffline.isAvailable) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600" />
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 p-4 max-w-7xl mx-auto">
+      {/* Header with status indicator */}
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-xl p-6 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1">
+              <h1 className="text-2xl lg:text-3xl font-bold mb-2">
+                Welcome back, {userProfile?.name || user?.displayName || 'Learner'}! 👋
+              </h1>
+              <p className="text-blue-100 text-sm lg:text-base">
+                Ready to continue your learning journey? Let's make today productive!
+              </p>
+            </div>
+            
+            {/* Online status indicator */}
+            <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-2">
+              {isOnline ? (
+                <>
+                  <Wifi className="h-4 w-4 text-green-300" />
+                  <span className="text-sm font-medium">Online</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-4 w-4 text-orange-300" />
+                  <span className="text-sm font-medium">Offline</span>
+                </>
+              )}
+            </div>
+          </div>
+          
+          {/* Sync status */}
+          {lastSyncTime && (
+            <div className="flex items-center gap-2 text-xs text-blue-200">
+              <div className={`w-2 h-2 rounded-full ${
+                syncStatus === 'syncing' ? 'bg-yellow-400 animate-pulse' :
+                syncStatus === 'success' ? 'bg-green-400' : 'bg-red-400'
+              }`} />
+              <span>
+                {syncStatus === 'syncing' ? 'Syncing...' : 
+                 syncStatus === 'success' ? `Last synced: ${lastSyncTime.toLocaleTimeString()}` : 
+                 'Sync failed'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        {dynamicStats.map((stat, index) => (
+          <Card key={index} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                {stat.label}
+              </CardTitle>
+              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="text-2xl font-bold text-gray-900 mb-1">
+                {stat.value}
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-600 truncate flex-1">
+                  {stat.change}
+                </p>
+                <span className="text-xs text-green-600 font-medium ml-2">
+                  {stat.trend}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        
+        {/* Learning Tools */}
+        <div className="xl:col-span-2">
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                Learning Tools
+              </CardTitle>
+              <CardDescription>
+                Powerful AI-driven tools to accelerate your learning
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {learningTools.map((tool, index) => (
+                  <Link
+                    key={index}
+                    to={tool.href}
+                    className="group p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200 bg-white"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-lg ${tool.color} flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
+                        <tool.icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 mb-1 text-sm">
+                          {tool.title}
+                        </h3>
+                        <p className="text-xs text-gray-600 leading-relaxed mb-2">
+                          {tool.description}
+                        </p>
+                        <Badge variant="secondary" className="text-xs">
+                          {tool.category}
+                        </Badge>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          
+          {/* Continue Learning */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BookOpen className="h-5 w-5 text-blue-600" />
+                Continue Learning
+              </CardTitle>
+              <CardDescription>
+                {roadmaps.length > 0 ? "Pick up where you left off" : "Start your journey"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!user ? (
+                <div className="text-center py-6">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <BookOpen className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h3 className="font-medium text-gray-900 mb-2">Sign in to continue</h3>
+                  <p className="text-sm text-gray-600">
+                    Access your personalized learning content
+                  </p>
+                </div>
+              ) : roadmaps.length > 0 ? (
+                <div className="space-y-4">
+                  {roadmaps.slice(0, 2).map((roadmap, index) => (
+                    <div key={index} className="p-3 border border-blue-100 rounded-lg bg-blue-50/30">
+                      <h4 className="font-medium text-gray-900 mb-1 text-sm">
+                        {roadmap.title}
+                      </h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-gray-600">Progress</span>
+                        <span className="text-xs font-medium text-blue-600">65%</span>
+                      </div>
+                      <Progress value={65} className="mb-3 h-2" />
+                      <Button size="sm" className="w-full" asChild>
+                        <Link to="/tools/roadmap">
+                          Continue
+                          <ArrowRight className="h-3 w-3 ml-2" />
+                        </Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Plus className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-medium text-gray-900 mb-2">Create your first roadmap</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Get a personalized learning path
+                  </p>
+                  <Button size="sm" asChild>
+                    <Link to="/tools/roadmap">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Roadmap
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="h-5 w-5 text-green-600" />
+                Recent Activity
+              </CardTitle>
+              <CardDescription>
+                Your latest learning sessions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {recentActivity.length > 0 ? (
+                  recentActivity.slice(0, 4).map((activity, index) => (
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                        <activity.icon className={`h-4 w-4 ${activity.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 text-sm">
+                          {activity.title}
+                        </h4>
+                        <p className="text-xs text-gray-600">
+                          {activity.detail} • {activity.time}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4">
+                    <BarChart3 className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">
+                      No recent activity
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Error handling */}
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-700">
+              <div className="w-2 h-2 bg-red-500 rounded-full" />
+              <p className="text-sm">
+                {error}. Using offline data.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
 
   // Fetch user data when component mounts or user changes
   useEffect(() => {
@@ -906,7 +1244,7 @@ export function Dashboard() {
       </div>
     </div>
   )
-}
+}  
 
 // Add this CSS to your global styles or inside a <style> tag if needed:
 /*
