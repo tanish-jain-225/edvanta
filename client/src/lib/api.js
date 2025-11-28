@@ -276,16 +276,33 @@ export const edvantaAPI = {
   },
 
   // Visual generation
-  generateVisualFromText(text, style = 'educational', duration = 30) {
-    return api.post('/api/visual/job/text', { text, style, duration });
+  generateVisualFromText(text, style = 'educational', duration = 30, userEmail = null) {
+    return api.post('/api/visual/job/text', { 
+      text, 
+      style, 
+      duration,
+      user_email: userEmail,
+      label: text.slice(0, 40)
+    });
   },
 
-  generateVisualFromPDF(pdfData, style = 'educational', duration = 60) {
-    return api.post('/api/visual/job/pdf', { pdf_data: pdfData, style, duration });
+  generateVisualFromPDF(pdfUrl, style = 'educational', duration = 60, userEmail = null, label = 'PDF Upload') {
+    return api.post('/api/visual/job/pdf', { 
+      pdf_url: pdfUrl, 
+      style, 
+      duration,
+      user_email: userEmail,
+      label
+    });
   },
 
-  generateVisualFromAudio(audioData, style = 'educational') {
-    return api.post('/api/visual/job/audio', { audio_data: audioData, style });
+  generateVisualFromAudio(audioUrl, style = 'educational', userEmail = null, label = 'Audio Upload') {
+    return api.post('/api/visual/job/audio', { 
+      audio_url: audioUrl, 
+      style,
+      user_email: userEmail,
+      label
+    });
   },
 
   getVisualJobStatus(jobId) {

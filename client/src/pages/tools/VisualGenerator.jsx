@@ -97,8 +97,32 @@ export function VisualGenerator() {
     return 0; // input
   })();
 
+  // Function to cancel active generation
+  const cancelGeneration = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    
+    localStorage.removeItem("visual_active_job");
+    localStorage.removeItem("visual_active_job_progress");
+    
+    setActiveJob(null);
+    setLoading(false);
+    setProgress(0);
+    setError('');
+  };
+
+  // Function to cancel active generation
+
   const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  // Validate Cloudinary configuration
+  const isCloudinaryConfigured = CLOUD_NAME && UPLOAD_PRESET;
+  if (!isCloudinaryConfigured) {
+    console.warn('⚠️ Cloudinary not configured properly. File uploads may fail.');
+  }
 
   async function postJSON(path, body) {
     setError("");
@@ -108,11 +132,26 @@ export function VisualGenerator() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Request failed");
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        let errorMessage;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.message || `HTTP ${res.status}: ${res.statusText}`;
+        } catch {
+          errorMessage = errorText || `HTTP ${res.status}: ${res.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await res.json();
       return data;
     } catch (e) {
-      setError(e.message);
+      const userFriendlyMessage = e.message.includes('Failed to fetch') 
+        ? 'Network error. Please check your connection and try again.'
+        : e.message;
+      setError(userFriendlyMessage);
       throw e;
     }
   }
@@ -245,9 +284,20 @@ export function VisualGenerator() {
   };
 
   async function uploadToCloudinary(file) {
+    if (!isCloudinaryConfigured) {
+      throw new Error('Cloudinary is not configured. Please check environment variables.');
+    }
+    
+    // Validate file size (max 100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      throw new Error(`File size (${Math.round(file.size / (1024 * 1024))}MB) exceeds the maximum limit of 100MB.`);
+    }
+    
     const form = new FormData();
     form.append("file", file);
     form.append("upload_preset", UPLOAD_PRESET);
+    
     const resourceType = file.type.startsWith("audio")
       ? "video"
       : file.type.startsWith("video")
@@ -255,27 +305,60 @@ export function VisualGenerator() {
         : file.type === "application/pdf"
           ? "raw"
           : "image";
+          
     const endpoint = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
-    const res = await fetch(endpoint, { method: "POST", body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Upload failed");
-    return data.secure_url;
+    
+    try {
+      const res = await fetch(endpoint, { method: "POST", body: form });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error?.message || data.message || `Upload failed: ${res.status}`);
+      }
+      
+      if (!data.secure_url) {
+        throw new Error('Upload completed but no URL received from Cloudinary.');
+      }
+      
+      return data.secure_url;
+    } catch (error) {
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error during upload. Please check your connection and try again.');
+      }
+      throw error;
+    }
   }
 
   const handleTextSubmit = async () => {
-    if (!content.trim()) return;
+    if (!content.trim()) {
+      setError('Please enter some text to generate a video.');
+      return;
+    }
+    
+    if (!user?.email) {
+      setError('Please sign in to use video generation.');
+      return;
+    }
+    
     setLoading(true);
     setProgress(5);
+    setError('');
     localStorage.setItem("visual_active_job_progress", "5");
+    
     try {
       const res = await postJSON("/api/visual/job/text", {
         text: content,
-        user_email: user?.email,
+        user_email: user.email,
         label: content.slice(0, 40),
       });
+      
+      if (!res.job_id) {
+        throw new Error('Invalid response from server: missing job ID.');
+      }
+      
       const job = {
         job_id: res.job_id,
-        status: res.status,
+        status: res.status || 'queued',
         mode: "text",
         label: content.slice(0, 40),
         created_at: Date.now(),
@@ -285,58 +368,112 @@ export function VisualGenerator() {
     } catch (e) {
       setProgress(0);
       setLoading(false);
+      // Error is already set in postJSON
     }
   };
   const handlePdfSubmit = async () => {
-    if (!pdfFile) return;
+    if (!pdfFile) {
+      setError('Please select a PDF file.');
+      return;
+    }
+    
+    if (!user?.email) {
+      setError('Please sign in to use video generation.');
+      return;
+    }
+    
+    // Validate PDF file
+    if (pdfFile.type !== 'application/pdf') {
+      setError('Please select a valid PDF file.');
+      return;
+    }
+    
     setLoading(true);
     setProgress(5);
+    setError('');
     localStorage.setItem("visual_active_job_progress", "5");
+    
     try {
+      setProgress(10); // Show upload progress
       const pdfUrl = await uploadToCloudinary(pdfFile);
+      
+      setProgress(15); // Upload complete, starting processing
       const res = await postJSON("/api/visual/job/pdf", {
         pdf_url: pdfUrl,
-        user_email: user?.email,
+        user_email: user.email,
         label: pdfFile.name,
       });
+      
+      if (!res.job_id) {
+        throw new Error('Invalid response from server: missing job ID.');
+      }
+      
       const job = {
         job_id: res.job_id,
-        status: res.status,
+        status: res.status || 'queued',
         mode: "pdf",
         label: pdfFile.name,
         created_at: Date.now(),
       };
       setActiveJob(job);
       localStorage.setItem("visual_active_job", JSON.stringify(job));
-    } catch {
+    } catch (e) {
       setProgress(0);
       setLoading(false);
+      // Error is already set in uploadToCloudinary or postJSON
     }
   };
   const handleAudioSubmit = async () => {
-    if (!audioFile) return;
+    if (!audioFile) {
+      setError('Please select an audio file or record audio.');
+      return;
+    }
+    
+    if (!user?.email) {
+      setError('Please sign in to use video generation.');
+      return;
+    }
+    
+    // Validate audio file
+    const supportedTypes = ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/webm', 'audio/ogg'];
+    if (!audioFile.type.startsWith('audio/') && !supportedTypes.some(type => audioFile.type === type)) {
+      setError('Please select a valid audio file (MP3, WAV, M4A, WebM, or OGG).');
+      return;
+    }
+    
     setLoading(true);
     setProgress(5);
+    setError('');
     localStorage.setItem("visual_active_job_progress", "5");
+    
     try {
+      setProgress(10); // Show upload progress
       const audUrl = await uploadToCloudinary(audioFile);
+      
+      setProgress(15); // Upload complete, starting processing
       const res = await postJSON("/api/visual/job/audio", {
         audio_url: audUrl,
-        user_email: user?.email,
+        user_email: user.email,
         label: audioFile.name,
       });
+      
+      if (!res.job_id) {
+        throw new Error('Invalid response from server: missing job ID.');
+      }
+      
       const job = {
         job_id: res.job_id,
-        status: res.status,
+        status: res.status || 'queued',
         mode: "audio",
         label: audioFile.name,
         created_at: Date.now(),
       };
       setActiveJob(job);
       localStorage.setItem("visual_active_job", JSON.stringify(job));
-    } catch {
+    } catch (e) {
       setProgress(0);
       setLoading(false);
+      // Error is already set in uploadToCloudinary or postJSON
     }
   };
 
@@ -345,82 +482,138 @@ export function VisualGenerator() {
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
+    
     try {
       const storedJob = localStorage.getItem("visual_active_job");
       const storedProg = localStorage.getItem("visual_active_job_progress");
+      
       if (storedProg) {
         const val = parseInt(storedProg);
-        if (!isNaN(val)) setProgress(val);
+        if (!isNaN(val) && val >= 0 && val <= 100) {
+          setProgress(val);
+        }
       }
+      
       if (storedJob) {
-        const parsed = JSON.parse(storedJob);
-        setActiveJob(parsed);
-        setLoading(true); // indicate ongoing generation
-        // Immediately fetch status once for fast sync
-        fetch(`${backEndURL}/api/visual/job/${parsed.job_id}`)
-          .then((r) => (r.ok ? r.json() : Promise.reject()))
-          .then((js) => {
-            if (js.status === "completed") {
-              setProgress(100);
-              setVideoUrl(js.url);
-              setLoading(false);
-              saveVideoRecord({
-                sourceType: parsed.mode,
-                inputSample: parsed.label,
-                videoUrl: js.url,
+        try {
+          const parsed = JSON.parse(storedJob);
+          
+          // Validate job object
+          if (parsed.job_id && parsed.mode && parsed.label) {
+            setActiveJob(parsed);
+            setLoading(true);
+            
+            // Immediately fetch status for fast sync
+            fetch(`${backEndURL}/api/visual/job/${parsed.job_id}`)
+              .then((r) => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+              })
+              .then((js) => {
+                if (js.status === "completed") {
+                  if (js.url) {
+                    setProgress(100);
+                    setVideoUrl(js.url);
+                    setLoading(false);
+                    saveVideoRecord({
+                      sourceType: parsed.mode,
+                      inputSample: parsed.label,
+                      videoUrl: js.url,
+                    }).catch(console.warn);
+                  }
+                  localStorage.removeItem("visual_active_job");
+                  localStorage.removeItem("visual_active_job_progress");
+                  setActiveJob(null);
+                } else if (js.status === "failed") {
+                  setError(js.error || js.message || "Previous generation failed");
+                  setLoading(false);
+                  setProgress(0);
+                  localStorage.removeItem("visual_active_job");
+                  localStorage.removeItem("visual_active_job_progress");
+                  setActiveJob(null);
+                } else if (js.status === "running" || js.status === "queued") {
+                  // Job is still active, polling will handle it
+                  if (progress < 15) setProgress(15);
+                }
+              })
+              .catch((err) => {
+                console.warn('Failed to restore job status:', err);
+                setError('Unable to restore previous generation status. You may need to start over.');
+                setLoading(false);
+                setProgress(0);
               });
-              localStorage.removeItem("visual_active_job");
-              localStorage.removeItem("visual_active_job_progress");
-              setActiveJob(null);
-            } else if (js.status === "failed") {
-              setError(js.error || "Generation failed");
-              setLoading(false);
-              setProgress(0);
-              localStorage.removeItem("visual_active_job");
-              localStorage.removeItem("visual_active_job_progress");
-              setActiveJob(null);
-            } else if (js.status === "running") {
-              if (progress < 15) setProgress(15);
-            }
-          })
-          .catch(() => { });
+          } else {
+            // Invalid job object, clean up
+            localStorage.removeItem("visual_active_job");
+            localStorage.removeItem("visual_active_job_progress");
+          }
+        } catch (parseError) {
+          console.warn('Failed to parse stored job:', parseError);
+          localStorage.removeItem("visual_active_job");
+          localStorage.removeItem("visual_active_job_progress");
+        }
       }
-    } catch { }
+    } catch (storageError) {
+      console.warn('Failed to access localStorage:', storageError);
+    }
   }, []);
 
   useEffect(() => {
     if (!activeJob) return;
     if (pollingRef.current) return; // already polling
+    
+    let retryCount = 0;
+    const maxRetries = 3;
+    
     pollingRef.current = setInterval(async () => {
       try {
         const r = await fetch(
           `${backEndURL}/api/visual/job/${activeJob.job_id}`
         );
-        if (!r.ok) throw new Error("status");
+        
+        if (!r.ok) {
+          throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+        }
+        
         const js = await r.json();
+        retryCount = 0; // Reset retry count on successful response
+        
         if (js.status === "running") {
           setProgress((p) => {
-            const next = p < 85 ? p + 5 : p;
-            localStorage.setItem("visual_active_job_progress", String(next));
-            return next;
+            const next = p < 85 ? p + Math.random() * 8 + 2 : p; // More realistic progress
+            localStorage.setItem("visual_active_job_progress", String(Math.round(next)));
+            return Math.round(next);
           });
         } else if (js.status === "completed") {
           setProgress(100);
+          
+          if (!js.url) {
+            throw new Error('Video generation completed but no URL received.');
+          }
+          
           setVideoUrl(js.url);
           setLoading(false);
+          
           const meta = {
             sourceType: activeJob.mode,
             inputSample: activeJob.label,
             videoUrl: js.url,
           };
-          await saveVideoRecord(meta);
+          
+          try {
+            await saveVideoRecord(meta);
+          } catch (saveError) {
+            console.warn('Failed to save video record:', saveError);
+            // Don't fail the entire process if saving fails
+          }
+          
           localStorage.removeItem("visual_active_job");
           localStorage.removeItem("visual_active_job_progress");
           clearInterval(pollingRef.current);
           pollingRef.current = null;
           setActiveJob(null);
         } else if (js.status === "failed") {
-          setError(js.error || "Generation failed");
+          setError(js.error || js.message || "Video generation failed. Please try again.");
           setLoading(false);
           setProgress(0);
           localStorage.removeItem("visual_active_job");
@@ -430,9 +623,22 @@ export function VisualGenerator() {
           setActiveJob(null);
         }
       } catch (e) {
-        // ignore temporary errors
+        retryCount++;
+        console.warn(`Polling error (attempt ${retryCount}):`, e.message);
+        
+        if (retryCount >= maxRetries) {
+          setError('Lost connection to server. Please refresh the page and try again.');
+          setLoading(false);
+          setProgress(0);
+          localStorage.removeItem("visual_active_job");
+          localStorage.removeItem("visual_active_job_progress");
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          setActiveJob(null);
+        }
       }
     }, 5000);
+    
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
@@ -457,10 +663,43 @@ export function VisualGenerator() {
         <p className="text-sm text-gray-600">
           Convert Text / PDF / Audio (upload or record) into video.
         </p>
+        {!user && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm text-amber-800">
+                <strong>Sign in required:</strong> Please sign in to use video generation features.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
       {error && (
-        <div className="text-xs p-2 rounded bg-red-100 text-red-700 border border-red-200">
-          {error}
+        <div className="relative p-4 rounded-lg bg-red-50 text-red-800 border border-red-200 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start space-x-2">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setError('')}
+              className="flex-shrink-0 ml-4 text-red-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-red-50 rounded"
+            >
+              <span className="sr-only">Dismiss</span>
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
       <Card>
@@ -538,19 +777,42 @@ export function VisualGenerator() {
               <CardDescription>Paste or type your content.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <textarea
-                className="w-full h-48 p-3 border rounded"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Explain neural networks..."
-              />
+              <div className="relative">
+                <textarea
+                  className="w-full h-48 p-3 border rounded resize-none"
+                  value={content}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setContent(text);
+                    if (text.length > 10000) {
+                      setError('Text is too long. Please limit to 10,000 characters.');
+                    } else if (error.includes('Text is too long')) {
+                      setError('');
+                    }
+                  }}
+                  placeholder="Explain neural networks and their applications in modern AI..."
+                  maxLength={10000}
+                />
+                <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white px-1 rounded">
+                  {content.length}/10,000
+                </div>
+              </div>
               <Button
                 onClick={handleTextSubmit}
-                disabled={loading || !content.trim()}
+                disabled={loading || !content.trim() || content.length > 10000 || !user}
                 className="w-full"
               >
-                {loading ? "Processing..." : "Generate"}
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    Generate Video
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -566,29 +828,64 @@ export function VisualGenerator() {
             <CardContent className="space-y-3">
               <div className="border-2 border-dashed p-4 text-center rounded">
                 <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-xs text-gray-600 mb-2">Select a PDF</p>
+                <p className="text-xs text-gray-600 mb-2">Select a PDF (max 100MB)</p>
                 <input
                   id="pdf-file"
                   type="file"
                   accept="application/pdf"
                   className="hidden"
-                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    if (file) {
+                      // Validate file type
+                      if (file.type !== 'application/pdf') {
+                        setError('Please select a valid PDF file.');
+                        return;
+                      }
+                      // Check file size
+                      const maxSize = 100 * 1024 * 1024; // 100MB
+                      if (file.size > maxSize) {
+                        setError(`File size (${Math.round(file.size / (1024 * 1024))}MB) exceeds the maximum limit of 100MB.`);
+                        return;
+                      }
+                      setError(''); // Clear any previous errors
+                    }
+                    setPdfFile(file);
+                  }}
                 />
-                <Button asChild variant="outline" size="sm" className="w-full">
-                  <label htmlFor="pdf-file">Choose PDF</label>
+                <Button asChild variant="outline" size="sm" className="w-full" disabled={!isCloudinaryConfigured}>
+                  <label htmlFor="pdf-file">
+                    {!isCloudinaryConfigured ? 'Upload Unavailable' : 'Choose PDF'}
+                  </label>
                 </Button>
                 {pdfFile && (
-                  <p className="mt-2 text-[10px] text-blue-600">
-                    {pdfFile.name}
+                  <div className="mt-2 text-[10px] text-blue-600">
+                    <p className="font-medium">{pdfFile.name}</p>
+                    <p className="text-gray-500">{Math.round(pdfFile.size / (1024 * 1024) * 100) / 100} MB</p>
+                  </div>
+                )}
+                {!isCloudinaryConfigured && (
+                  <p className="mt-2 text-[10px] text-red-600">
+                    Cloudinary not configured
                   </p>
                 )}
               </div>
               <Button
                 onClick={handlePdfSubmit}
-                disabled={loading || !pdfFile}
+                disabled={loading || !pdfFile || !user || !isCloudinaryConfigured}
                 className="w-full"
               >
-                {loading ? "Uploading..." : "Process PDF"}
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    {progress <= 10 ? 'Uploading...' : 'Processing...'}
+                  </>
+                ) : (
+                  <>
+                    Generate from PDF
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -609,7 +906,7 @@ export function VisualGenerator() {
                     <div>
                       <p className="text-sm font-medium">Upload Audio</p>
                       <p className="text-[11px] text-gray-500">
-                        MP3 / WAV / M4A
+                        MP3 / WAV / M4A / WebM (max 100MB)
                       </p>
                     </div>
                   </div>
@@ -621,23 +918,47 @@ export function VisualGenerator() {
                       className="hidden"
                       onChange={(e) => {
                         const f = e.target.files?.[0] || null;
+                        if (f) {
+                          // Validate file size
+                          const maxSize = 100 * 1024 * 1024; // 100MB
+                          if (f.size > maxSize) {
+                            setError(`Audio file size (${Math.round(f.size / (1024 * 1024))}MB) exceeds the maximum limit of 100MB.`);
+                            return;
+                          }
+                          
+                          // Validate file type
+                          if (!f.type.startsWith('audio/')) {
+                            setError('Please select a valid audio file.');
+                            return;
+                          }
+                          
+                          setError(''); // Clear any previous errors
+                          setRecordedAudioUrl(""); // Clear recorded audio if file is selected
+                        }
                         setAudioFile(f);
-                        if (f) setRecordedAudioUrl("");
                       }}
                     />
                     <Button
                       asChild
                       variant="outline"
                       size="sm"
-                      disabled={isRecording}
+                      disabled={isRecording || !isCloudinaryConfigured}
                     >
-                      <label htmlFor="audio-file">Choose</label>
+                      <label htmlFor="audio-file">
+                        {!isCloudinaryConfigured ? 'Unavailable' : 'Choose'}
+                      </label>
                     </Button>
                   </div>
                 </div>
                 {audioFile && !recordedAudioUrl && (
-                  <p className="mt-2 text-[11px] text-blue-600">
-                    {audioFile.name}
+                  <div className="mt-2 text-[11px] text-blue-600">
+                    <p className="font-medium">{audioFile.name}</p>
+                    <p className="text-gray-500">{Math.round(audioFile.size / (1024 * 1024) * 100) / 100} MB</p>
+                  </div>
+                )}
+                {!isCloudinaryConfigured && (
+                  <p className="mt-2 text-[10px] text-red-600">
+                    Cloudinary not configured
                   </p>
                 )}
               </div>
@@ -710,14 +1031,25 @@ export function VisualGenerator() {
               </div>
               <Button
                 onClick={handleAudioSubmit}
-                disabled={loading || !audioFile}
+                disabled={loading || !audioFile || !user || !isCloudinaryConfigured}
                 className="w-full"
               >
-                {loading
-                  ? "Uploading..."
-                  : recordedAudioUrl
-                    ? "Process Recording"
-                    : "Process Audio"}
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    {progress <= 10 ? 'Uploading...' : 'Processing...'}
+                  </>
+                ) : recordedAudioUrl ? (
+                  <>
+                    Generate from Recording
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    Generate from Audio
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -776,62 +1108,102 @@ export function VisualGenerator() {
       )}
 
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <History className="h-5 w-5 text-blue-600" />
-          <h2 className="text-lg font-semibold">Video History</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold">Video History</h2>
+            {user && historyVideos.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {historyVideos.length} video{historyVideos.length !== 1 ? 's' : ''}
+              </Badge>
+            )}
+          </div>
+          {user && historyVideos.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="text-xs"
+            >
+              Refresh
+            </Button>
+          )}
         </div>
+        
         {!user && (
-          <p className="text-xs text-gray-500">Login to view history</p>
+          <div className="text-center py-8 bg-gray-50 rounded-lg">
+            <History className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-sm text-gray-600 mb-2">Sign in to view your video history</p>
+            <p className="text-xs text-gray-500">Generated videos will be saved to your account</p>
+          </div>
         )}
+        
         {user && historyVideos.length === 0 && (
-          <p className="text-xs text-gray-500">No videos yet.</p>
+          <div className="text-center py-8 bg-gray-50 rounded-lg">
+            <Sparkles className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-sm text-gray-600 mb-2">No videos generated yet</p>
+            <p className="text-xs text-gray-500">Your generated videos will appear here</p>
+          </div>
         )}
+        
         {user && historyVideos.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {historyVideos.map((v) => (
-              <div key={v.id} className="border rounded p-3 bg-white space-y-2">
-                <div className="aspect-video bg-black/80 rounded overflow-hidden">
+              <div key={v.id} className="border rounded-lg p-3 bg-white space-y-3 hover:shadow-md transition-shadow">
+                <div className="aspect-video bg-black/5 rounded overflow-hidden relative group">
                   <video
                     src={v.videoUrl}
                     className="w-full h-full object-cover"
                     muted
+                    preload="metadata"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextElementSibling.style.display = 'flex';
+                    }}
                   />
+                  <div className="absolute inset-0 bg-gray-200 hidden items-center justify-center">
+                    <p className="text-xs text-gray-500">Video unavailable</p>
+                  </div>
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                    <Play className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="text-[10px] uppercase">
-                    {v.sourceType}
-                  </Badge>
-                  {v.createdAt?.seconds && (
-                    <span className="text-[10px] text-gray-500">
-                      {new Date(
-                        v.createdAt.seconds * 1000
-                      ).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-gray-700 line-clamp-2">
-                  {v.inputSample || v.sourceFileName || "(no sample)"}
-                </p>
-                <div className="flex gap-2">
-                  <a
-                    href={v.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1"
-                  >
-                    <Button size="sm" className="w-full text-xs">
-                      Open
-                    </Button>
-                  </a>
-                  <a href={v.videoUrl} download className="flex-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full text-xs"
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="secondary" className="text-[10px] uppercase font-medium">
+                      {v.sourceType}
+                    </Badge>
+                    {v.createdAt?.seconds && (
+                      <span className="text-[10px] text-gray-500">
+                        {new Date(v.createdAt.seconds * 1000).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <p className="text-[11px] text-gray-700 line-clamp-2 leading-relaxed">
+                    {v.inputSample || v.sourceFileName || "(no description available)"}
+                  </p>
+                  
+                  <div className="flex gap-2">
+                    <a
+                      href={v.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1"
                     >
-                      Download
-                    </Button>
-                  </a>
+                      <Button size="sm" className="w-full text-xs h-8">
+                        <Play className="h-3 w-3 mr-1" />
+                        Watch
+                      </Button>
+                    </a>
+                    <a href={v.videoUrl} download className="flex-1">
+                      <Button size="sm" variant="outline" className="w-full text-xs h-8">
+                        <Download className="h-3 w-3 mr-1" />
+                        Download
+                      </Button>
+                    </a>
+                  </div>
                 </div>
               </div>
             ))}
