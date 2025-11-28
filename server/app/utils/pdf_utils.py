@@ -1,4 +1,11 @@
-import PyPDF2
+try:
+    import pypdf
+except ImportError:
+    try:
+        import PyPDF2 as pypdf
+    except ImportError:
+        pypdf = None
+
 from docx import Document
 import io
 from reportlab.lib.pagesizes import A4
@@ -9,18 +16,34 @@ from reportlab.lib.units import mm
 from reportlab.lib import colors
 
 def extract_text_from_pdf(file_path):
-	"""Extract text from a PDF file."""
+	"""Extract text from a PDF file with graceful fallback."""
+	if not pypdf:
+		raise ImportError(
+			"PDF processing not available. Install 'pypdf' package: pip install pypdf"
+		)
+	
 	text = ""
-	with open(file_path, "rb") as f:
-		reader = PyPDF2.PdfReader(f)
-		for page in reader.pages:
-			text += page.extract_text() or ""
+	try:
+		with open(file_path, "rb") as f:
+			reader = pypdf.PdfReader(f)
+			for page in reader.pages:
+				text += page.extract_text() or ""
+	except Exception as e:
+		raise RuntimeError(f"Failed to extract text from PDF: {str(e)}")
+	
 	return text
 
 def extract_text_from_docx(file_path):
-	"""Extract text from a DOCX file."""
-	doc = Document(file_path)
-	return "\n".join([para.text for para in doc.paragraphs])
+	"""Extract text from a DOCX file with graceful error handling."""
+	try:
+		doc = Document(file_path)
+		return "\n".join([para.text for para in doc.paragraphs])
+	except ImportError:
+		raise ImportError(
+			"DOCX processing not available. Install 'python-docx' package: pip install python-docx"
+		)
+	except Exception as e:
+		raise RuntimeError(f"Failed to extract text from DOCX: {str(e)}")
 
 def render_resume_pdf_bytes(resume: dict) -> bytes:
     """

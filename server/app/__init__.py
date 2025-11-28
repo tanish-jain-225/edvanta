@@ -17,61 +17,92 @@ from .config import Config
 def create_app() -> Flask:
     """Create and configure the Flask application.
 
-    - Loads configuration from Config class / environment variables
-    - Enables CORS for /api/* endpoints
-    - Registers all feature blueprints
+    - Auto-detects environment (development/production) based on deployment platform
+    - Loads configuration from Config class / environment variables with fallbacks
+    - Enables CORS for all origins by default for maximum compatibility
+    - Registers all feature blueprints with graceful error handling
+    - Works seamlessly in any environment: local, Vercel, AWS Lambda, Heroku, etc.
     """
 
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Enable CORS to allow all origins
+    # Enable CORS to allow all origins for maximum compatibility
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-    # Import blueprints (local imports to avoid circular dependencies)
-    from .routes.visual import visual_bp
-    from .routes.chatbot import chatbot_bp
-    from .routes.quizzes import quizzes_bp
-    from .routes.tutor import tutor_bp
-    from .routes.roadmap import roadmap_bp
-    from .routes.resume import resume_bp
-    from .routes.user_stats import user_stats_bp
+    # Import and register blueprints with error handling
+    blueprints_to_register = [
+        ('visual', lambda: __import__('app.routes.visual', fromlist=['visual_bp']).visual_bp),
+        ('chatbot', lambda: __import__('app.routes.chatbot', fromlist=['chatbot_bp']).chatbot_bp),
+        ('quizzes', lambda: __import__('app.routes.quizzes', fromlist=['quizzes_bp']).quizzes_bp),
+        ('tutor', lambda: __import__('app.routes.tutor', fromlist=['tutor_bp']).tutor_bp),
+        ('roadmap', lambda: __import__('app.routes.roadmap', fromlist=['roadmap_bp']).roadmap_bp),
+        ('resume', lambda: __import__('app.routes.resume', fromlist=['resume_bp']).resume_bp),
+        ('user_stats', lambda: __import__('app.routes.user_stats', fromlist=['user_stats_bp']).user_stats_bp),
+    ]
 
-    # Register blueprints with the app
-    app.register_blueprint(visual_bp)
-    app.register_blueprint(chatbot_bp)
-    app.register_blueprint(quizzes_bp)
-    app.register_blueprint(tutor_bp)
-    app.register_blueprint(roadmap_bp)
-    app.register_blueprint(resume_bp)
-    app.register_blueprint(user_stats_bp)
+    registered_blueprints = []
+    for name, blueprint_loader in blueprints_to_register:
+        try:
+            blueprint = blueprint_loader()
+            app.register_blueprint(blueprint)
+            registered_blueprints.append(name)
+        except Exception as e:
+            print(f"Warning: Failed to register {name} blueprint: {e}")
+            # Continue without this blueprint instead of failing completely
 
-    @app.route("/", methods=["GET"])  # Simple health check
-    def health():  # pragma: no cover - trivial
-        return {"status": "ok", "service": "edvanta-backend"}
+    print(f"Successfully registered blueprints: {', '.join(registered_blueprints)}")
+
+    @app.route("/", methods=["GET"])
+    def health():
+        """Health check endpoint with environment info."""
+        from .config import Config
+        config = Config()
+        return {
+            "status": "ok", 
+            "service": "edvanta-backend",
+            "environment": config.ENV,
+            "debug": config.DEBUG,
+            "registered_blueprints": list(app.blueprints.keys()) if hasattr(app, 'blueprints') else []
+        }
 
     @app.route("/api/runtime-features", methods=["GET"])
     def runtime_features():
-        """Report which optional libraries are available at runtime."""
+        """Report which optional libraries are available at runtime and configuration status."""
         features = {}
         try:
             import importlib
+            from .config import Config
+            config = Config()
 
             optional_libs = [
                 "google.generativeai",
                 "moviepy",
-                "gtts",
+                "gtts", 
                 "PIL",
                 "whisper",
-                "PyPDF2",
+                "pypdf",
+                "cloudinary",
+                "pymongo"
             ]
             for lib in optional_libs:
                 try:
                     features[lib] = importlib.util.find_spec(lib) is not None
                 except Exception:
                     features[lib] = False
-        except Exception:
-            features = {"error": "runtime check failed"}
+                    
+            # Configuration status
+            config_status = {
+                "gemini_api_configured": bool(config.GEMINI_API_KEY),
+                "mongodb_configured": bool(config.MONGODB_URI and config.MONGODB_URI != "mongodb://localhost:27017/"),
+                "cloudinary_configured": bool(config.CLOUDINARY_CLOUD_NAME),
+                "environment": config.ENV,
+                "debug_mode": config.DEBUG
+            }
+            features.update(config_status)
+            
+        except Exception as e:
+            features = {"error": f"runtime check failed: {str(e)}"}
 
         return {"status": "ok", "features": features}
 

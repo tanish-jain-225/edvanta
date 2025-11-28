@@ -1,13 +1,22 @@
 """Route package initializer.
 
-Currently blueprints are imported & registered inside application factory to
-avoid circular imports. This file can expose them for tooling / explicit import
-patterns if desired in the future.
+Exports all blueprints for easy importing and testing.
 """
 
-# from .visual import visual_bp  # noqa: F401
-# from .chatbot import chatbot_bp  # noqa: F401
-# from .quizzes import quizzes_bp  # noqa: F401
-# from .tutor import tutor_bp  # noqa: F401
-# from .roadmap import roadmap_bp  # noqa: F401
-# from .resume import resume_bp  # noqa: F401
+from .visual import visual_bp
+from .chatbot import chatbot_bp
+from .quizzes import quizzes_bp
+from .tutor import tutor_bp
+from .roadmap import roadmap_bp
+from .resume import resume_bp
+from .user_stats import user_stats_bp
+
+__all__ = [
+    'visual_bp',
+    'chatbot_bp', 
+    'quizzes_bp',
+    'tutor_bp',
+    'roadmap_bp',
+    'resume_bp',
+    'user_stats_bp'
+]

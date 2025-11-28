@@ -24,15 +24,46 @@ from typing import List
 class Config:
     # Flask core settings
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
-    ENV = os.getenv("FLASK_ENV", "development")
-    DEBUG = ENV == "development"
+    
+    @classmethod
+    def get_environment(cls):
+        """Dynamically detect environment based on various platform indicators."""
+        # Check for serverless/cloud platforms
+        if os.getenv("VERCEL") == "1":
+            return "production"
+        if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+            return "production"  
+        if os.getenv("DYNO"):  # Heroku
+            return "production"
+        if os.getenv("NETLIFY") == "true":
+            return "production"
+        if os.getenv("GOOGLE_CLOUD_PROJECT"):
+            return "production"
+        
+        # Check explicit environment setting
+        flask_env = os.getenv("FLASK_ENV", "").lower()
+        if flask_env in ["production", "prod"]:
+            return "production"
+        elif flask_env in ["development", "dev"]:
+            return "development"
+        
+        # Default to development for local/unknown environments
+        return "development"
+    
+    @property
+    def ENV(self):
+        return self.get_environment()
+    
+    @property  
+    def DEBUG(self):
+        return self.get_environment() == "development"
 
-    # Server settings
-    PORT = int(os.getenv("PORT", "5000"))
+    # Server settings - flexible for any deployment platform
+    PORT = int(os.getenv("PORT", os.getenv("HTTP_PORT", "5000")))
     HOST = os.getenv("HOST", "0.0.0.0")
 
-    # Gemini AI settings (Primary AI provider)
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    # Gemini AI settings (Primary AI provider) - graceful fallback if not configured
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 
     # Gemini AI model parameters
@@ -50,17 +81,31 @@ class Config:
     CLOUDINARY_SECRET = os.getenv("CLOUDINARY_SECRET")
     CLOUDINARY_APIENV = os.getenv("CLOUDINARY_APIENV")
 
-    # Cloudinary settings (standard naming)
-    CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
-    CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
-    CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+    # Cloudinary settings (standard naming) - flexible configuration
+    CLOUDINARY_CLOUD_NAME = (
+        os.getenv("CLOUDINARY_CLOUD_NAME") or 
+        os.getenv("CLOUD_NAME")
+    )
+    CLOUDINARY_API_KEY = (
+        os.getenv("CLOUDINARY_API_KEY") or 
+        os.getenv("CLOUDINARY_APIKEY")
+    )
+    CLOUDINARY_API_SECRET = (
+        os.getenv("CLOUDINARY_API_SECRET") or 
+        os.getenv("CLOUDINARY_SECRET")
+    )
 
     # CORS settings
-    ALLOWED_ORIGINS=os.getenv("ALLOWED_ORIGINS")
+    ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*")
 
-    # MongoDB Credentials
-    MONGODB_URI = os.getenv("MONGODB_URI")
-    MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME")
+    # MongoDB Credentials - flexible configuration for different platforms
+    MONGODB_URI = (
+        os.getenv("MONGODB_URI") or 
+        os.getenv("MONGO_URI") or 
+        os.getenv("DATABASE_URL") or
+        "mongodb://localhost:27017/"
+    )
+    MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "edvanta")
     MONGODB_QUIZ_COLLECTION = os.getenv("MONGODB_QUIZ_COLLECTION", "quizzes")
     MONGODB_QUIZ_HISTORY_COLLECTION = os.getenv("MONGODB_QUIZ_HISTORY_COLLECTION", "quiz_history")
     MONGODB_CHAT_COLLECTION = os.getenv("MONGODB_CHAT_COLLECTION", "chat_sessions")

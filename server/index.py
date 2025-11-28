@@ -21,4 +21,4 @@ if __name__ == "__main__":
     # This block only runs during local development
     # It will NOT run on Vercel's serverless environment
     PORT = Config.PORT
-    app.run(host="0.0.0.0", port=PORT, debug=True)
+    app.run(port=PORT, debug=Config.DEBUG)

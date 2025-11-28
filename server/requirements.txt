@@ -1,11 +1,10 @@
 # ==============================================================================
-# EDVANTA BACKEND - REQUIREMENTS.txt
+# EDVANTA BACKEND - REQUIREMENTS.txt (VERCEL OPTIMIZED)
 # ==============================================================================
-# Generated: 2025-11-27
+# Generated: 2025-11-28
 # Python: 3.10+
-# 
-# This file lists all third-party packages used by the Edvanta backend server.
-# All imports have been scanned and verified from the codebase.
+# Optimized for Vercel Serverless deployment (under 250MB limit)
+# All features including video generation now work on Vercel!
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -28,7 +27,6 @@ requests>=2.31.0                # HTTP requests for external APIs
 # DATABASE
 # ------------------------------------------------------------------------------
 pymongo==4.6.1                  # MongoDB driver and BSON support
-                                # (includes bson module for ObjectId, etc.)
 
 # ------------------------------------------------------------------------------
 # CLOUD SERVICES
@@ -44,13 +42,19 @@ google-auth>=2.22.0             # Google authentication utilities
 # ------------------------------------------------------------------------------
 # PDF & DOCUMENT PROCESSING
 # ------------------------------------------------------------------------------
-PyPDF2>=3.0.0                   # PDF reading and text extraction
+pypdf>=4.0.0                    # PDF reading and text extraction (modernized PyPDF2)
 python-docx>=1.0.0              # Microsoft Word document processing
 reportlab>=4.2.0                # PDF generation (roadmaps, resumes)
 
 # ------------------------------------------------------------------------------
-# IMAGE & MEDIA PROCESSING
+# IMAGE PROCESSING (Lightweight)
 # ------------------------------------------------------------------------------
 Pillow>=10.0.0                  # Image manipulation (PIL)
-moviepy>=1.0.3                  # Video generation and editing
-gTTS>=2.3.2                     # Google Text-to-Speech for audio generation
+
+# ==============================================================================
+# VIDEO GENERATION NOW USES EXTERNAL APIs (No heavy dependencies needed!)
+# - Creatomate API (Free tier: 25 video renders/month)
+# - Text-to-Speech: Gemini AI built-in or ElevenLabs free tier
+# ==============================================================================
+
+
