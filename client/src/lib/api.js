@@ -277,7 +277,7 @@ export const edvantaAPI = {
 
   // Visual generation
   generateVisualFromText(text, style = 'educational', duration = 30, userEmail = null) {
-    return api.post('/api/visual/job/text', { 
+    return api.post('/api/visual/text-to-video', { 
       text, 
       style, 
       duration,
@@ -287,7 +287,7 @@ export const edvantaAPI = {
   },
 
   generateVisualFromPDF(pdfUrl, style = 'educational', duration = 60, userEmail = null, label = 'PDF Upload') {
-    return api.post('/api/visual/job/pdf', { 
+    return api.post('/api/visual/pdf-url-to-video', { 
       pdf_url: pdfUrl, 
       style, 
       duration,
@@ -297,16 +297,12 @@ export const edvantaAPI = {
   },
 
   generateVisualFromAudio(audioUrl, style = 'educational', userEmail = null, label = 'Audio Upload') {
-    return api.post('/api/visual/job/audio', { 
+    return api.post('/api/visual/audio-to-video', { 
       audio_url: audioUrl, 
       style,
       user_email: userEmail,
       label
     });
-  },
-
-  getVisualJobStatus(jobId) {
-    return api.get(`/api/visual/job/${jobId}`);
   },
 
   // Chatbot

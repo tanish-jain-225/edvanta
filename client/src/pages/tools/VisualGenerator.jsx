@@ -68,7 +68,7 @@ export function VisualGenerator() {
   const [content, setContent] = useState("");
   const [pdfFile, setPdfFile] = useState(null);
   const [audioFile, setAudioFile] = useState(null);
-  const [videoUrl, setVideoUrl] = useState("");
+  const [videoData, setVideoData] = useState(null); // Changed from videoUrl to support slideshow data
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -84,9 +84,6 @@ export function VisualGenerator() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [historyVideos, setHistoryVideos] = useState([]);
-  const [activeJob, setActiveJob] = useState(null); // {job_id,status,label,mode}
-  const pollingRef = useRef(null);
-  const restoredRef = useRef(false);
 
   // Derived step index from progress (simple thresholds)
   const currentStep = (() => {
@@ -96,24 +93,6 @@ export function VisualGenerator() {
     if (progress >= 10) return 1; // summarize
     return 0; // input
   })();
-
-  // Function to cancel active generation
-  const cancelGeneration = () => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-    
-    localStorage.removeItem("visual_active_job");
-    localStorage.removeItem("visual_active_job_progress");
-    
-    setActiveJob(null);
-    setLoading(false);
-    setProgress(0);
-    setError('');
-  };
-
-  // Function to cancel active generation
 
   const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -157,7 +136,7 @@ export function VisualGenerator() {
   }
 
   const saveVideoRecord = async (meta) => {
-    if (!user || !meta.videoUrl) return;
+    if (!user || (!meta.videoUrl && !meta.videoData)) return;
     try {
       setSaving(true);
       await addDoc(collection(db, "visual_videos"), {
@@ -341,30 +320,44 @@ export function VisualGenerator() {
     }
     
     setLoading(true);
-    setProgress(5);
+    setProgress(10);
     setError('');
-    localStorage.setItem("visual_active_job_progress", "5");
     
     try {
-      const res = await postJSON("/api/visual/job/text", {
+      setProgress(30);
+      const res = await postJSON("/api/visual/text-to-video", {
         text: content,
         user_email: user.email,
-        label: content.slice(0, 40),
       });
       
-      if (!res.job_id) {
-        throw new Error('Invalid response from server: missing job ID.');
+      setProgress(70);
+      
+      if (!res.success || !res.result) {
+        throw new Error('Invalid response from server.');
       }
       
-      const job = {
-        job_id: res.job_id,
-        status: res.status || 'queued',
-        mode: "text",
-        label: content.slice(0, 40),
-        created_at: Date.now(),
-      };
-      setActiveJob(job);
-      localStorage.setItem("visual_active_job", JSON.stringify(job));
+      // Parse the result JSON
+      const resultData = typeof res.result === 'string' ? JSON.parse(res.result) : res.result;
+      
+      if (resultData.type === 'slideshow' && resultData.scenes) {
+        setProgress(100);
+        setVideoData(resultData); // Store slideshow data instead of video URL
+        setLoading(false);
+        
+        // Save to history
+        try {
+          await saveVideoRecord({
+            sourceType: 'text',
+            inputSample: content.slice(0, 40),
+            videoData: resultData,
+            isSlideshow: true
+          });
+        } catch (saveError) {
+          console.warn('Failed to save to history:', saveError);
+        }
+      } else {
+        throw new Error('Unexpected response format from server.');
+      }
     } catch (e) {
       setProgress(0);
       setLoading(false);
@@ -391,32 +384,45 @@ export function VisualGenerator() {
     setLoading(true);
     setProgress(5);
     setError('');
-    localStorage.setItem("visual_active_job_progress", "5");
     
     try {
-      setProgress(10); // Show upload progress
+      setProgress(15); // Show upload progress
       const pdfUrl = await uploadToCloudinary(pdfFile);
       
-      setProgress(15); // Upload complete, starting processing
-      const res = await postJSON("/api/visual/job/pdf", {
+      setProgress(30); // Upload complete, starting processing
+      const res = await postJSON("/api/visual/pdf-url-to-video", {
         pdf_url: pdfUrl,
         user_email: user.email,
-        label: pdfFile.name,
       });
       
-      if (!res.job_id) {
-        throw new Error('Invalid response from server: missing job ID.');
+      setProgress(70);
+      
+      if (!res.success || !res.result) {
+        throw new Error('Invalid response from server.');
       }
       
-      const job = {
-        job_id: res.job_id,
-        status: res.status || 'queued',
-        mode: "pdf",
-        label: pdfFile.name,
-        created_at: Date.now(),
-      };
-      setActiveJob(job);
-      localStorage.setItem("visual_active_job", JSON.stringify(job));
+      // Parse the result JSON
+      const resultData = typeof res.result === 'string' ? JSON.parse(res.result) : res.result;
+      
+      if (resultData.type === 'slideshow' && resultData.scenes) {
+        setProgress(100);
+        setVideoData(resultData);
+        setLoading(false);
+        
+        // Save to history
+        try {
+          await saveVideoRecord({
+            sourceType: 'pdf',
+            inputSample: pdfFile.name,
+            videoData: resultData,
+            isSlideshow: true
+          });
+        } catch (saveError) {
+          console.warn('Failed to save to history:', saveError);
+        }
+      } else {
+        throw new Error('Unexpected response format from server.');
+      }
     } catch (e) {
       setProgress(0);
       setLoading(false);
@@ -434,6 +440,13 @@ export function VisualGenerator() {
       return;
     }
     
+    // Note: Audio transcription is not automatic in serverless mode
+    // We'll show a message about this limitation
+    setError('Audio transcription is not available in serverless mode. Please use text input instead.');
+    return;
+    
+    // Keep the code below for future enhancement when transcription is available
+    /*
     // Validate audio file
     const supportedTypes = ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/webm', 'audio/ogg'];
     if (!audioFile.type.startsWith('audio/') && !supportedTypes.some(type => audioFile.type === type)) {
@@ -444,217 +457,50 @@ export function VisualGenerator() {
     setLoading(true);
     setProgress(5);
     setError('');
-    localStorage.setItem("visual_active_job_progress", "5");
     
     try {
-      setProgress(10); // Show upload progress
+      setProgress(15); // Show upload progress
       const audUrl = await uploadToCloudinary(audioFile);
       
-      setProgress(15); // Upload complete, starting processing
-      const res = await postJSON("/api/visual/job/audio", {
+      setProgress(30); // Upload complete, starting processing
+      const res = await postJSON("/api/visual/audio-url-to-video", {
         audio_url: audUrl,
+        transcript: 'Manual transcription required', // Would need manual input
         user_email: user.email,
-        label: audioFile.name,
       });
       
-      if (!res.job_id) {
-        throw new Error('Invalid response from server: missing job ID.');
+      setProgress(70);
+      
+      if (!res.success || !res.result) {
+        throw new Error('Invalid response from server.');
       }
       
-      const job = {
-        job_id: res.job_id,
-        status: res.status || 'queued',
-        mode: "audio",
-        label: audioFile.name,
-        created_at: Date.now(),
-      };
-      setActiveJob(job);
-      localStorage.setItem("visual_active_job", JSON.stringify(job));
+      const resultData = typeof res.result === 'string' ? JSON.parse(res.result) : res.result;
+      
+      if (resultData.type === 'slideshow' && resultData.scenes) {
+        setProgress(100);
+        setVideoData(resultData);
+        setLoading(false);
+        
+        await saveVideoRecord({
+          sourceType: 'audio',
+          inputSample: audioFile.name,
+          videoData: resultData,
+          isSlideshow: true
+        });
+      } else {
+        throw new Error('Unexpected response format from server.');
+      }
     } catch (e) {
       setProgress(0);
       setLoading(false);
-      // Error is already set in uploadToCloudinary or postJSON
     }
+    */
   };
 
-  // Polling for active job
-  // Restore job + progress on mount
-  useEffect(() => {
-    if (restoredRef.current) return;
-    restoredRef.current = true;
-    
-    try {
-      const storedJob = localStorage.getItem("visual_active_job");
-      const storedProg = localStorage.getItem("visual_active_job_progress");
-      
-      if (storedProg) {
-        const val = parseInt(storedProg);
-        if (!isNaN(val) && val >= 0 && val <= 100) {
-          setProgress(val);
-        }
-      }
-      
-      if (storedJob) {
-        try {
-          const parsed = JSON.parse(storedJob);
-          
-          // Validate job object
-          if (parsed.job_id && parsed.mode && parsed.label) {
-            setActiveJob(parsed);
-            setLoading(true);
-            
-            // Immediately fetch status for fast sync
-            fetch(`${backEndURL}/api/visual/job/${parsed.job_id}`)
-              .then((r) => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
-              })
-              .then((js) => {
-                if (js.status === "completed") {
-                  if (js.url) {
-                    setProgress(100);
-                    setVideoUrl(js.url);
-                    setLoading(false);
-                    saveVideoRecord({
-                      sourceType: parsed.mode,
-                      inputSample: parsed.label,
-                      videoUrl: js.url,
-                    }).catch(console.warn);
-                  }
-                  localStorage.removeItem("visual_active_job");
-                  localStorage.removeItem("visual_active_job_progress");
-                  setActiveJob(null);
-                } else if (js.status === "failed") {
-                  setError(js.error || js.message || "Previous generation failed");
-                  setLoading(false);
-                  setProgress(0);
-                  localStorage.removeItem("visual_active_job");
-                  localStorage.removeItem("visual_active_job_progress");
-                  setActiveJob(null);
-                } else if (js.status === "running" || js.status === "queued") {
-                  // Job is still active, polling will handle it
-                  if (progress < 15) setProgress(15);
-                }
-              })
-              .catch((err) => {
-                console.warn('Failed to restore job status:', err);
-                setError('Unable to restore previous generation status. You may need to start over.');
-                setLoading(false);
-                setProgress(0);
-              });
-          } else {
-            // Invalid job object, clean up
-            localStorage.removeItem("visual_active_job");
-            localStorage.removeItem("visual_active_job_progress");
-          }
-        } catch (parseError) {
-          console.warn('Failed to parse stored job:', parseError);
-          localStorage.removeItem("visual_active_job");
-          localStorage.removeItem("visual_active_job_progress");
-        }
-      }
-    } catch (storageError) {
-      console.warn('Failed to access localStorage:', storageError);
-    }
-  }, []);
 
-  useEffect(() => {
-    if (!activeJob) return;
-    if (pollingRef.current) return; // already polling
-    
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    pollingRef.current = setInterval(async () => {
-      try {
-        const r = await fetch(
-          `${backEndURL}/api/visual/job/${activeJob.job_id}`
-        );
-        
-        if (!r.ok) {
-          throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-        }
-        
-        const js = await r.json();
-        retryCount = 0; // Reset retry count on successful response
-        
-        if (js.status === "running") {
-          setProgress((p) => {
-            const next = p < 85 ? p + Math.random() * 8 + 2 : p; // More realistic progress
-            localStorage.setItem("visual_active_job_progress", String(Math.round(next)));
-            return Math.round(next);
-          });
-        } else if (js.status === "completed") {
-          setProgress(100);
-          
-          if (!js.url) {
-            throw new Error('Video generation completed but no URL received.');
-          }
-          
-          setVideoUrl(js.url);
-          setLoading(false);
-          
-          const meta = {
-            sourceType: activeJob.mode,
-            inputSample: activeJob.label,
-            videoUrl: js.url,
-          };
-          
-          try {
-            await saveVideoRecord(meta);
-          } catch (saveError) {
-            console.warn('Failed to save video record:', saveError);
-            // Don't fail the entire process if saving fails
-          }
-          
-          localStorage.removeItem("visual_active_job");
-          localStorage.removeItem("visual_active_job_progress");
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          setActiveJob(null);
-        } else if (js.status === "failed") {
-          setError(js.error || js.message || "Video generation failed. Please try again.");
-          setLoading(false);
-          setProgress(0);
-          localStorage.removeItem("visual_active_job");
-          localStorage.removeItem("visual_active_job_progress");
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          setActiveJob(null);
-        }
-      } catch (e) {
-        retryCount++;
-        console.warn(`Polling error (attempt ${retryCount}):`, e.message);
-        
-        if (retryCount >= maxRetries) {
-          setError('Lost connection to server. Please refresh the page and try again.');
-          setLoading(false);
-          setProgress(0);
-          localStorage.removeItem("visual_active_job");
-          localStorage.removeItem("visual_active_job_progress");
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          setActiveJob(null);
-        }
-      }
-    }, 5000);
-    
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-  }, [activeJob]);
 
-  // Keep progress mirrored while a job is active (covers manual refresh between poll ticks)
-  useEffect(() => {
-    if (activeJob && progress > 0 && progress < 100) {
-      try {
-        localStorage.setItem("visual_active_job_progress", String(progress));
-      } catch { }
-    }
-  }, [progress, activeJob]);
+
 
   return (
     <div className="space-y-6 p-4">
@@ -710,14 +556,6 @@ export function VisualGenerator() {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 sm:px-6">
-          {activeJob && (
-            <div className="mb-3 text-[11px] flex items-center justify-between bg-blue-50 border border-blue-200 px-2 py-1 rounded">
-              <span className="truncate">Generating: {activeJob.label}</span>
-              <span className="text-blue-600 font-medium">
-                {activeJob.status === "queued" ? "Queued" : "In Progress"}
-              </span>
-            </div>
-          )}
           <div className="flex items-center justify-between mb-4 overflow-x-auto">
             {steps.map((step, index) => {
               const active = index === currentStep;
@@ -1056,46 +894,131 @@ export function VisualGenerator() {
         </TabsContent>
       </Tabs>
 
-      {videoUrl && (
+      {videoData && (
         <Card>
           <CardHeader>
-            <CardTitle>Generated Video</CardTitle>
-            <CardDescription>Preview & download.</CardDescription>
+            <CardTitle>Generated Content</CardTitle>
+            <CardDescription>
+              {videoData.type === 'slideshow' ? 'Educational slideshow generated successfully' : 'Generated content'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="aspect-video w-full bg-black rounded overflow-hidden">
-              <video
-                src={videoUrl}
-                controls
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <a
-                href={videoUrl}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1"
-              >
-                <Button className="w-full">Download</Button>
-              </a>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  // Reset all state for a fresh run
-                  setVideoUrl("");
-                  setContent("");
-                  setPdfFile(null);
-                  setAudioFile(null);
-                  setRecordedAudioUrl("");
-                  setProgress(0);
-                  setError("");
-                }}
-              >
-                New
-              </Button>
-            </div>
+            {videoData.type === 'slideshow' && videoData.scenes ? (
+              <div className="space-y-4">
+                <div className="text-sm text-gray-600 mb-4">
+                  {videoData.scenes.length} slides generated • Click slides to navigate
+                </div>
+                
+                {/* Slideshow Container */}
+                <div className="space-y-3">
+                  {videoData.scenes.map((scene, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                      {/* Slide Image */}
+                      <div className="relative aspect-video bg-gray-100 flex items-center justify-center">
+                        {scene.image_base64 ? (
+                          <img
+                            src={`data:image/png;base64,${scene.image_base64}`}
+                            alt={`Slide ${index + 1}`}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <div 
+                            className="w-full h-full flex items-center justify-center text-white p-8"
+                            style={{ backgroundColor: scene.color || '#4ECDC4' }}
+                          >
+                            <div className="text-center">
+                              <h3 className="text-lg sm:text-xl font-bold mb-2">
+                                Slide {index + 1}
+                              </h3>
+                              <p className="text-sm sm:text-base">
+                                {scene.narration}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Slide Number Badge */}
+                        <div className="absolute top-3 left-3 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                          {index + 1} / {videoData.scenes.length}
+                        </div>
+                      </div>
+                      
+                      {/* Slide Content */}
+                      <div className="p-4 bg-white">
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                              Narration
+                            </label>
+                            <p className="text-sm text-gray-800 mt-1">
+                              {scene.narration}
+                            </p>
+                          </div>
+                          
+                          {scene.visual && (
+                            <div>
+                              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                Visual Description
+                              </label>
+                              <p className="text-xs text-gray-600 mt-1">
+                                {scene.visual}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-200">
+                  <Button 
+                    className="flex-1"
+                    onClick={() => {
+                      // Create a simple JSON export of the slideshow
+                      const dataStr = JSON.stringify(videoData, null, 2);
+                      const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                      const url = URL.createObjectURL(dataBlob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = 'slideshow-data.json';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Data
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // Reset all state for a fresh run
+                      setVideoData(null);
+                      setContent("");
+                      setPdfFile(null);
+                      setAudioFile(null);
+                      setRecordedAudioUrl("");
+                      setProgress(0);
+                      setError("");
+                    }}
+                  >
+                    Create New
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-600">Generated content format not supported for display.</p>
+                <pre className="mt-4 text-xs bg-gray-100 p-4 rounded text-left overflow-auto">
+                  {JSON.stringify(videoData, null, 2)}
+                </pre>
+              </div>
+            )}
+            
             {user ? (
               <p className="text-xs text-gray-500">
                 Saved to history {saving && "(saving...)"}
@@ -1151,28 +1074,66 @@ export function VisualGenerator() {
             {historyVideos.map((v) => (
               <div key={v.id} className="border rounded-lg p-3 bg-white space-y-3 hover:shadow-md transition-shadow">
                 <div className="aspect-video bg-black/5 rounded overflow-hidden relative group">
-                  <video
-                    src={v.videoUrl}
-                    className="w-full h-full object-cover"
-                    muted
-                    preload="metadata"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextElementSibling.style.display = 'flex';
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gray-200 hidden items-center justify-center">
-                    <p className="text-xs text-gray-500">Video unavailable</p>
-                  </div>
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
-                    <Play className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
+                  {v.videoUrl ? (
+                    // Traditional video display
+                    <>
+                      <video
+                        src={v.videoUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                        preload="metadata"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gray-200 hidden items-center justify-center">
+                        <p className="text-xs text-gray-500">Video unavailable</p>
+                      </div>
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                        <Play className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </>
+                  ) : v.videoData?.scenes && v.videoData.scenes.length > 0 ? (
+                    // Slideshow display
+                    <>
+                      {v.videoData.scenes[0].image_base64 ? (
+                        <img
+                          src={`data:image/png;base64,${v.videoData.scenes[0].image_base64}`}
+                          alt="Slideshow preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div 
+                          className="w-full h-full flex items-center justify-center text-white"
+                          style={{ backgroundColor: v.videoData.scenes[0].color || '#4ECDC4' }}
+                        >
+                          <div className="text-center p-2">
+                            <h4 className="text-sm font-medium">Slideshow</h4>
+                            <p className="text-xs mt-1">{v.videoData.scenes.length} slides</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                        {v.videoData.scenes.length} slides
+                      </div>
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                        <Image className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </>
+                  ) : (
+                    // Fallback for unknown format
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                      <p className="text-xs text-gray-500">Content unavailable</p>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Badge variant="secondary" className="text-[10px] uppercase font-medium">
                       {v.sourceType}
+                      {v.isSlideshow && <span className="ml-1">• Slides</span>}
                     </Badge>
                     {v.createdAt?.seconds && (
                       <span className="text-[10px] text-gray-500">
@@ -1186,23 +1147,66 @@ export function VisualGenerator() {
                   </p>
                   
                   <div className="flex gap-2">
-                    <a
-                      href={v.videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1"
-                    >
-                      <Button size="sm" className="w-full text-xs h-8">
-                        <Play className="h-3 w-3 mr-1" />
-                        Watch
-                      </Button>
-                    </a>
-                    <a href={v.videoUrl} download className="flex-1">
-                      <Button size="sm" variant="outline" className="w-full text-xs h-8">
-                        <Download className="h-3 w-3 mr-1" />
-                        Download
-                      </Button>
-                    </a>
+                    {v.videoUrl ? (
+                      // Traditional video actions
+                      <>
+                        <a
+                          href={v.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1"
+                        >
+                          <Button size="sm" className="w-full text-xs h-8">
+                            <Play className="h-3 w-3 mr-1" />
+                            Watch
+                          </Button>
+                        </a>
+                        <a href={v.videoUrl} download className="flex-1">
+                          <Button size="sm" variant="outline" className="w-full text-xs h-8">
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </Button>
+                        </a>
+                      </>
+                    ) : (
+                      // Slideshow actions
+                      <>
+                        <Button 
+                          size="sm" 
+                          className="flex-1 text-xs h-8"
+                          onClick={() => {
+                            // Set the slideshow data to display it
+                            setVideoData(v.videoData);
+                            // Scroll to the display area
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        >
+                          <Image className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1 text-xs h-8"
+                          onClick={() => {
+                            // Download slideshow data as JSON
+                            const dataStr = JSON.stringify(v.videoData, null, 2);
+                            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                            const url = URL.createObjectURL(dataBlob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `slideshow-${v.id}.json`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Export
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
