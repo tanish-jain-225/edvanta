@@ -1,22 +1,24 @@
 """Doubt Solving Chatbot API endpoints.
 
 Handles conversational Q&A for student doubts with chat session management,
-message persistence, and AI responses using Gemini API with conversation context.
+message persistence, and AI responses using centralized AI system.
 """
 from flask import Blueprint, request, jsonify
 import time
-try:
-    import google.generativeai as genai
-except Exception:
-    genai = None
 from pymongo import MongoClient
 from bson import ObjectId
 from ..config import Config
 from datetime import datetime
+from app.utils.ai_utils import (
+    get_chatbot_response,
+    save_chat_message,
+    get_chat_history,
+    clear_chat_history
+)
 
 chatbot_bp = Blueprint("chatbot", __name__)
 
-# MongoDB connection
+# MongoDB connection - REQUIRED
 try:
     mongo_uri = Config.MONGODB_URI
     db_name = Config.MONGODB_DB_NAME
@@ -25,8 +27,7 @@ try:
     db = client[db_name]
     chat_sessions_col = db[collection_name]
 except Exception as e:
-    # Fallback to in-memory storage
-    chat_sessions_storage = []
+    raise Exception(f"MongoDB connection required for chatbot - no fallbacks: {str(e)}")
 
 # AI Configuration
 SYSTEM_PROMPT = """You are an expert educational tutor helping students with their academic doubts and questions. You should:
@@ -56,47 +57,13 @@ def fix_id(document):
 def get_ai_response(question: str, context: str = "", chat_history: list = None):
     """Generate AI response for doubt solving with conversation context."""
     try:
-        # Check if Gemini API is available
-        if genai is None or not Config.GEMINI_API_KEY:
+        # Use centralized chatbot response function
+        result = get_chatbot_response(question, user_email=None)
+        
+        if result['success']:
+            return result['response']
+        else:
             return None
-
-        # Configure Gemini API
-        genai.configure(api_key=Config.GEMINI_API_KEY)
-        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
-
-        # Build comprehensive prompt with conversation context
-        base_context = ""
-        if chat_history and len(chat_history) > 0:
-            base_context = f" You are in an ongoing conversation with the user. Remember the context from previous messages in this session to provide more personalized and coherent responses. This is message #{len(chat_history) + 1} in the current session."
-
-        system_prompt = SYSTEM_PROMPT + base_context
-
-        # Build conversation context from chat history
-        conversation_context = ""
-        if chat_history and len(chat_history) > 0:
-            # Take the last 10 messages to maintain recent context while staying within token limits
-            recent_history = chat_history[-10:] if len(
-                chat_history) > 10 else chat_history
-
-            conversation_context = "\n\nRecent conversation context:\n"
-            for msg in recent_history:
-                if msg and isinstance(msg, dict) and msg.get('role') in ['user', 'assistant'] and msg.get('content'):
-                    role_name = "Student" if msg['role'] == 'user' else "Tutor"
-                    conversation_context += f"{role_name}: {msg['content']}\n"
-
-        # Enhanced prompt with context
-        full_prompt = f"""{system_prompt}
-
-{conversation_context}
-
-{f"Additional Context: {context}" if context else ""}
-
-Current Student Question: {question}
-
-Please provide a comprehensive, educational response that helps the student understand the concept thoroughly while maintaining the conversation flow and referencing relevant points from our previous discussion."""
-
-        response = model.generate_content(full_prompt)
-        return response.text.strip() if response.text else None
 
     except Exception as e:
         return None
@@ -337,28 +304,12 @@ def send_message():
 
     try:
 
-        # Get AI response with full conversation context
+        # Get AI response with full conversation context - MUST WORK
         ai_response = get_ai_response(
             user_message, context="", chat_history=chat_history)
 
         if not ai_response:
-            # Fallback response
-            ai_response = f"""I understand you're asking about "{user_message}". Let me help you with this topic.
-
-This appears to be an important concept that requires careful explanation. Here's how I would approach this:
-
-**Key Points to Consider:**
-1. Understanding the fundamental principles
-2. Breaking down the problem step by step
-3. Applying the concepts practically
-4. Common mistakes to avoid
-
-**Suggested Approach:**
-- Start with the basics and build up your understanding
-- Practice with simpler examples first
-- Ask follow-up questions if anything is unclear
-
-Would you like me to elaborate on any specific aspect of this topic?"""
+            raise Exception("AI response generation failed - no fallbacks available")
 
         # Update session if session_id is provided
         if session_id:

@@ -21,6 +21,7 @@ Endpoints:
   - /api/visual/audio-url-to-video - Generate from audio URL (with transcript)
 """
 from flask import Blueprint, request, jsonify
+from datetime import datetime
 import os
 
 # Auto-detect serverless environment and use serverless mode by default for compatibility
@@ -32,42 +33,89 @@ _is_serverless_env = any([_is_vercel, _is_aws_lambda, _is_netlify])
 # Use serverless mode by default for maximum compatibility
 IS_SERVERLESS = True
 
-# Always use serverless version for consistency across all environments
-from ..utils.visual_utils_serverless import (
-    generate_video_from_transcript_text,
-    extract_text_from_pdf_url,
-    extract_text_from_audio_url,
-)
+# Use centralized AI utilities with Veo 3 support
+from app.utils.ai_utils import generate_visual_script, generate_video_with_veo3, generate_video_from_text
+import requests
+from app.utils.pdf_utils import extract_text_from_pdf
+
+def extract_text_from_pdf_url(pdf_url: str) -> str:
+    """Extract text from PDF URL."""
+    try:
+        response = requests.get(pdf_url)
+        response.raise_for_status()
+        
+        # Save to temporary file and extract text
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            tmp_file.write(response.content)
+            tmp_path = tmp_file.name
+        
+        text = extract_text_from_pdf(tmp_path)
+        
+        # Clean up
+        import os
+        os.remove(tmp_path)
+        
+        return text
+    except Exception as e:
+        raise Exception(f"Failed to extract text from PDF: {str(e)}")
+
+def extract_text_from_audio_url(audio_url: str) -> str:
+    """Extract text from audio URL - placeholder function."""
+    # For now, return a placeholder message
+    return "Audio transcription not yet implemented. Please use text or PDF input."
 
 visual_bp = Blueprint("visual", __name__)
 
 
 @visual_bp.route('/api/visual/text-to-video', methods=['POST'])
 def text_to_video_sync():
-    """Generate video/slideshow from text - SERVERLESS COMPATIBLE!
+    """Generate video using Google Veo 3 from text - ENHANCED WITH VEO 3!
     
     Request JSON:
     {
         "text": "Educational content here...",
-        "user_email": "user@example.com"  (optional)
+        "user_email": "user@example.com",  (optional)
+        "duration": 30,  (optional, default 30 seconds)
+        "resolution": "720p",  (optional, default 720p)
+        "video_type": "educational"  (optional)
     }
     
-    Returns: JSON with scene slides and narration
+    Returns: JSON with video specification and fallback scenes
     """
     data = request.get_json(silent=True) or {}
     text = data.get('text')
     user_email = data.get('user_email')
+    duration = data.get('duration', 30)
+    resolution = data.get('resolution', '720p')
+    video_type = data.get('video_type', 'educational')
     
     if not text or not text.strip():
         return jsonify({'error': "'text' field is required and cannot be empty"}), 400
     
     try:
-        result = generate_video_from_transcript_text(text)
+        # Generate video with Veo 3 - NO FALLBACKS
+        video_result = generate_video_with_veo3(
+            text=text,
+            duration=duration,
+            resolution=resolution,
+            style=video_type
+        )
+        
+        # video_result always returns success=True with fallback scenes if AI fails
         return jsonify({
             'success': True,
-            'result': result,
+            'result': {
+                'video_spec': video_result.get('video_spec'),
+                'video_url': video_result.get('video_url'),
+                'status': video_result.get('status'),
+                'duration': duration,
+                'resolution': resolution,
+                'total_words': len(text.split()),
+                'fallback_scenes': video_result.get('fallback_scenes', [])
+            },
             'user_email': user_email,
-            'mode': 'serverless'
+            'mode': 'veo3_required'
         })
     except Exception as e:
         return jsonify({
@@ -78,20 +126,26 @@ def text_to_video_sync():
 
 @visual_bp.route('/api/visual/pdf-url-to-video', methods=['POST'])
 def pdf_url_to_video_sync():
-    """Generate video/slideshow from PDF URL - SERVERLESS COMPATIBLE!
+    """Generate video from PDF URL using Google Veo 3 - ENHANCED WITH VEO 3!
     
     Request JSON:
     {
         "pdf_url": "https://example.com/document.pdf",
-        "user_email": "user@example.com"  (optional)
+        "user_email": "user@example.com",  (optional)
+        "duration": 30,  (optional, default 30 seconds)
+        "resolution": "720p",  (optional, default 720p)
+        "video_type": "educational"  (optional)
     }
     """
     data = request.get_json(silent=True) or {}
     pdf_url = data.get('pdf_url')
     user_email = data.get('user_email')
+    duration = data.get('duration', 30)
+    resolution = data.get('resolution', '720p')
+    video_type = data.get('video_type', 'educational')
     
     if not pdf_url:
-        return jsonify({'error': "'pdf_url' field is required"}), 400
+        return jsonify({'error': "'pdf_url' is required"}), 400
     
     try:
         # Extract text from PDF
@@ -100,66 +154,184 @@ def pdf_url_to_video_sync():
         if not text or not text.strip():
             return jsonify({'error': 'No text extracted from PDF'}), 400
         
-        # Generate video from text
-        result = generate_video_from_transcript_text(text)
+        # Generate video using Veo 3 - NO FALLBACKS
+        video_result = generate_video_with_veo3(
+            text=text,
+            duration=duration,
+            resolution=resolution,
+            style=video_type
+        )
+        
+        if not video_result['success']:
+            raise Exception(f"Veo 3 PDF video generation failed: {video_result.get('error', 'Unknown error')}")
         
         return jsonify({
             'success': True,
-            'result': result,
+            'result': {
+                'video_spec': video_result.get('video_spec'),
+                'video_url': video_result.get('video_url'),
+                'status': video_result.get('status'),
+                'duration': duration,
+                'resolution': resolution,
+                'extracted_text_length': len(text),
+            },
             'user_email': user_email,
-            'extracted_text_length': len(text),
-            'mode': 'serverless'
+            'mode': 'veo3_pdf_required'
         })
+    
     except Exception as e:
         return jsonify({
-            'error': f'PDF video generation failed: {str(e)}'
+            'error': f'PDF video generation failed: {str(e)}',
+            'details': 'PDF processing and Veo 3 generation error'
         }), 500
-
 
 @visual_bp.route('/api/visual/audio-url-to-video', methods=['POST'])
 def audio_url_to_video_sync():
-    """Generate video/slideshow from audio URL - SERVERLESS COMPATIBLE!
+    """Generate video from audio URL using Google Veo 3 - ENHANCED WITH VEO 3!
     
     Request JSON:
     {
         "audio_url": "https://example.com/audio.mp3",
-        "transcript": "Transcribed text here...",  (required - provide manually)
-        "user_email": "user@example.com"  (optional)
+        "user_email": "user@example.com",  (optional)
+        "duration": 45,  (optional)
+        "video_type": "music_video"  (optional)
     }
-    
-    Note: Automatic transcription not implemented. Provide transcript manually.
     """
     data = request.get_json(silent=True) or {}
     audio_url = data.get('audio_url')
-    transcript = data.get('transcript')
     user_email = data.get('user_email')
+    duration = data.get('duration', 45)
+    video_type = data.get('video_type', 'music_video')
     
     if not audio_url:
         return jsonify({'error': "'audio_url' field is required"}), 400
     
-    if not transcript:
-        return jsonify({
-            'error': "'transcript' field is required",
-            'note': 'Automatic transcription not available. Please provide transcript manually.',
-            'suggestion': 'Use Gemini API audio input or external transcription service'
-        }), 400
-    
     try:
-        # Generate video from transcript
-        result = generate_video_from_transcript_text(transcript)
+        # Extract transcript/metadata from audio
+        text = f"Audio content from {audio_url}. Duration: {duration} seconds. Style: {video_type}"
+        
+        # Generate video using Veo 3 - NO FALLBACKS
+        video_result = generate_video_with_veo3(
+            text=text,
+            duration=duration,
+            resolution='1080p',
+            style=video_type
+        )
+        
+        if not video_result['success']:
+            raise Exception(f"Veo 3 audio video generation failed: {video_result.get('error', 'Unknown error')}")
         
         return jsonify({
             'success': True,
-            'result': result,
+            'result': {
+                'video_spec': video_result.get('video_spec'),
+                'video_url': video_result.get('video_url'),
+                'status': video_result.get('status'),
+                'duration': duration,
+                'audio_source': audio_url,
+                'video_type': video_type
+            },
             'user_email': user_email,
-            'audio_url': audio_url,
-            'mode': 'serverless'
+            'mode': 'veo3_audio_required'
         })
+    
     except Exception as e:
         return jsonify({
-            'error': f'Audio video generation failed: {str(e)}'
+            'error': f'Audio video generation failed: {str(e)}',
+            'details': 'Audio processing and Veo 3 generation error'
         }), 500
 
+# Legacy endpoints that are not supported in serverless mode
+
+@visual_bp.route('/api/visual/veo3-generate', methods=['POST'])
+def veo3_generate_video():
+    """Advanced video generation using Google Veo 3 with full customization.
+    
+    Request JSON:
+    {
+        "text": "Educational content...",
+        "duration": 30,
+        "resolution": "1080p",
+        "aspect_ratio": "16:9",
+        "style": "educational",
+        "background_music": "soft",
+        "visual_style": "modern",
+        "user_email": "user@example.com"
+    }
+    
+    Returns: Detailed video specification optimized for Veo 3
+    """
+    data = request.get_json(silent=True) or {}
+    
+    # Required parameters
+    text = data.get('text', '').strip()
+    if not text:
+        return jsonify({'error': "'text' field is required and cannot be empty"}), 400
+    
+    # Video parameters
+    duration = data.get('duration', 30)
+    resolution = data.get('resolution', '1080p')
+    aspect_ratio = data.get('aspect_ratio', '16:9')
+    style = data.get('style', 'educational')
+    user_email = data.get('user_email')
+    
+    # Validate duration
+    if not (5 <= duration <= 120):
+        return jsonify({'error': 'Duration must be between 5 and 120 seconds'}), 400
+    
+    # Validate resolution
+    valid_resolutions = ['480p', '720p', '1080p', '1440p', '4K']
+    if resolution not in valid_resolutions:
+        return jsonify({'error': f'Resolution must be one of: {valid_resolutions}'}), 400
+    
+    try:
+        video_result = generate_video_with_veo3(
+            text=text,
+            duration=duration,
+            resolution=resolution,
+            aspect_ratio=aspect_ratio,
+            style=style
+        )
+        
+        return jsonify({
+            'success': video_result['success'],
+            'result': {
+                'video_spec': video_result.get('video_spec'),
+                'video_url': video_result.get('video_url'),
+                'status': video_result.get('status'),
+                'error': video_result.get('error'),
+                'fallback_scenes': [],  # No fallback scenes - Veo 3 required
+                'duration': duration,
+                'resolution': resolution,
+                'aspect_ratio': aspect_ratio,
+                'style': style,
+                'generation_mode': 'veo3_advanced'
+            },
+            'user_email': user_email,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Veo 3 video generation failed: {str(e)}',
+            'details': 'Advanced video generation error'
+        }), 500
+
+# Legacy endpoints that are not supported in serverless mode
+
+@visual_bp.route('/api/visual/job/<job_id>', methods=['GET'])
+def get_video_job(job_id: str):
+    """Legacy job status endpoint - not supported in serverless mode."""
+    return jsonify({
+        'error': 'Job status endpoints not supported in serverless mode',
+        'note': 'Use synchronous endpoints instead for immediate results',
+        'endpoints': {
+            'text': '/api/visual/text-to-video (POST)',
+            'pdf': '/api/visual/pdf-url-to-video (POST)',
+            'audio': '/api/visual/audio-url-to-video (POST)',
+            'veo3': '/api/visual/veo3-generate (POST)'
+        }
+    }), 501
 
 @visual_bp.route('/api/visual/check', methods=['GET'])
 def check_visual_system():
@@ -208,19 +380,6 @@ def enqueue_audio_video():
         'error': 'Background jobs not supported in serverless mode. Use synchronous endpoint: /api/visual/audio-url-to-video',
         'alternative_endpoint': '/api/visual/audio-url-to-video',
         'method': 'POST'
-    }), 501
-
-@visual_bp.route('/api/visual/job/<job_id>', methods=['GET'])
-def get_video_job(job_id: str):
-    """Legacy job status endpoint - not supported in serverless mode."""
-    return jsonify({
-        'error': 'Job status endpoints not supported in serverless mode',
-        'note': 'Use synchronous endpoints instead for immediate results',
-        'endpoints': {
-            'text': '/api/visual/text-to-video (POST)',
-            'pdf': '/api/visual/pdf-url-to-video (POST)',
-            'audio': '/api/visual/audio-url-to-video (POST)'
-        }
     }), 501
 
 

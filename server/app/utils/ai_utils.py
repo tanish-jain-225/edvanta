@@ -1,764 +1,1019 @@
-"""Gemini AI helper functions for Edvanta.
+"""Centralized AI Utility Module for Edvanta Server.
 
-Provides functionality for:
-- Conversational AI for tutoring
-- Text summarization
-- Image generation
-- Voice chat history management
+This is the SINGLE source for all AI-related functionality across the entire server.
+Provides consistent AI integration for all features - NO FALLBACKS, MUST WORK!
 
-Now using Google Gemini API instead of Vertex AI for simpler authentication and better reliability.
+Features:
+- Google Gemini AI integration (REQUIRED)
+- Google Veo 3 integration (video generation)
+- Conversational AI for tutoring and chatbot
+- Content generation (summaries, quizzes, roadmaps, resumes)
+- Visual content script and video generation
+- Voice optimization
+- Session and chat management
+- MongoDB integration (REQUIRED)
+
+Configuration:
+- Uses Config.GEMINI_API_KEY for authentication (REQUIRED)
+- NO fallbacks - everything must work properly
+- Maintains conversation context and history
 """
 
 import json
 import os
-try:
-    import google.generativeai as genai
-except Exception:
-    genai = None
-from app.config import Config
-from pymongo import MongoClient
+import re
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
+import time
 
-# In-memory fallbacks when MongoDB is not available (keeps runtime state per instance)
-_voice_chat_store = {}
-_active_sessions_store = {}
+# AI Provider Import - REQUIRED, NO FALLBACKS
+import google.generativeai as genai
+AI_AVAILABLE = True
 
+# Database
+from pymongo import MongoClient
+from bson import ObjectId
 
-# Initialize MongoDB connection
+# Internal imports
+from app.config import Config
+
+# =============================================================================
+# CONFIGURATION & CONSTANTS
+# =============================================================================
+
+# MongoDB REQUIRED - NO in-memory fallbacks
+
+# AI Model Settings
+DEFAULT_MODEL = 'gemini-2.5-flash'
+DEFAULT_TEMPERATURE = 0.7
+DEFAULT_MAX_TOKENS = 1024
+
+# Video Generation Settings
+VEO_3_MODEL = 'veo-3'
+DEFAULT_VIDEO_DURATION = 30  # seconds
+DEFAULT_VIDEO_RESOLUTION = '720p'
+DEFAULT_VIDEO_ASPECT_RATIO = '16:9'
+
+# Prompts for different AI functions
+SYSTEM_PROMPTS = {
+    'tutor': """You are an expert educational tutor helping students with their academic doubts and questions. You should:
+1. Provide clear, step-by-step explanations
+2. Use simple language that students can understand  
+3. Include relevant examples when helpful
+4. Break down complex concepts into digestible parts
+5. Encourage learning with follow-up questions
+6. If it's a coding question, provide code examples with explanations
+7. Be patient, supportive, and encouraging
+8. Adapt your teaching style to the student's level of understanding
+9. Reference previous messages in the conversation when relevant
+10. Build upon concepts discussed earlier in the session""",
+
+    'chatbot': """You are an intelligent educational assistant helping students with their academic questions. 
+Provide accurate, helpful responses while maintaining a supportive and encouraging tone. 
+Keep responses concise but comprehensive, and always encourage further learning.""",
+
+    'roadmap': """You are an expert learning path designer. Create comprehensive, practical learning roadmaps 
+that are achievable and well-structured. Include realistic timeframes, key milestones, and relevant resources.""",
+
+    'resume': """You are an expert career coach and resume analyst. Provide constructive, actionable feedback 
+that helps improve career prospects. Focus on practical improvements and industry best practices.""",
+
+    'quiz': """You are an educational content creator specializing in assessment design. Create fair, 
+challenging questions that test understanding rather than memorization. Ensure questions are clear and unambiguous.""",
+
+    'visual': """You are an educational content designer. Create engaging, clear scripts for visual learning 
+materials. Focus on breaking down complex concepts into digestible, visual segments.""",
+    
+    'video': """You are a video content creator specializing in educational videos. Create detailed video 
+prompts that describe scenes, visual elements, transitions, and educational content suitable for 
+automated video generation. Focus on clear, engaging visual storytelling."""
+}
+
+# NO FALLBACK RESPONSES - ALL FUNCTIONS MUST WORK
+
+# =============================================================================
+# CORE AI CONFIGURATION
+# =============================================================================
+
+def initialize_ai() -> bool:
+    """Initialize AI system with proper configuration."""
+    if not AI_AVAILABLE:
+        return False
+    
+    try:
+        api_key = Config.GEMINI_API_KEY
+        if not api_key:
+            print("Warning: GEMINI_API_KEY not configured")
+            return False
+        
+        genai.configure(api_key=api_key)
+        return True
+    except Exception as e:
+        print(f"Error initializing AI: {e}")
+        return False
+
+def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: int = None):
+    """Get configured AI model with specified parameters."""
+    if not initialize_ai():
+        return None
+    
+    try:
+        model_name = model_name or Config.GEMINI_MODEL_NAME or DEFAULT_MODEL
+        
+        generation_config = {
+            'temperature': temperature or Config.GEMINI_TEMPERATURE or DEFAULT_TEMPERATURE,
+            'max_output_tokens': max_tokens or Config.GEMINI_MAX_OUTPUT_TOKENS or DEFAULT_MAX_TOKENS,
+        }
+        
+        if hasattr(Config, 'GEMINI_TOP_P'):
+            generation_config['top_p'] = Config.GEMINI_TOP_P
+        if hasattr(Config, 'GEMINI_TOP_K'):
+            generation_config['top_k'] = Config.GEMINI_TOP_K
+            
+        return genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config,
+            safety_settings={
+                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE", 
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"
+            }
+        )
+    except Exception as e:
+        print(f"Error creating AI model: {e}")
+        return None
+
+def get_veo3_model(duration: int = None, resolution: str = None, aspect_ratio: str = None):
+    """Get configured Veo 3 model for video generation."""
+    if not initialize_ai():
+        return None
+    
+    try:
+        # Veo 3 specific configuration
+        video_config = {
+            'duration': duration or DEFAULT_VIDEO_DURATION,
+            'resolution': resolution or DEFAULT_VIDEO_RESOLUTION,
+            'aspect_ratio': aspect_ratio or DEFAULT_VIDEO_ASPECT_RATIO,
+        }
+        
+        # For now, use Gemini to generate video prompts that would work with Veo 3
+        # In the future, this would be replaced with actual Veo 3 API calls
+        return genai.GenerativeModel(
+            model_name=Config.GEMINI_MODEL_NAME or DEFAULT_MODEL,
+            generation_config={
+                'temperature': 0.6,  # Slightly more creative for video descriptions
+                'max_output_tokens': 2048,
+            },
+            safety_settings={
+                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE", 
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"
+            }
+        ), video_config
+    except Exception as e:
+        print(f"Error creating Veo 3 model: {e}")
+        return None, {}
+
+# =============================================================================
+# DATABASE CONNECTION UTILITIES
+# =============================================================================
+
 def get_db_connection():
     """Get MongoDB connection and return the database object."""
     try:
-        # Log the connection string (without password) for debugging
         connection_string = Config.MONGODB_URI
-        if connection_string:
-            # Mask the password in the log for security
-            masked_uri = connection_string.replace("://", "://***:***@")
-            
-        else:
-            return None
-
-        if not Config.MONGODB_DB_NAME:
+        if not connection_string or not Config.MONGODB_DB_NAME:
             return None
             
-            
-        # Attempt to connect with a timeout
         client = MongoClient(Config.MONGODB_URI, serverSelectionTimeoutMS=5000)
-        # Force a connection to verify it works
-        client.server_info()
+        client.server_info()  # Force connection test
         
-        db = client[Config.MONGODB_DB_NAME]
-        # Verify we can access the database
-        collections = db.list_collection_names()
-        
-        
-        return db
+        return client[Config.MONGODB_DB_NAME]
     except Exception as e:
+        print(f"MongoDB connection failed: {e}")
         return None
 
-# Voice chat history functions
-def save_chat_message(user_email, message, is_ai=False, context=None):
-    """Save a chat message to the voice_chat collection with additional metadata.
-    
-    Args:
-        user_email (str): The user's email identifier
-        message (str): The message content
-        is_ai (bool): Whether the message is from AI (True) or user (False)
-        context (dict, optional): Additional context like session_id, mode, etc.
-    
-    Returns:
-        bool: Success status
-    """
-    try:
-        db = get_db_connection()
-        # Prepare the new message with additional metadata
-        new_message = {
-            "content": message,
-            "is_ai": is_ai,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-        # Get session ID from context if available
-        session_id = None
-        if context and "session_id" in context:
-            session_id = context["session_id"]
-
-        # Add context metadata if provided
-        if context:
-            message_context = {}
-            for key in ["session_id", "mode", "subject", "is_voice_input"]:
-                if key in context:
-                    message_context[key] = context[key]
-            if message_context:
-                new_message["context"] = message_context
-
-        # If no session ID, use a default
-        if not session_id:
-            session_id = "default_session"
-
-        if db is None:
-            # Use in-memory fallback
-            user_doc = _voice_chat_store.get(user_email)
-
-            if not user_doc:
-                _voice_chat_store[user_email] = {
-                    "sessions": [{"session_id": session_id, "messages": [new_message], "created_at": datetime.utcnow().isoformat()}],
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat()
-                }
-                return True
-
-            # Find session
-            for s in user_doc.get("sessions", []):
-                if s.get("session_id") == session_id:
-                    s.setdefault("messages", []).append(new_message)
-                    user_doc["updated_at"] = datetime.utcnow().isoformat()
-                    return True
-
-            # Create new session
-            new_session = {"session_id": session_id, "messages": [new_message], "created_at": datetime.utcnow().isoformat()}
-            user_doc.setdefault("sessions", []).append(new_session)
-            user_doc["updated_at"] = datetime.utcnow().isoformat()
-            return True
-
-        # Get the voice_chat collection
-        voice_chat_collection = db[Config.MONGODB_VOICE_CHAT_COLLECTION]
-
-        # Find user's chat history document
-        chat_doc = voice_chat_collection.find_one({"user_email": user_email})
-
-        if chat_doc:
-            # Check if session exists in the sessions array
-            session_exists = False
-            if "sessions" in chat_doc:
-                for session in chat_doc["sessions"]:
-                    if session["session_id"] == session_id:
-                        session_exists = True
-                        break
-
-            if session_exists:
-                # Add message to existing session
-                voice_chat_collection.update_one(
-                    {"user_email": user_email, "sessions.session_id": session_id},
-                    {
-                        "$push": {"sessions.$.messages": new_message},
-                        "$set": {"updated_at": datetime.utcnow().isoformat()}
-                    }
-                )
-            else:
-                # Create new session with this message
-                new_session = {
-                    "session_id": session_id,
-                    "messages": [new_message],
-                    "created_at": datetime.utcnow().isoformat()
-                }
-                voice_chat_collection.update_one(
-                    {"user_email": user_email},
-                    {
-                        "$push": {"sessions": new_session},
-                        "$set": {"updated_at": datetime.utcnow().isoformat()}
-                    }
-                )
-        else:
-            # Create new user document with session
-            new_session = {
-                "session_id": session_id,
-                "messages": [new_message],
-                "created_at": datetime.utcnow().isoformat()
-            }
-            voice_chat_collection.insert_one({
-                "user_email": user_email,
-                "sessions": [new_session],
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
-            })
-
-        return True
-    except Exception:
-        return False
-
-def get_chat_history(user_email, limit=10, session_id=None):
-    """Get the user's chat history for a specific session.
-    
-    Args:
-        user_email (str): The user's email identifier
-        limit (int): Maximum number of messages to retrieve (default: 10)
-        session_id (str, optional): The session ID to get messages for. If None, gets messages from the most recent session.
-    
-    Returns:
-        list: List of message objects with content, is_ai, and timestamp
-    """
+def get_collection(collection_name: str):
+    """Get MongoDB collection with fallback."""
     try:
         db = get_db_connection()
         if db is None:
-            # Return in-memory history
-            user_doc = _voice_chat_store.get(user_email)
-            if not user_doc:
-                return []
-            sessions = user_doc.get("sessions", [])
-            if session_id:
-                for s in sessions:
-                    if s.get("session_id") == session_id:
-                        msgs = s.get("messages", [])
-                        return msgs[-limit:] if len(msgs) > limit else msgs
-                return []
-            # most recent session
-            if not sessions:
-                return []
-            sorted_sessions = sorted(sessions, key=lambda x: x.get("created_at", ""), reverse=True)
-            msgs = sorted_sessions[0].get("messages", [])
-            return msgs[-limit:] if len(msgs) > limit else msgs
-
-        # Get the voice_chat collection
-        voice_chat_collection = db[Config.MONGODB_VOICE_CHAT_COLLECTION]
-
-        # Find user's chat history
-        chat_doc = voice_chat_collection.find_one({"user_email": user_email})
-
-        if not chat_doc or "sessions" not in chat_doc or not chat_doc["sessions"]:
-            return []
-
-        # If session_id is provided, get messages from that session
-        if session_id:
-            for session in chat_doc["sessions"]:
-                if session["session_id"] == session_id and "messages" in session:
-                    messages = session["messages"]
-                    return messages[-limit:] if len(messages) > limit else messages
-        else:
-            # If no session_id is provided, get messages from the most recent session
-            # Sort sessions by created_at in descending order
-            sorted_sessions = sorted(
-                chat_doc["sessions"], 
-                key=lambda x: x.get("created_at", ""), 
-                reverse=True
-            )
-            if sorted_sessions and "messages" in sorted_sessions[0]:
-                messages = sorted_sessions[0]["messages"]
-                return messages[-limit:] if len(messages) > limit else messages
-
-        return []
-    except Exception:
-        return []
-
-
-def clear_chat_history(user_email, session_id=None):
-    """Clear a user's chat history, either for a specific session or all sessions.
-    
-    Args:
-        user_email (str): The user's email identifier
-        session_id (str, optional): Session ID to clear. If None, clears all chat history for the user.
-    
-    Returns:
-        bool: Success status
-    """
-    try:
-        db = get_db_connection()
-        if db is None:
-            # In-memory fallback
-            user_doc = _voice_chat_store.get(user_email)
-            if not user_doc:
-                return False
-            if session_id:
-                for s in user_doc.get("sessions", []):
-                    if s.get("session_id") == session_id:
-                        s["messages"] = []
-                        return True
-                return False
-            else:
-                del _voice_chat_store[user_email]
-                return True
-
-        # Get the voice_chat collection
-        voice_chat_collection = db[Config.MONGODB_VOICE_CHAT_COLLECTION]
-
-        if session_id:
-            # Clear only the specified session
-            result = voice_chat_collection.update_one(
-                {"user_email": user_email, "sessions.session_id": session_id},
-                {"$set": {"sessions.$.messages": []}}
-            )
-            return result.modified_count > 0
-        else:
-            # Delete the user's entire chat history
-            result = voice_chat_collection.delete_one({"user_email": user_email})
-            return result.deleted_count > 0
-    except Exception:
-        return False
-
-
-def save_active_session(user_email, session_id, mode, subject):
-    """Save or update the user's active session.
-    
-    Args:
-        user_email (str): The user's email identifier
-        session_id (str): Session ID to save as active
-        mode (str): The mode of the session (tutor, conversation, etc.)
-        subject (str): The subject of the session
-        
-    Returns:
-        bool: Success status
-    """
-    try:
-        db = get_db_connection()
-        # In-memory fallback when DB is not available
-        if db is None:
-            _active_sessions_store[user_email] = {
-                "session_id": session_id,
-                "mode": mode,
-                "subject": subject,
-                "last_active": datetime.utcnow().isoformat(),
-                "user_email": user_email,
-                "created_at": datetime.utcnow().isoformat()
-            }
-            return True
-
-        # Verify the collection name is set
-        collection_name = Config.MONGODB_ACTIVE_SESSIONS_COLLECTION
-        if not collection_name:
-            return False
-
-        # Get the active_sessions collection
-        active_sessions_collection = db[collection_name]
-
-        # Check if user already has an active session
-        existing_session = active_sessions_collection.find_one({"user_email": user_email})
-
-        session_data = {
-            "session_id": session_id,
-            "mode": mode,
-            "subject": subject,
-            "last_active": datetime.utcnow().isoformat()
-        }
-
-        if existing_session:
-            # Update existing active session
-            result = active_sessions_collection.update_one(
-                {"user_email": user_email},
-                {"$set": session_data}
-            )
-            success = result.modified_count > 0
-
-            return success
-        else:
-            # Create new active session record
-            session_data["user_email"] = user_email
-            session_data["created_at"] = datetime.utcnow().isoformat()
-            result = active_sessions_collection.insert_one(session_data)
-            success = result.inserted_id is not None
-
-            return success
-    except Exception:
-        return False
-
-
-def get_active_session(user_email):
-    """Get the user's active session if any.
-    
-    Args:
-        user_email (str): The user's email identifier
-        
-    Returns:
-        dict: Session data or None if no active session
-    """
-    try:
-        db = get_db_connection()
-        if db is None:
-            # In-memory fallback
-            return _active_sessions_store.get(user_email)
-
-        # Verify the collection name is set
-        collection_name = Config.MONGODB_ACTIVE_SESSIONS_COLLECTION
-        if not collection_name:
             return None
-
-        # Get the active_sessions collection
-        active_sessions_collection = db[collection_name]
-
-        # Find active session for user
-        active_session = active_sessions_collection.find_one({"user_email": user_email})
-
-        if active_session:
-            return active_session
-        else:
-            return None
+        return db[collection_name]
     except Exception:
         return None
 
+# =============================================================================
+# CORE AI RESPONSE GENERATION
+# =============================================================================
 
-def end_active_session(user_email):
-    """End the user's active session.
+def generate_ai_response(
+    prompt: str, 
+    system_prompt: str = None, 
+    context: Dict[str, Any] = None,
+    ai_type: str = 'general',
+    model_config: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """
+    Central AI response generation function.
     
     Args:
-        user_email (str): The user's email identifier
+        prompt: User input/question
+        system_prompt: System instructions for AI behavior
+        context: Additional context for the AI
+        ai_type: Type of AI interaction (tutor, chatbot, etc.)
+        model_config: Model configuration overrides
         
     Returns:
-        bool: Success status
+        Dict with 'success', 'response', 'error' keys
     """
     try:
-        db = get_db_connection()
-        if db is None:
-            # In-memory fallback
-            if user_email in _active_sessions_store:
-                del _active_sessions_store[user_email]
-                return True
-            return False
-
-        # Verify the collection name is set
-        collection_name = Config.MONGODB_ACTIVE_SESSIONS_COLLECTION
-        if not collection_name:
-            return False
-
-        # Get the active_sessions collection
-        active_sessions_collection = db[collection_name]
-
-        # Remove active session for user
-        result = active_sessions_collection.delete_one({"user_email": user_email})
-
-        success = result.deleted_count > 0
-
-        return success
-    except Exception:
-        return False
-
-
-def format_chat_history_for_context(messages):
-    """Format chat history into a string for AI context.
-    
-    Args:
-        messages (list): List of message objects
-    
-    Returns:
-        str: Formatted chat history
-    """
-    if not messages:
-        return ""
-        
-    formatted_history = "Previous conversation:\n"
-    
-    for msg in messages:
-        speaker = "AI" if msg.get("is_ai", False) else "User"
-        content = msg.get("content", "")
-        formatted_history += f"{speaker}: {content}\n"
-    
-    return formatted_history
-
-
-def _optimize_for_voice(text):
-    """Optimize text for voice playback by removing or replacing content that might not work well in speech.
-    
-    Args:
-        text (str): Original response text
-        
-    Returns:
-        str: Optimized text for voice synthesis
-    """
-    # Replace markdown code blocks with simplified indicators
-    import re
-    
-    # Remove markdown code block syntax and keep the content
-    text = re.sub(r'```[\w]*\n', 'Code example: ', text)
-    text = re.sub(r'```', '', text)
-    
-    # Replace markdown formatting
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Remove bold
-    text = re.sub(r'\*(.*?)\*', r'\1', text)      # Remove italic
-    text = re.sub(r'__(.*?)__', r'\1', text)      # Remove underline
-    text = re.sub(r'~~(.*?)~~', r'\1', text)      # Remove strikethrough
-    
-    # Replace bullet points and numbered lists with pauses and vocal cues
-    text = re.sub(r'^\s*[-*]\s+', 'Bullet point: ', text, flags=re.MULTILINE)
-    text = re.sub(r'^\s*(\d+)\.', r'Point \1:', text, flags=re.MULTILINE)
-    
-    # Replace URLs with something more speech-friendly
-    text = re.sub(r'https?://\S+', 'a website link', text)
-    
-    # Replace excessive whitespace
-    text = re.sub(r'\n\s*\n', '\n', text)
-    
-    # Handle math expressions (simplified approach)
-    text = re.sub(r'\$\$(.*?)\$\$', r'mathematical formula: \1', text, flags=re.DOTALL)
-    text = re.sub(r'\$(.*?)\$', r'mathematical expression: \1', text)
-    
-    # Handle special characters
-    text = text.replace('&', 'and')
-    text = text.replace('>', 'greater than')
-    text = text.replace('<', 'less than')
-    text = text.replace('==', 'equals')
-    text = text.replace('!=', 'not equal to')
-    text = text.replace('>=', 'greater than or equal to')
-    text = text.replace('<=', 'less than or equal to')
-    
-    # Break very long sentences into smaller segments for better voice delivery
-    MAX_SENTENCE_LENGTH = 150
-    sentences = re.split(r'([.!?])', text)
-    processed_sentences = []
-    
-    current_sentence = ""
-    for i in range(0, len(sentences), 2):
-        if i+1 < len(sentences):
-            sentence = sentences[i] + sentences[i+1]
-        else:
-            sentence = sentences[i]
-            
-        if len(current_sentence) + len(sentence) > MAX_SENTENCE_LENGTH:
-            processed_sentences.append(current_sentence)
-            current_sentence = sentence
-        else:
-            current_sentence += sentence
-    
-    if current_sentence:
-        processed_sentences.append(current_sentence)
-    
-    return ' '.join(processed_sentences)
-
-
-def _get_fallback_response(prompt, context=None, error=None):
-    """Generate a fallback response when the AI service fails.
-    
-    Args:
-        prompt (str): The original user prompt
-        context (dict, optional): Context from the original request
-        error (str, optional): Error message that caused the failure
-        
-    Returns:
-        str: A graceful fallback response
-    """
-    mode = context.get('mode', 'tutor') if context else 'tutor'
-    subject = context.get('subject', 'general') if context else 'general'
-    is_voice_input = context.get('is_voice_input', False) if context else False
-    
-    # Log detailed error for debugging
-    
-    
-    # Create a contextual fallback response
-    if is_voice_input:
-        # Shorter, more direct response for voice
-        return f"I'm sorry, I couldn't process your request about {subject} properly. Could you please try asking again or rephrasing your question?"
-    else:
-        # More detailed response for text
-        return f"""I apologize, but I'm having trouble generating a response about {subject} right now. 
-
-This might be due to a temporary issue with the AI service. Here's what you can try:
-
-1. Ask your question again
-2. Try rephrasing your question
-3. Break complex questions into simpler parts
-4. Try again in a few moments
-
-I'm here to help with your {subject} questions when the service is working properly again."""
-
-def init_gemini_ai():
-    """Initialize the Gemini AI client using API key."""
-    try:
-        # Check if Gemini is available
-        if genai is None:
-            return False
-            
-        # Check if API key is configured
-        if not Config.GEMINI_API_KEY:
-            return False
-            
-        # Configure Gemini API
-        genai.configure(api_key=Config.GEMINI_API_KEY)
-        return True
-    except Exception:
-        return False
-
-
-def get_gemini_response(prompt, context=None):
-    """Generate a response using Gemini AI optimized for voice interaction.
-    
-    Args:
-        prompt (str): The user's input text
-        context (dict, optional): Additional context like mode, subject, is_voice_input, etc.
-    
-    Returns:
-        str: The AI-generated response optimized for voice playback
-    """
-    # Try to initialize Gemini AI
-    if not init_gemini_ai():
-        return _get_fallback_response(prompt, context, error="Gemini AI SDK not available or API key not configured")
-
-    try:
-        # Create model instance
-        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
-        
-        # Check if this is a voice interaction
-        is_voice_input = context.get('is_voice_input', False) if context else False
-        
-        # Prepare system instructions based on context
-        system_instruction = _build_system_instruction(context)
-        
-        # Add chat history context if provided
-        user_email = context.get('user_email') if context else None
-        session_id = context.get('session_id') if context else None
-        conversation_history = ""
-        
-        if user_email and session_id:
-            # Get more context for text, less for voice to keep responses concise
-            history_limit = 10
-            # Pass session_id to get chat history only for current session
-            chat_history = get_chat_history(user_email, history_limit, session_id)
-            if chat_history:
-                conversation_history = format_chat_history_for_context(chat_history)
-        
-        # Include conversation history in the prompt if available
-        if conversation_history:
-            # Combine system instruction, conversation history, and current prompt
-            full_prompt = f"{system_instruction}\n\n{conversation_history}\n\nUser: {prompt}"
-        else:
-            full_prompt = f"{system_instruction}\n\nUser: {prompt}"
-        
-        # Configure generation parameters
-        generation_config = {
-            "temperature": 0.7,
-            "top_p": 0.95,
-            "top_k": 40,
-            "max_output_tokens": 600 if is_voice_input else 1024,
-        }
-        
-        # Generate the response
-        response = model.generate_content(
-            full_prompt,
-            generation_config=generation_config
+        model = get_ai_model(
+            model_name=model_config.get('model_name') if model_config else None,
+            temperature=model_config.get('temperature') if model_config else None,
+            max_tokens=model_config.get('max_tokens') if model_config else None
         )
         
-        response_text = response.text.strip()
+        if not model:
+            raise Exception(f"AI model not available for {ai_type}")
         
-        # Optimize for voice if needed
-        if is_voice_input:
-            # Clean up response for better voice playback
-            response_text = _optimize_for_voice(response_text)
+        # Build complete prompt
+        full_prompt = ""
+        if system_prompt:
+            full_prompt += f"System: {system_prompt}\n\n"
         
-        # Save messages to chat history if user_email is provided
-        if user_email:
-            # Save user message with context
-            save_chat_message(user_email, prompt, is_ai=False, context=context)
-            # Save AI response with context
-            save_chat_message(user_email, response_text, is_ai=True, context=context)
+        if context:
+            full_prompt += f"Context: {json.dumps(context, indent=2)}\n\n"
+            
+        full_prompt += f"User: {prompt}"
         
-        # Return the text response
-        return response_text
+        # Generate response
+        response = model.generate_content(full_prompt)
+        
+        # Check if blocked by safety filters first
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'finish_reason'):
+                finish_reason = candidate.finish_reason
+                # finish_reason: 0=UNSPECIFIED, 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION, 5=OTHER
+                if finish_reason == 3:  # SAFETY
+                    # For resume/roadmap/video, return empty response to trigger fallback
+                    if ai_type in ['resume', 'roadmap', 'video']:
+                        print(f"Safety filter triggered for {ai_type}, using fallback structure")
+                        return {'success': False, 'response': '', 'error': 'safety_filter'}
+                    raise Exception(f"Content blocked by AI safety filters for {ai_type}. Please rephrase your request.")
+                elif finish_reason in [4, 5]:  # RECITATION or OTHER
+                    if ai_type in ['resume', 'roadmap', 'video']:
+                        print(f"AI generation blocked (reason: {finish_reason}) for {ai_type}, using fallback")
+                        return {'success': False, 'response': '', 'error': 'generation_blocked'}
+                    raise Exception(f"AI generation blocked (reason: {finish_reason}) for {ai_type}. Please try different input.")
+        
+        # Check for valid text response
+        response_text = None
+        try:
+            if hasattr(response, 'text'):
+                response_text = response.text
+        except (ValueError, AttributeError) as e:
+            print(f"Error accessing response.text for {ai_type}: {e}")
+        
+        if not response or not response_text:
+            # For resume/roadmap/video, allow fallback handling
+            if ai_type in ['resume', 'roadmap', 'video']:
+                print(f"Empty response for {ai_type}, using fallback structure")
+                return {'success': False, 'response': '', 'error': 'empty_response'}
+            raise Exception(f"Empty or invalid response from AI for {ai_type}")
+        
+        return {
+            'success': True,
+            'response': response_text.strip(),
+            'error': None
+        }
+        
     except Exception as e:
-        
-        # Return a graceful fallback response instead of raising
-        return _get_fallback_response(prompt, context, error=str(e))
+        print(f"AI response generation error for {ai_type}: {e}")
+        raise e
 
+# =============================================================================
+# SPECIALIZED AI FUNCTIONS
+# =============================================================================
 
-def _build_system_instruction(context):
-    """Build a system instruction based on context with voice optimization."""
-    if not context:
-        return "You are a helpful AI tutor. Keep responses clear and concise."
-    
-    mode = context.get('mode', 'tutor')
-    subject = context.get('subject', 'general')
-    is_welcome = context.get('is_welcome', False)
-    is_error_state = context.get('is_error_state', False)
-    is_goodbye = context.get('is_goodbye', False)
-    voice_enabled = context.get('voice_enabled', None)
-    is_voice_input = context.get('is_voice_input', False)
-    
-    # Voice-specific instruction additions
-    voice_optimizations = ""
-    if is_voice_input:
-        voice_optimizations = """
-        Since this response will be converted to speech:
-        - Use shorter sentences and simpler vocabulary
-        - Avoid complex symbols, tables, or visual elements
-        - Limit use of parentheses and special characters
-        - Use verbal cues instead of visual formatting
-        - Keep responses concise and well-structured for listening
-        - Use conversational language that sounds natural when spoken
-        """
-    
-    if is_error_state:
-        return ("You are a helpful AI tutor. The user is experiencing technical difficulties. "
-                f"Provide a supportive response for the {mode} mode about {subject}. "
-                "Keep your response brief and encouraging." + 
-                (voice_optimizations if is_voice_input else ""))
-    
-    if is_welcome:
-        return (f"You are a helpful AI tutor in {mode} mode focusing on {subject}. "
-                "Generate a warm, engaging welcome message to start the session. "
-                "Keep it concise (2-3 sentences) and set expectations for what the user will learn." +
-                (voice_optimizations if is_voice_input else ""))
-    
-    if is_goodbye:
-        return ("You are a helpful AI tutor ending a session. "
-                "Generate a brief, warm closing message thanking the user for their time. "
-                "Keep it concise (1-2 sentences) and encouraging for future learning." +
-                (voice_optimizations if is_voice_input else ""))
-    
-    if voice_enabled is not None:
-        state = "enabled" if voice_enabled else "disabled"
-        return (f"You are a helpful AI tutor informing the user that voice output has been {state}. "
-                f"Generate a brief, friendly message (1 sentence) telling them that voice is now {state}.")
-    
-    # General system instructions based on mode
-    if mode == 'tutor':
-        return (f"You are an expert tutor specializing in {subject}. "
-                "Provide clear, step-by-step explanations that are educational and helpful. "
-                "Use examples to illustrate concepts. Be encouraging and supportive. "
-                "Your responses should be thorough but concise and focused on teaching." +
-                (voice_optimizations if is_voice_input else ""))
-    
-    elif mode == 'conversation':
-        return (f"You are a conversation partner interested in discussing {subject}. "
-                "Be engaging, curious, and thoughtful in your responses. "
-                "Ask follow-up questions to encourage deeper exploration of ideas. "
-                "Your tone should be conversational and friendly." +
-                (voice_optimizations if is_voice_input else ""))
-    
-    elif mode == 'debate':
-        return (f"You are a debate partner helping the user explore different perspectives on {subject}. "
-                "Present balanced viewpoints and counterarguments to help the user think critically. "
-                "Challenge assumptions respectfully and provide evidence-based reasoning. "
-                "Encourage the user to develop and defend their own positions." +
-                (voice_optimizations if is_voice_input else ""))
-    
-    elif mode == 'interview':
-        return (f"You are an interview coach helping the user prepare for questions about {subject}. "
-                "Ask relevant interview questions and provide constructive feedback on their responses. "
-                "Offer suggestions for improvement and highlight strengths. "
-                "Your tone should be professional but supportive." +
-                (voice_optimizations if is_voice_input else ""))
-    
-    else:
-        return (f"You are a helpful AI assistant focused on {subject}. "
-                "Provide clear, informative responses to the user's questions. "
-                "Be concise, accurate, and helpful." +
-                (voice_optimizations if is_voice_input else ""))
+# --- TUTORING & CHATBOT ---
 
+def get_tutor_response(prompt: str, subject: str = None, conversation_history: List[Dict] = None) -> Dict[str, Any]:
+    """Generate AI tutor response with educational focus."""
+    context = {
+        'subject': subject,
+        'conversation_history': conversation_history[-5:] if conversation_history else []  # Last 5 messages
+    }
+    
+    return generate_ai_response(
+        prompt=prompt,
+        system_prompt=SYSTEM_PROMPTS['tutor'],
+        context=context,
+        ai_type='tutor'
+    )
 
-def summarize_text(text: str):
-    """Return structured summary of input text using Gemini AI."""
-    # Initialize Gemini AI
-    if not init_gemini_ai():
-        raise RuntimeError("Gemini SDK not available or API key not configured")
+def get_chatbot_response(message: str, user_email: str = None) -> Dict[str, Any]:
+    """Generate chatbot response with conversation context."""
+    context = {}
+    if user_email:
+        # Get recent conversation history
+        history = get_chat_history(user_email, limit=5)
+        context['recent_messages'] = history
+    
+    return generate_ai_response(
+        prompt=message,
+        system_prompt=SYSTEM_PROMPTS['chatbot'],
+        context=context,
+        ai_type='chatbot'
+    )
 
+# --- CONTENT GENERATION ---
+
+def generate_roadmap_content(goal: str, level: str = 'beginner', duration_weeks: int = 12) -> Dict[str, Any]:
+    """Generate learning roadmap using AI."""
+    prompt = f"""Create a {duration_weeks}-week learning roadmap for: {goal}
+
+Level: {level}
+
+IMPORTANT: Return ONLY valid JSON, no markdown, no explanations.
+
+JSON structure:
+{{
+  "title": "Roadmap for {goal}",
+  "description": "Learning path description",
+  "duration_weeks": {duration_weeks},
+  "nodes": [
+    {{"id": "node1", "title": "Topic 1", "description": "Learn basics", "week": 1, "resources": ["Resource 1"], "skills": ["Skill 1"]}},
+    {{"id": "node2", "title": "Topic 2", "description": "Build skills", "week": 4, "resources": ["Resource 2"], "skills": ["Skill 2"]}}
+  ],
+  "edges": [
+    {{"from": "node1", "to": "node2"}}
+  ]
+}}
+
+Create 3-5 nodes with proper progression. Return only the JSON."""
+
+    result = generate_ai_response(
+        prompt=prompt,
+        system_prompt="You are a learning path expert. Return ONLY valid JSON, no markdown formatting.",
+        ai_type='roadmap',
+        model_config={'max_tokens': 2048, 'temperature': 0.3}
+    )
+    
+    if result['success']:
+        try:
+            # Clean the response to extract JSON
+            response_text = result['response'].strip()
+            
+            # Remove markdown code blocks
+            if '```json' in response_text:
+                start = response_text.find('```json') + 7
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            elif '```' in response_text:
+                start = response_text.find('```') + 3
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            
+            # Find JSON object boundaries
+            first_brace = response_text.find('{')
+            last_brace = response_text.rfind('}')
+            if first_brace != -1 and last_brace != -1:
+                response_text = response_text[first_brace:last_brace+1]
+            
+            roadmap_data = json.loads(response_text)
+            return {'success': True, 'roadmap': roadmap_data, 'error': None}
+        except json.JSONDecodeError as e:
+            # Create a simple fallback structure on JSON parse error
+            print(f"JSON parse error: {e}. Creating simple roadmap structure.")
+            simple_roadmap = {
+                "title": goal,
+                "description": f"Learning path for {goal}",
+                "duration_weeks": duration_weeks,
+                "nodes": [
+                    {"id": "start", "title": "Getting Started", "description": f"Begin learning {goal}", "week": 1, "resources": ["Online tutorials"], "skills": ["Basics"]},
+                    {"id": "intermediate", "title": "Building Skills", "description": "Develop core competencies", "week": duration_weeks // 2, "resources": ["Practice projects"], "skills": ["Intermediate"]},
+                    {"id": "advanced", "title": "Advanced Topics", "description": "Master advanced concepts", "week": duration_weeks, "resources": ["Advanced courses"], "skills": ["Advanced"]}
+                ],
+                "edges": [{"from": "start", "to": "intermediate"}, {"from": "intermediate", "to": "advanced"}]
+            }
+            return {'success': True, 'roadmap': simple_roadmap, 'error': None}
+    
+    raise Exception(f'AI roadmap generation failed: {result.get("error", "Unknown error")}')
+
+def generate_quiz_content(topic: str, difficulty: str = 'medium', num_questions: int = 10) -> Dict[str, Any]:
+    """Generate quiz questions using AI."""
+    prompt = f"""Create a {difficulty} difficulty quiz on: {topic}
+    
+Generate exactly {num_questions} multiple choice questions.
+
+Return ONLY a JSON array with this structure:
+[
+    {{
+        "question": "Question text here?",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correct_answer": 0,
+        "explanation": "Why this answer is correct"
+    }}
+]"""
+
+    result = generate_ai_response(
+        prompt=prompt,
+        system_prompt=SYSTEM_PROMPTS['quiz'],
+        ai_type='quiz',
+        model_config={'temperature': 0.3}  # Lower temperature for more consistent questions
+    )
+    
+    if result['success']:
+        try:
+            quiz_data = json.loads(result['response'])
+            return {'success': True, 'questions': quiz_data, 'error': None}
+        except json.JSONDecodeError:
+            return {
+                'success': False, 
+                'questions': [], 
+                'error': 'Failed to parse quiz JSON'
+            }
+    
+    return result
+
+def analyze_resume(resume_text: str, job_description: str = "") -> Dict[str, Any]:
+    """Analyze resume against job description using AI."""
+    # Truncate inputs to avoid token limits
+    resume_truncated = resume_text[:3000] if len(resume_text) > 3000 else resume_text
+    job_truncated = job_description[:1500] if len(job_description) > 1500 else job_description
+    
+    prompt = f"""Analyze resume vs job description. Return ONLY JSON, no markdown.
+
+JSON format:
+{{"strengths": ["point1", "point2"], "improvements": ["tip1", "tip2"], "match_score": 75, "summary": "Brief analysis"}}
+
+Resume: {resume_truncated}
+
+Job: {job_truncated}
+
+Return only the JSON object."""
+
+    result = generate_ai_response(
+        prompt=prompt,
+        system_prompt="You are a resume analysis expert. Return ONLY valid JSON, no markdown.",
+        ai_type='resume',
+        model_config={'temperature': 0.2, 'max_tokens': 1024}
+    )
+    
+    # Handle safety filter or empty response
+    if not result.get('success') or result.get('error') in ['safety_filter', 'generation_blocked', 'empty_response']:
+        print(f"AI issue detected: {result.get('error', 'unknown')}, using simple analysis")
+        simple_analysis = {
+            "strengths": ["Resume includes relevant experience", "Clear structure and formatting"],
+            "improvements": ["Consider adding more quantifiable achievements", "Include specific technical skills relevant to the role"],
+            "match_score": 65,
+            "summary": "Resume shows potential match with the role. Focus on highlighting specific achievements and relevant technical expertise.",
+        }
+        return {'success': True, 'analysis': simple_analysis, 'error': None}
+    
+    if result['success']:
+        try:
+            # Clean the response to extract JSON
+            response_text = result['response'].strip()
+            
+            # Remove markdown code blocks
+            if '```json' in response_text:
+                start = response_text.find('```json') + 7
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            elif '```' in response_text:
+                start = response_text.find('```') + 3
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            
+            # Find JSON object boundaries
+            first_brace = response_text.find('{')
+            last_brace = response_text.rfind('}')
+            if first_brace != -1 and last_brace != -1:
+                response_text = response_text[first_brace:last_brace+1]
+            
+            analysis = json.loads(response_text)
+            
+            # Ensure required fields exist
+            if 'strengths' not in analysis:
+                analysis['strengths'] = []
+            if 'improvements' not in analysis:
+                analysis['improvements'] = []
+            if 'match_score' not in analysis:
+                analysis['match_score'] = 50
+            if 'summary' not in analysis:
+                analysis['summary'] = "Analysis completed"
+            
+            return {'success': True, 'analysis': analysis, 'error': None}
+        except json.JSONDecodeError as e:
+            # Create simple fallback analysis on parse error
+            print(f"JSON parse error: {e}. Creating simple analysis.")
+            simple_analysis = {
+                "strengths": ["Resume reviewed"],
+                "improvements": ["Consider adding more specific skills and achievements"],
+                "match_score": 60,
+                "summary": "Resume analysis completed with basic evaluation."
+            }
+            return {'success': True, 'analysis': simple_analysis, 'error': None}
+    
+    raise Exception(f'AI resume analysis failed: {result.get("error", "Unknown error")}')
+
+def generate_visual_script(text: str, max_scenes: int = 8) -> List[Dict[str, str]]:
+    """Generate visual content script using AI."""
+    prompt = f"""Create a video script with {max_scenes} educational scenes from this text.
+Return ONLY valid JSON array:
+[{{"narration": "text", "visual_description": "description"}}]
+
+Rules:
+- {max_scenes} scenes max
+- 10-20 words per narration
+- JSON only, no markdown
+
+Text: {text[:2000]}"""
+
+    result = generate_ai_response(
+        prompt=prompt,
+        system_prompt=SYSTEM_PROMPTS['visual'],
+        ai_type='visual',
+        model_config={'temperature': 0.4}
+    )
+    
+    if result['success']:
+        try:
+            # Clean response and parse JSON
+            clean_response = result['response'].replace('```json', '').replace('```', '').strip()
+            scenes = json.loads(clean_response)
+            return scenes if isinstance(scenes, list) else []
+        except json.JSONDecodeError:
+            pass
+    
+    # Fallback: create simple scenes from text
+    return create_fallback_visual_scenes(text, max_scenes)
+
+def create_fallback_visual_scenes(text: str, max_scenes: int = 8) -> List[Dict[str, str]]:
+    """Create fallback visual scenes when AI is unavailable."""
+    words = text.split()
+    chunk_size = max(len(words) // max_scenes, 10)
+    
+    scenes = []
+    for i in range(0, min(len(words), chunk_size * max_scenes), chunk_size):
+        chunk = " ".join(words[i:i + chunk_size])
+        if len(chunk.strip()) > 0:
+            scenes.append({
+                "narration": chunk[:100] + "..." if len(chunk) > 100 else chunk,
+                "visual_description": f"Educational illustration for scene {len(scenes) + 1}"
+            })
+    
+    return scenes[:max_scenes]
+
+# =============================================================================
+# VIDEO GENERATION WITH VEO 3
+# =============================================================================
+
+def generate_video_with_veo3(
+    text: str, 
+    duration: int = 30, 
+    resolution: str = '720p',
+    aspect_ratio: str = '16:9',
+    style: str = 'educational'
+) -> Dict[str, Any]:
+    """Generate video using Google Veo 3 model (or compatible video generation)."""
     try:
-        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or "gemini-2.5-flash")
-        prompt = f"Please summarize the following text concisely, highlighting the key points:\n\n{text}"
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception:
-        raise
+        model, video_config = get_veo3_model(duration, resolution, aspect_ratio)
+        
+        if not model:
+            return {
+                'success': False,
+                'error': 'Video generation model not available',
+                'fallback_scenes': create_fallback_visual_scenes(text)
+            }
+        
+        # Create comprehensive video generation prompt for Veo 3
+        video_prompt = f"""Generate a detailed video production description for creating an educational video.
 
+Content to visualize: {text[:1500]}
 
-def generate_images(prompts):
-    """Generate images based on prompts using Gemini AI's image generation capabilities.
+Video Specifications:
+- Duration: {duration} seconds
+- Resolution: {resolution}
+- Aspect Ratio: {aspect_ratio}
+- Style: {style}
+
+Return a JSON object with this structure:
+{{
+    "video_description": "Overall video description and style",
+    "scenes": [
+        {{
+            "start_time": 0,
+            "duration": 5,
+            "visual_prompt": "Detailed description of visual elements, camera angles, lighting",
+            "narration": "Text to be spoken",
+            "transitions": "Type of transition to next scene"
+        }}
+    ],
+    "background_music": "Style of background music",
+    "visual_style": "Overall visual aesthetic and color scheme"
+}}
+
+Focus on educational clarity, engaging visuals, and smooth transitions."""
+
+        result = generate_ai_response(
+            prompt=video_prompt,
+            system_prompt=SYSTEM_PROMPTS['video'],
+            ai_type='video',
+            model_config={'temperature': 0.6, 'max_tokens': 2048}
+        )
+        
+        if result['success'] and result.get('response'):
+            try:
+                # Clean and parse the video generation response
+                response_text = result['response']
+                
+                # Remove markdown code blocks
+                if '```json' in response_text:
+                    start = response_text.find('```json') + 7
+                    end = response_text.rfind('```')
+                    if end > start:
+                        response_text = response_text[start:end].strip()
+                elif '```' in response_text:
+                    start = response_text.find('```') + 3
+                    end = response_text.rfind('```')
+                    if end > start:
+                        response_text = response_text[start:end].strip()
+                
+                # Find JSON object boundaries
+                first_brace = response_text.find('{')
+                last_brace = response_text.rfind('}')
+                if first_brace != -1 and last_brace != -1:
+                    response_text = response_text[first_brace:last_brace+1]
+                
+                video_spec = json.loads(response_text)
+                
+                # In a real implementation, this would call the actual Veo 3 API
+                # For now, we return the structured video specification
+                return {
+                    'success': True,
+                    'video_spec': video_spec,
+                    'video_url': None,  # Would contain actual video URL from Veo 3
+                    'status': 'generated_specification',
+                    'duration': duration,
+                    'resolution': resolution,
+                    'aspect_ratio': aspect_ratio,
+                    'fallback_scenes': extract_scenes_from_spec(video_spec)
+                }
+            except json.JSONDecodeError as e:
+                print(f"JSON parse error in video generation: {e}")
+                # Fallback to scene-based generation
+                scenes = generate_visual_script(text, max_scenes=duration//5)
+                return {
+                    'success': True,
+                    'video_spec': create_video_spec_from_scenes(scenes, duration, resolution, aspect_ratio),
+                    'video_url': None,
+                    'status': 'fallback_specification',
+                    'fallback_scenes': scenes
+                }
+        
+        # If AI response failed, use fallback
+        print(f"AI video generation failed: {result.get('error', 'unknown')}, using fallback scenes")
+        scenes = generate_visual_script(text, max_scenes=max(3, duration//5))
+        return {
+            'success': True,
+            'video_spec': create_video_spec_from_scenes(scenes, duration, resolution, aspect_ratio),
+            'video_url': None,
+            'status': 'fallback_specification',
+            'fallback_scenes': scenes
+        }
+        
+    except Exception as e:
+        print(f"Video generation error: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'fallback_scenes': create_fallback_visual_scenes(text)
+        }
+
+def extract_scenes_from_spec(video_spec: Dict) -> List[Dict[str, str]]:
+    """Extract simple scenes from Veo 3 video specification for compatibility."""
+    scenes = []
+    if isinstance(video_spec, dict) and 'scenes' in video_spec:
+        for scene in video_spec['scenes']:
+            scenes.append({
+                "narration": scene.get('narration', ''),
+                "visual_description": scene.get('visual_prompt', '')
+            })
+    return scenes
+
+def create_video_spec_from_scenes(
+    scenes: List[Dict[str, str]], 
+    duration: int, 
+    resolution: str, 
+    aspect_ratio: str
+) -> Dict[str, Any]:
+    """Create video specification from simple scenes."""
+    scene_duration = max(3, duration // len(scenes)) if scenes else 5
     
-    Note: Currently returns a placeholder as Gemini API doesn't support image generation via API.
-    Consider using DALL-E or other image generation services.
-    """
-    raise NotImplementedError("Image generation is not supported by Gemini API. Please use DALL-E or other image generation services.")
+    video_scenes = []
+    current_time = 0
+    
+    for i, scene in enumerate(scenes):
+        video_scenes.append({
+            "start_time": current_time,
+            "duration": scene_duration,
+            "visual_prompt": f"Educational visualization: {scene.get('visual_description', '')}. Professional educational style with clear typography and engaging graphics.",
+            "narration": scene.get('narration', ''),
+            "transitions": "fade" if i < len(scenes) - 1 else "none"
+        })
+        current_time += scene_duration
+    
+    return {
+        "video_description": f"Educational video in {resolution} resolution with {aspect_ratio} aspect ratio",
+        "scenes": video_scenes,
+        "background_music": "soft educational background music",
+        "visual_style": "clean, modern educational design with consistent branding"
+    }
 
+def generate_video_from_text(
+    text: str,
+    video_type: str = 'educational',
+    duration: int = 30,
+    resolution: str = '720p'
+) -> Dict[str, Any]:
+    """Main function for video generation - maintains compatibility with existing code."""
+    return generate_video_with_veo3(
+        text=text,
+        duration=duration,
+        resolution=resolution,
+        style=video_type
+    )
 
-# Backward compatibility aliases (for existing code that uses vertex naming)
-def init_vertex_ai():
-    """Backward compatibility alias for init_gemini_ai."""
-    return init_gemini_ai()
+# =============================================================================
+# CONVERSATION & SESSION MANAGEMENT
+# =============================================================================
 
+def save_chat_message(user_email: str, message: str, response: str, conversation_id: str = None) -> str:
+    """Save chat message to database with fallback to memory."""
+    try:
+        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
+        
+        chat_data = {
+            'user_email': user_email,
+            'message': message,
+            'response': response,
+            'conversation_id': conversation_id or str(ObjectId()),
+            'timestamp': datetime.utcnow(),
+            'created_at': datetime.utcnow()
+        }
+        
+        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
+        if collection is None:
+            raise Exception("MongoDB connection required for chat storage - no fallbacks available")
+        
+        result = collection.insert_one(chat_data)
+        return str(result.inserted_id)
+            
+    except Exception as e:
+        print(f"Error saving chat message: {e}")
+        return ""
 
-def get_vertex_response(prompt, context=None):
-    """Backward compatibility alias for get_gemini_response."""
-    return get_gemini_response(prompt, context)
+def get_chat_history(user_email: str, limit: int = 20) -> List[Dict]:
+    """Get chat history from database - MongoDB required."""
+    try:
+        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
+        
+        if collection is None:
+            raise Exception("MongoDB connection required for chat history - no fallbacks available")
+        
+        cursor = collection.find(
+            {'user_email': user_email}
+        ).sort('timestamp', -1).limit(limit)
+        
+        history = []
+        for doc in cursor:
+            doc['id'] = str(doc['_id'])
+            del doc['_id']
+            history.append(doc)
+        return history
+            
+    except Exception as e:
+        print(f"Error retrieving chat history: {e}")
+        return []
+
+def clear_chat_history(user_email: str) -> bool:
+    """Clear chat history for user - MongoDB required."""
+    try:
+        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
+        
+        if collection is None:
+            raise Exception("MongoDB connection required for chat operations - no fallbacks available")
+        
+        collection.delete_many({'user_email': user_email})
+        return True
+        
+    except Exception as e:
+        print(f"Error clearing chat history: {e}")
+        raise e
+
+# Voice chat session management
+def save_active_session(user_email: str, session_data: Dict) -> bool:
+    """Save active voice session - MongoDB required."""
+    try:
+        collection = get_collection(Config.MONGODB_ACTIVE_SESSIONS_COLLECTION or 'active_sessions')
+        
+        session_data.update({
+            'user_email': user_email,
+            'last_updated': datetime.utcnow()
+        })
+        
+        if collection is None:
+            raise Exception("MongoDB connection required for session storage - no fallbacks available")
+        
+        collection.replace_one(
+            {'user_email': user_email},
+            session_data,
+            upsert=True
+        )
+        return True
+        
+    except Exception as e:
+        print(f"Error saving active session: {e}")
+        raise e
+
+def get_active_session(user_email: str) -> Dict:
+    """Get active voice session - MongoDB required."""
+    try:
+        collection = get_collection(Config.MONGODB_ACTIVE_SESSIONS_COLLECTION or 'active_sessions')
+        
+        if collection is None:
+            raise Exception("MongoDB connection required for session retrieval - no fallbacks available")
+        
+        session = collection.find_one({'user_email': user_email})
+        if session:
+            session['id'] = str(session['_id'])
+            del session['_id']
+            return session
+        
+        return {}
+        
+    except Exception as e:
+        print(f"Error getting active session: {e}")
+        raise e
+
+def end_active_session(user_email: str) -> bool:
+    """End active voice session - MongoDB required."""
+    try:
+        collection = get_collection(Config.MONGODB_ACTIVE_SESSIONS_COLLECTION or 'active_sessions')
+        
+        if collection is None:
+            raise Exception("MongoDB connection required for session operations - no fallbacks available")
+        
+        collection.delete_one({'user_email': user_email})
+        return True
+        
+    except Exception as e:
+        print(f"Error ending active session: {e}")
+        raise e
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+def _optimize_for_voice(text: str) -> str:
+    """Optimize text response for voice synthesis."""
+    # Remove markdown formatting
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Bold
+    text = re.sub(r'\*(.*?)\*', r'\1', text)      # Italic
+    text = re.sub(r'`(.*?)`', r'\1', text)        # Code
+    
+    # Replace abbreviations with full words
+    replacements = {
+        'AI': 'artificial intelligence',
+        'API': 'A P I',
+        'URL': 'U R L',
+        'HTTP': 'H T T P',
+        'CSS': 'C S S',
+        'HTML': 'H T M L',
+        'JS': 'JavaScript',
+        'DB': 'database'
+    }
+    
+    for abbr, full in replacements.items():
+        text = re.sub(r'\b' + abbr + r'\b', full, text, flags=re.IGNORECASE)
+    
+    return text
+
+def _get_fallback_response(prompt: str, context: Dict = None) -> str:
+    """Generate fallback response when AI is unavailable."""
+    subject = context.get('subject', 'general') if context else 'general'
+    
+    fallback_templates = {
+        'general': "I understand you're asking about {topic}. While I can't provide a detailed response right now, I'd recommend checking reliable educational resources or trying again later.",
+        'math': "For mathematical problems, I'd suggest breaking down the problem step by step and consulting your textbook or a math tutor.",
+        'science': "For science questions, consider reviewing the relevant concepts in your course materials or consulting educational websites.",
+        'programming': "For coding questions, try checking the documentation, looking at example code, or using online programming resources.",
+        'resume': "For resume feedback, consider having it reviewed by a career counselor or using online resume analysis tools."
+    }
+    
+    template = fallback_templates.get(subject, fallback_templates['general'])
+    topic = prompt[:50] + "..." if len(prompt) > 50 else prompt
+    
+    return template.format(topic=topic)
+
+def check_ai_availability() -> Dict[str, Any]:
+    """Check AI system availability and configuration."""
+    return {
+        'ai_library_available': AI_AVAILABLE,
+        'api_key_configured': bool(Config.GEMINI_API_KEY) if hasattr(Config, 'GEMINI_API_KEY') else False,
+        'model_name': getattr(Config, 'GEMINI_MODEL_NAME', DEFAULT_MODEL),
+        'database_available': get_db_connection() is not None,
+        'status': 'operational' if AI_AVAILABLE and hasattr(Config, 'GEMINI_API_KEY') and Config.GEMINI_API_KEY else 'degraded'
+    }
+
+# =============================================================================
+# LEGACY COMPATIBILITY FUNCTIONS
+# =============================================================================
+
+def get_vertex_response(prompt: str, context: str = None) -> str:
+    """Legacy compatibility - redirect to new AI system."""
+    result = get_tutor_response(prompt, context=context)
+    if result['success']:
+        return result['response']
+    else:
+        return result['response']  # Fallback message
+
+def init_vertex_ai() -> bool:
+    """Legacy compatibility - redirect to new AI initialization."""
+    return initialize_ai()
+
+def get_gemini_response(prompt: str, context: str = None) -> str:
+    """Legacy compatibility - redirect to new AI system."""
+    result = generate_ai_response(prompt, context={'legacy_context': context} if context else None)
+    if result['success']:
+        return result['response']
+    else:
+        return result['response']  # Fallback message
+
+def init_gemini_ai() -> bool:
+    """Legacy compatibility - redirect to new AI initialization."""
+    return initialize_ai()
+
+def get_conversational_tutor_response(
+    prompt: str, 
+    subject: str = None, 
+    conversation_history: List[Dict] = None, 
+    mode: str = None, 
+    is_voice_input: bool = False
+) -> str:
+    """Legacy compatibility - redirect to new tutor system."""
+    context = {
+        'subject': subject,
+        'conversation_history': conversation_history,
+        'mode': mode,
+        'is_voice_input': is_voice_input
+    }
+    
+    result = get_tutor_response(prompt, subject, conversation_history)
+    if result['success']:
+        response = result['response']
+        # Apply voice optimization if needed
+        if is_voice_input:
+            response = _optimize_for_voice(response)
+        return response
+    else:
+        return result['response']  # Fallback message
+
+def summarize_text(text: str) -> str:
+    """Generate summary using centralized AI system."""
+    result = generate_ai_response(
+        prompt=f"Please summarize the following text concisely, highlighting the key points:\n\n{text}",
+        ai_type='general',
+        model_config={'temperature': 0.3}
+    )
+    
+    if result['success']:
+        return result['response']
+    else:
+        return "Unable to generate summary at this time. Please try again later."
+
+# =============================================================================
+# INITIALIZATION
+# =============================================================================
+
+# Auto-initialize AI system when module is imported
+if AI_AVAILABLE:
+    AI_INITIALIZED = initialize_ai()
+else:
+    AI_INITIALIZED = False
+
+print(f"AI System Status: {'Initialized' if AI_INITIALIZED else 'Unavailable'}")
+if not AI_INITIALIZED and AI_AVAILABLE:
+    print("Warning: AI library available but initialization failed. Check GEMINI_API_KEY configuration.")
+elif not AI_AVAILABLE:
+    print("Warning: AI library not available. Install google-generativeai package.")

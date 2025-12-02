@@ -11,7 +11,7 @@ import tempfile
 import json
 from ..config import Config
 import re
-from app.utils.ai_utils import _get_fallback_response
+from app.utils.ai_utils import analyze_resume as ai_analyze_resume
 
 resume_bp = Blueprint("resume", __name__)
 
@@ -181,55 +181,13 @@ def analyze_resume():
         except Exception as e:
             return jsonify({"error": f"Failed to fetch or parse resume: {str(e)}"}), 500
 
-    # Gemini AI setup
+    # Use centralized AI analysis - NO FALLBACKS
     try:
-        try:
-            import google.generativeai as genai
-        except Exception:
-            # Return a helpful fallback analysis when AI is not available
-            fallback_text = _get_fallback_response(job_description or "resume analysis", context={"subject": "resume"})
-            return jsonify({"analysis": {"strengths": [], "improvements": [], "match_score": 0, "summary": fallback_text}, "note": "AI service unavailable; returned fallback message."}), 200
-
-        # Configure Gemini API
-        if not Config.GEMINI_API_KEY:
-            fallback_text = _get_fallback_response(job_description or "resume analysis", context={"subject": "resume"})
-            return jsonify({"analysis": {"strengths": [], "improvements": [], "match_score": 0, "summary": fallback_text}, "note": "Gemini API key not configured."}), 200
-            
-        genai.configure(api_key=Config.GEMINI_API_KEY)
-        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
-        prompt = (
-            "You are an expert career coach and resume analyst. "
-            "Given the following resume and job description, analyze them and respond ONLY with a JSON object containing: "
-            "'strengths' (list of strong points in the resume relevant to the job), "
-            "'improvements' (list of specific suggestions to improve the resume for this job), "
-            "'match_score' (number between 0-100 indicating how well the resume matches the job), "
-            "and 'summary' (a concise summary of the analysis). "
-            "Do not include any extra text or explanation outside the JSON object.\n\n"
-            f"Resume:\n{resume_text}\n\nJob Description:\n{job_description}"
-        )
-        response = model.generate_content(prompt)
-        analysis_text = response.text or ""
-
-        # Parse and normalize the model response into required schema
-        try:
-            parsed = _safe_extract_json(analysis_text)
-            print(parsed)
-            normalized = _normalize_analysis(parsed)
-            print(normalized)
-        except Exception:
-            # Fallback: return defaults and include raw for troubleshooting
-            normalized = {
-                'strengths': [],
-                'improvements': [],
-                'match_score': 0,
-                'summary': "",
-            }
-            return jsonify({
-                "analysis": normalized,
-                "raw": analysis_text,
-                "warning": "LLM response was not valid JSON; returned defaults with raw included."
-            })
-
-        return jsonify({"analysis": normalized})
+        result = ai_analyze_resume(resume_text, job_description)
+        
+        if not result['success']:
+            raise Exception(f"AI resume analysis failed: {result.get('error', 'Unknown error')}")
+        
+        return jsonify({"success": True, "analysis": result['analysis']})
     except Exception as e:
-        return jsonify({"error": f"Gemini analysis failed: {str(e)}"}), 500
+        raise e

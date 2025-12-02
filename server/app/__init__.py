@@ -3,6 +3,7 @@
 from flask import Flask
 from flask_cors import CORS
 import os
+import logging
 
 # Load environment variables from a .env file if present (local dev convenience)
 try:  # pragma: no cover - optional dependency handling
@@ -14,6 +15,32 @@ except Exception:  # noqa: BLE001 - broad except acceptable for optional import
 from .config import Config
 
 
+def setup_logging(app: Flask) -> None:
+    """Configure logging based on environment.
+
+    - Production/serverless: INFO level, concise formatting
+    - Development: DEBUG level, detailed formatting with timestamps
+    """
+    config = Config()
+
+    # Set log level based on environment
+    if config.DEBUG or config.ENV == 'development':
+        log_level = logging.DEBUG
+        log_format = '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+    else:
+        log_level = logging.INFO
+        log_format = '%(levelname)s: %(message)s'
+
+
+    # Remove default handlers and add custom one
+    handler = logging.StreamHandler()
+    handler.setLevel(log_level)
+    handler.setFormatter(logging.Formatter(log_format))
+
+    # Also configure root logger for consistency
+    logging.basicConfig(level=log_level, format=log_format, force=True)
+
+
 def create_app() -> Flask:
     """Create and configure the Flask application.
 
@@ -21,24 +48,35 @@ def create_app() -> Flask:
     - Loads configuration from Config class / environment variables with fallbacks
     - Enables CORS for all origins by default for maximum compatibility
     - Registers all feature blueprints with graceful error handling
+    - Configures environment-appropriate logging
     - Works seamlessly in any environment: local, Vercel, AWS Lambda, Heroku, etc.
     """
 
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Setup logging first
+    setup_logging(app)
+
     # Enable CORS to allow all origins for maximum compatibility
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
     # Import and register blueprints with error handling
     blueprints_to_register = [
-        ('visual', lambda: __import__('app.routes.visual', fromlist=['visual_bp']).visual_bp),
-        ('chatbot', lambda: __import__('app.routes.chatbot', fromlist=['chatbot_bp']).chatbot_bp),
-        ('quizzes', lambda: __import__('app.routes.quizzes', fromlist=['quizzes_bp']).quizzes_bp),
-        ('tutor', lambda: __import__('app.routes.tutor', fromlist=['tutor_bp']).tutor_bp),
-        ('roadmap', lambda: __import__('app.routes.roadmap', fromlist=['roadmap_bp']).roadmap_bp),
-        ('resume', lambda: __import__('app.routes.resume', fromlist=['resume_bp']).resume_bp),
-        ('user_stats', lambda: __import__('app.routes.user_stats', fromlist=['user_stats_bp']).user_stats_bp),
+        ('visual', lambda: __import__(
+            'app.routes.visual', fromlist=['visual_bp']).visual_bp),
+        ('chatbot', lambda: __import__(
+            'app.routes.chatbot', fromlist=['chatbot_bp']).chatbot_bp),
+        ('quizzes', lambda: __import__(
+            'app.routes.quizzes', fromlist=['quizzes_bp']).quizzes_bp),
+        ('tutor', lambda: __import__(
+            'app.routes.tutor', fromlist=['tutor_bp']).tutor_bp),
+        ('roadmap', lambda: __import__(
+            'app.routes.roadmap', fromlist=['roadmap_bp']).roadmap_bp),
+        ('resume', lambda: __import__(
+            'app.routes.resume', fromlist=['resume_bp']).resume_bp),
+        ('user_stats', lambda: __import__('app.routes.user_stats',
+         fromlist=['user_stats_bp']).user_stats_bp),
     ]
 
     registered_blueprints = []
@@ -48,10 +86,7 @@ def create_app() -> Flask:
             app.register_blueprint(blueprint)
             registered_blueprints.append(name)
         except Exception as e:
-            print(f"Warning: Failed to register {name} blueprint: {e}")
-            # Continue without this blueprint instead of failing completely
-
-    print(f"Successfully registered blueprints: {', '.join(registered_blueprints)}")
+            return app
 
     @app.route("/", methods=["GET"])
     def health():
@@ -59,12 +94,31 @@ def create_app() -> Flask:
         from .config import Config
         config = Config()
         return {
-            "status": "ok", 
+            "status": "ok",
             "service": "edvanta-backend",
             "environment": config.ENV,
             "debug": config.DEBUG,
+            "is_serverless": config.IS_SERVERLESS,
+            "platform": _detect_platform(config),
             "registered_blueprints": list(app.blueprints.keys()) if hasattr(app, 'blueprints') else []
         }
+
+    def _detect_platform(config):
+        """Detect which platform the app is running on."""
+        if config.IS_VERCEL:
+            return "vercel"
+        elif config.IS_AWS_LAMBDA:
+            return "aws-lambda"
+        elif config.IS_HEROKU:
+            return "heroku"
+        elif config.IS_NETLIFY:
+            return "netlify"
+        elif config.IS_GOOGLE_CLOUD:
+            return "google-cloud"
+        elif config.IS_SERVERLESS:
+            return "serverless-unknown"
+        else:
+            return "local"
 
     @app.route("/api/runtime-features", methods=["GET"])
     def runtime_features():
@@ -78,7 +132,7 @@ def create_app() -> Flask:
             optional_libs = [
                 "google.generativeai",
                 "moviepy",
-                "gtts", 
+                "gtts",
                 "PIL",
                 "whisper",
                 "pypdf",
@@ -90,7 +144,7 @@ def create_app() -> Flask:
                     features[lib] = importlib.util.find_spec(lib) is not None
                 except Exception:
                     features[lib] = False
-                    
+
             # Configuration status
             config_status = {
                 "gemini_api_configured": bool(config.GEMINI_API_KEY),
@@ -100,7 +154,7 @@ def create_app() -> Flask:
                 "debug_mode": config.DEBUG
             }
             features.update(config_status)
-            
+
         except Exception as e:
             features = {"error": f"runtime check failed: {str(e)}"}
 
@@ -111,6 +165,12 @@ def create_app() -> Flask:
     # or responses generated before blueprint handlers run.
     from flask import request
 
+    @app.before_request
+    def log_request():
+        """Log incoming requests in debug mode."""
+        if app.config.get('DEBUG'):
+            return 
+
     @app.after_request
     def ensure_cors_headers(response):
         """Attach permissive CORS headers.
@@ -119,6 +179,10 @@ def create_app() -> Flask:
           present (to allow credentials) and fall back to '*' otherwise.
         - Otherwise only echo allowed origins.
         """
+        # Log response in debug mode
+        if app.config.get('DEBUG'):
+            return response
+
         origin = request.headers.get("Origin")
         allowed = Config.ALLOWED_ORIGINS
 
@@ -158,5 +222,31 @@ def create_app() -> Flask:
     def not_found(error):
         from flask import jsonify
         return jsonify({"error": "Endpoint not found"}), 404
+
+    # Global error handler for all unhandled exceptions
+    @app.errorhandler(Exception)
+    def handle_exception(error):
+        from flask import jsonify
+        import traceback
+
+        # Log the full error with traceback in debug mode
+        if app.config.get('DEBUG'):
+            return jsonify({
+                "error": "Internal server error",
+                "message": str(error),
+                "type": type(error).__name__
+            }), 500
+        else:
+            # In production, don't leak error details
+            return jsonify({
+                "error": "Internal server error",
+                "message": "An unexpected error occurred. Please try again later."
+            }), 500
+
+    # Handle 500 errors specifically
+    @app.errorhandler(500)
+    def internal_error(error):
+        from flask import jsonify
+        return jsonify({"error": "Internal server error"}), 500
 
     return app

@@ -8,12 +8,16 @@ import os
 import json
 import traceback
 from app.utils.ai_utils import (
-    get_vertex_response,
+    get_tutor_response,
+    get_chatbot_response,
     get_chat_history,
     clear_chat_history,
     save_active_session,
     get_active_session,
-    end_active_session
+    end_active_session,
+    save_chat_message,
+    initialize_ai,
+    _optimize_for_voice
 )
 
 tutor_bp = Blueprint('tutor', __name__)
@@ -55,8 +59,16 @@ def tutor_ask():
             "session_id": session_id
         }
 
-        # Call Gemini AI for the response - optimized based on voice/text mode
-        response = get_vertex_response(prompt, context)
+        # Call centralized AI for the response
+        ai_result = get_tutor_response(prompt, subject, conversation_history=None)
+        
+        if not ai_result['success']:
+            raise Exception(f"AI tutor response failed: {ai_result.get('error', 'Unknown error')}")
+        
+        response = ai_result['response']
+        # Optimize for voice if needed
+        if is_voice_input:
+            response = _optimize_for_voice(response)
 
         result = {
             "success": True,
@@ -80,10 +92,11 @@ def tutor_ask():
         }
 
         # Get a graceful error response
-        fallback_response = get_vertex_response(
+        fallback_result = get_tutor_response(
             f"Error processing request about {subject}",
-            error_context
+            subject
         )
+        fallback_response = fallback_result['response']
 
         return jsonify({
             "success": False,
@@ -152,12 +165,22 @@ def start_session():
             "user_email": user_email
         }
 
-        # Get personalized welcome message from Gemini AI
+        # Get personalized welcome message
         welcome_prompt = f"Generate a welcoming message for a {mode} session about {subject}"
-        welcome_message = get_vertex_response(welcome_prompt, welcome_context)
+        welcome_result = get_tutor_response(welcome_prompt, subject)
+        welcome_message = welcome_result['response']
+        
+        if is_voice_input:
+            welcome_message = _optimize_for_voice(welcome_message)
 
         # Save this as the active session
-        save_active_session(user_email, session_id, mode, subject)
+        session_data = {
+            "session_id": session_id,
+            "mode": mode,
+            "subject": subject,
+            "started_at": datetime.utcnow()
+        }
+        save_active_session(user_email, session_data)
 
         result = {
             "success": True,
@@ -269,7 +292,11 @@ def toggle_voice():
 
         # Prepare a response that works well for both text and voice
         voice_prompt = f"Generate a brief message indicating that voice output is {'enabled' if enabled else 'disabled'}"
-        voice_message = get_vertex_response(voice_prompt, voice_context)
+        voice_result = get_tutor_response(voice_prompt)
+        voice_message = voice_result['response']
+        
+        if enabled:
+            voice_message = _optimize_for_voice(voice_message)
 
         result = {
             "success": True,
@@ -460,17 +487,14 @@ def check_voice_connection():
     Returns: { success: bool, status: str, timestamp: str }
     """
     try:
-        # Check if we can initialize Gemini AI
-        from app.utils.ai_utils import init_vertex_ai
-        ai_initialized = init_vertex_ai()
+        # Check if we can initialize AI
+        ai_initialized = initialize_ai()
 
         if ai_initialized:
             # Try to generate a simple test response
-            from app.utils.ai_utils import get_vertex_response
-            test_response = get_vertex_response("Test connection",
-                                                {"is_voice_input": True, "mode": "test"})
+            test_result = get_tutor_response("Test connection")
 
-            if test_response:
+            if test_result['success']:
                 status = "Voice services are working properly"
                 return jsonify({
                     "success": True,
@@ -516,20 +540,15 @@ def optimize_for_voice_output():
         return jsonify({"error": "Text is required"}), 400
 
     try:
-        # Import the optimize function
-        from app.utils.ai_utils import _optimize_for_voice
-
         # Optimize the text
         optimized_text = _optimize_for_voice(text)
 
         # Log the optimization if user_email is provided
         if user_email:
-            from app.utils.ai_utils import save_chat_message
             save_chat_message(
                 user_email,
                 "Optimized text for voice output",
-                is_ai=True,
-                context={"is_voice_input": True, "mode": "voice_optimization"}
+                optimized_text
             )
 
         return jsonify({
@@ -559,8 +578,7 @@ def health_check():
     """
     try:
         # Simple check if we can access the AI utils
-        from app.utils.ai_utils import init_vertex_ai
-        ai_status = "connected" if init_vertex_ai() else "error"
+        ai_status = "connected" if initialize_ai() else "error"
 
         return jsonify({
             "status": "healthy",

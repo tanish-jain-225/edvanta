@@ -4,7 +4,7 @@ from app.config import Config
 
 user_stats_bp = Blueprint('user_stats', __name__)
 
-# MongoDB connection
+# MongoDB connection - REQUIRED
 try:
     mongo_uri = Config.MONGODB_URI
     db_name = Config.MONGODB_DB_NAME
@@ -17,8 +17,7 @@ try:
     roadmaps_collection = db[roadmaps_collection_name]
 
 except Exception as e:
-    quiz_history_collection = None
-    roadmaps_collection = None
+    raise Exception(f"MongoDB connection required - no fallbacks: {str(e)}")
 
 
 @user_stats_bp.route("/api/user-stats", methods=["GET"])
@@ -29,45 +28,34 @@ def get_user_stats():
         if not user_email:
             return jsonify({"error": "user_email parameter is required"}), 400
         
-        if quiz_history_collection is None or roadmaps_collection is None:
-            return jsonify({"error": "Database connection not available"}), 500
-            
+
         # Initialize default values
         active_roadmaps_count = 0
         unique_skills_count = 0
         quizzes_made_count = 0
         
         # 1. Get Active Roadmaps Count
-        try:
-            active_roadmaps_count = roadmaps_collection.count_documents({"user_email": user_email})
-        except Exception:
-            active_roadmaps_count = 0
+        active_roadmaps_count = roadmaps_collection.count_documents({"user_email": user_email})
         
         # 2. Get Skills Learning (Total unique skills from all roadmaps)
-        try:
-            skills_pipeline = [
-                {"$match": {"user_email": user_email}},
-                {"$project": {
-                    "skills": {"$ifNull": ["$data.nodes", []]}
-                }},
-                {"$unwind": "$skills"},
-                {"$group": {
-                    "_id": "$skills.id",
-                    "skill_name": {"$first": "$skills.text"}
-                }},
-                {"$count": "unique_skills_count"}
-            ]
-            
-            skills_result = list(roadmaps_collection.aggregate(skills_pipeline))
-            unique_skills_count = skills_result[0].get("unique_skills_count", 0) if skills_result else 0
-        except Exception:
-            unique_skills_count = 0
+        skills_pipeline = [
+            {"$match": {"user_email": user_email}},
+            {"$project": {
+                "skills": {"$ifNull": ["$data.nodes", []]}
+            }},
+            {"$unwind": "$skills"},
+            {"$group": {
+                "_id": "$skills.id",
+                "skill_name": {"$first": "$skills.text"}
+            }},
+            {"$count": "unique_skills_count"}
+        ]
+        
+        skills_result = list(roadmaps_collection.aggregate(skills_pipeline))
+        unique_skills_count = skills_result[0].get("unique_skills_count", 0) if skills_result else 0
         
         # 3. Get Quizzes Made Count
-        try:
-            quizzes_made_count = quiz_history_collection.count_documents({"userId": user_email})
-        except Exception:
-            quizzes_made_count = 0
+        quizzes_made_count = quiz_history_collection.count_documents({"user_email": user_email})
         
         # Calculate estimated learning time based on actual activity
         estimated_learning_minutes = (quizzes_made_count * 8) + (unique_skills_count * 5)

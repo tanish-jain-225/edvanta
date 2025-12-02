@@ -14,7 +14,7 @@ from ..config import Config
 
 quizzes_bp = Blueprint("quizzes", __name__)
 
-# MongoDB connection
+# MongoDB connection - REQUIRED
 try:
     mongo_uri = Config.MONGODB_URI
     db_name = Config.MONGODB_DB_NAME
@@ -27,9 +27,7 @@ try:
     quiz_history_collection = db[mongo_collection_name_2]
 
 except Exception as e:
-    # Fallback to in-memory storage if MongoDB is not available
-    quizzes_storage = []
-    quiz_history = []
+    raise Exception(f"MongoDB connection required for quizzes - no fallbacks: {str(e)}")
 
 
 @quizzes_bp.route("/api/quizzes/generate", methods=["POST"])

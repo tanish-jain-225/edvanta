@@ -2,7 +2,7 @@
 
 This file centralizes all configuration settings and environment variables
 used throughout the Edvanta backend application. Using this centralized config
-helps with deployment to environments like Vercel.
+helps with deployment to environments like Vercel, AWS Lambda, Heroku, Google Cloud.
 
 Environment variables (required for deployment):
 - FLASK_ENV: development/production
@@ -22,6 +22,14 @@ from typing import List
 
 
 class Config:
+    # Environment Detection
+    IS_VERCEL = os.getenv("VERCEL") == "1"
+    IS_AWS_LAMBDA = "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+    IS_HEROKU = "DYNO" in os.environ
+    IS_NETLIFY = os.getenv("NETLIFY") == "true"
+    IS_GOOGLE_CLOUD = "GOOGLE_CLOUD_PROJECT" in os.environ or "GAE_APPLICATION" in os.environ
+    IS_SERVERLESS = any([IS_VERCEL, IS_AWS_LAMBDA, IS_HEROKU, IS_NETLIFY, IS_GOOGLE_CLOUD])
+    
     # Flask core settings
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
     

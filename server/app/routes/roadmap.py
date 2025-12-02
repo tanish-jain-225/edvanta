@@ -1,6 +1,6 @@
 """Roadmap generation endpoints.
 
-Generates a learning roadmap with milestones, resources, and estimated durations.
+Generates a learning roadmap with milestones, resources, and estimated durations using centralized AI.
 Stores and retrieves roadmaps from MongoDB.
 """
 from flask import Blueprint, request, jsonify, send_file
@@ -8,13 +8,10 @@ import os
 import json
 import uuid
 from datetime import datetime
-try:
-    import google.generativeai as genai
-except Exception:
-    genai = None
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from ..config import Config
+from app.utils.ai_utils import generate_roadmap_content
 
 roadmap_bp = Blueprint("roadmap", __name__)
 
@@ -79,87 +76,15 @@ def generate_roadmap():
     if not user_email:
         return jsonify({"error": "Missing user email"}), 400
 
-    # Use Gemini API
+    # Use centralized AI to generate roadmap
     try:
-        # Check if Gemini API is available
-        if genai is None or not Config.GEMINI_API_KEY:
-            # Return a helpful fallback roadmap structure
-            fallback = {
-                "nodes": [
-                    {"id": "start", "title": f"Start: {goal}", "description": background, "recommended_weeks": 1, "resources": ["Begin your journey"]},
-                    {"id": "fundamentals", "title": "Learn Fundamentals", "description": "Master core concepts and basics", "recommended_weeks": max(2, (duration_weeks or 8) // 4), "resources": ["Online tutorials", "Documentation"]},
-                    {"id": "intermediate", "title": "Build Skills", "description": "Develop intermediate-level capabilities", "recommended_weeks": max(3, (duration_weeks or 8) // 3), "resources": ["Practice projects", "Courses"]},
-                    {"id": "advanced", "title": "Advanced Topics", "description": "Deep dive into specialized areas", "recommended_weeks": max(2, (duration_weeks or 8) // 4), "resources": ["Advanced courses", "Real projects"]},
-                    {"id": "goal", "title": f"Achieve: {goal}", "description": "Reach your target goal", "recommended_weeks": 1, "resources": ["Final project", "Portfolio"]}
-                ],
-                "edges": [
-                    {"from": "start", "to": "fundamentals"},
-                    {"from": "fundamentals", "to": "intermediate"},
-                    {"from": "intermediate", "to": "advanced"},
-                    {"from": "advanced", "to": "goal"}
-                ]
-            }
-            roadmap_document = {
-                "id": str(uuid.uuid4()),
-                "user_email": user_email,
-                "title": goal,
-                "description": background,
-                "duration_weeks": duration_weeks,
-                "created_at": datetime.utcnow(),
-                "data": fallback
-            }
-            if db is not None and collection_name is not None:
-                try:
-                    roadmap_collection = db[collection_name]
-                    roadmap_collection.insert_one(roadmap_document)
-                except Exception:
-                    _in_memory_roadmaps[roadmap_document["id"]] = {
-                        **roadmap_document,
-                        "created_at": roadmap_document["created_at"].isoformat()
-                    }
-            else:
-                _in_memory_roadmaps[roadmap_document["id"]] = {
-                    **roadmap_document,
-                    "created_at": roadmap_document["created_at"].isoformat()
-                }
-            return jsonify({"roadmap": fallback, "roadmap_id": roadmap_document["id"], "note": "AI service not available; returned a fallback roadmap."}), 200
-
-        # Configure Gemini API
-        genai.configure(api_key=Config.GEMINI_API_KEY)
-        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
+        # Generate roadmap using centralized AI function - NO FALLBACKS
+        result = generate_roadmap_content(goal, background, duration_weeks or 12)
         
-        prompt = (
-            "You are a career roadmap assistant. Given a user's goal and background, "
-            "generate a detailed learning roadmap as a directed graph in JSON format. "
-            "Each node should represent a milestone or skill, with edges showing dependencies. "
-            "Each node must have: id (unique string), title, description, recommended_weeks (number), resources (array of specific resource names). "
-            "Create 5-8 meaningful nodes from start to goal. "
-            "The graph should have a 'start' node and a 'goal' node. "
-            "Respond ONLY with a valid JSON object with keys: nodes (array), edges (array of {from, to}).\n\n"
-            f"Goal: {goal}\n"
-            f"Background: {background}\n"
-            f"Target Duration (weeks): {duration_weeks if duration_weeks else 'Not specified'}\n\n"
-            "Example format:\n"
-            "{\n"
-            '  "nodes": [{"id": "start", "title": "Begin", "description": "...", "recommended_weeks": 1, "resources": ["..."]}],\n'
-            '  "edges": [{"from": "start", "to": "next_id"}]\n'
-            "}"
-        )
-        response = model.generate_content(prompt)
-        roadmap_json = response.text
-
-        # Clean up the response if it contains markdown formatting
-        if "```json" in roadmap_json:
-            roadmap_json = roadmap_json.replace(
-                "```json", "").replace("```", "").strip()
-        elif "```" in roadmap_json:
-            roadmap_json = roadmap_json.replace("```", "").strip()
-
-        # Remove any backticks that might be left
-        roadmap_json = roadmap_json.replace("`", "")
-
-        # Parse the JSON to ensure it's valid
-        roadmap_data = json.loads(roadmap_json)
+        if not result['success']:
+            raise Exception(f"AI roadmap generation failed: {result.get('error', 'Unknown error')}")
+        
+        roadmap_data = result['roadmap']
 
         # Prepare document used for DB or in-memory fallback
         roadmap_document = {
@@ -172,34 +97,15 @@ def generate_roadmap():
             "data": roadmap_data
         }
 
-        # Attempt DB save only if connection & collection name valid
-        if db is not None and collection_name is not None:
-            try:
-                roadmap_collection = db[collection_name]
-                roadmap_collection.insert_one(roadmap_document)
-                return jsonify({"roadmap": roadmap_data})
-            except Exception as db_error:
-                # Fallback to in-memory and still return 200 with warning
-                _in_memory_roadmaps[roadmap_document["id"]] = {
-                    **roadmap_document,
-                    "created_at": roadmap_document["created_at"].isoformat()
-                }
-                return jsonify({
-                    "roadmap": roadmap_data,
-                    "warning": f"Database save failed, stored in memory fallback: {str(db_error)}"
-                }), 200
-        else:
-            # No DB configured — store in memory
-            _in_memory_roadmaps[roadmap_document["id"]] = {
-                **roadmap_document,
-                "created_at": roadmap_document["created_at"].isoformat()
-            }
-            return jsonify({
-                "roadmap": roadmap_data,
-                "note": "MongoDB not configured; using in-memory storage"
-            }), 200
+        # Save to MongoDB - REQUIRED
+        if db is None or collection_name is None:
+            raise Exception("MongoDB connection required for roadmap storage - no fallbacks available")
+        
+        roadmap_collection = db[collection_name]
+        roadmap_collection.insert_one(roadmap_document)
+        return jsonify({"success": True, "roadmap": roadmap_data})
     except Exception as e:
-        return jsonify({"error": f"Roadmap generation failed: {str(e)}"}), 500
+        raise e
 
 
 @roadmap_bp.route("/api/roadmap/user", methods=["GET"])

@@ -1,99 +1,38 @@
-# Quiz AI Help Utils 
-
+# Quiz AI Help Utils using centralized AI system
 
 import json
 import os
-try:
-    import google.generativeai as genai
-except Exception:
-    genai = None
-from app import Config
-
+from .ai_utils import generate_quiz_content
 
 def create_quiz(topic: str, difficulty: str = "medium", num_questions: int = 10):
     """
-    Simple function to create quizzes - tries AI first, falls back to hardcoded if it fails.
+    Simple function to create quizzes using centralized AI system with fallback.
     """
-    print(
-        f"Creating quiz for topic: '{topic}', difficulty: '{difficulty}', questions: {num_questions}")
 
-    # Try AI generation first
+    # Try AI generation first using centralized system
     try:
-        print("🤖 Attempting AI generation...")
-
-        # Check if Gemini is available
-        if genai is None or not Config.GEMINI_API_KEY:
-            raise RuntimeError("Gemini SDK not available or API key not configured")
-
-        # Configure Gemini API
-        genai.configure(api_key=Config.GEMINI_API_KEY)
-        model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME or 'gemini-2.5-flash')
-
-        prompt = f"""Generate a quiz about "{topic}" with {num_questions} multiple choice questions.
-Difficulty: {difficulty}
-
-Return ONLY valid JSON in this exact format:
-
-{{
-  "topic": "{topic}",
-  "difficulty": "{difficulty}",
-  "questions": [
-    {{
-      "id": 1,
-      "question": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": "Option A"
-    }}
-  ]
-}}
-
-Requirements:
-- Return ONLY the JSON, no markdown, no extra text
-- Exactly {num_questions} questions
-- Each question has exactly 4 options
-- correctAnswer must match exactly one of the options"""
-
-        print("🔄 Sending request to AI model...")
-        response = model.generate_content(prompt)
-
-        # Clean response text
-        response_text = response.text.strip()
-
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        elif response_text.startswith("```"):
-            response_text = response_text[3:]
         
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-
-        # Parse JSON
-        quiz_data = json.loads(response_text.strip())
-
-        # Basic validation
-        if (isinstance(quiz_data, dict) and
-            "topic" in quiz_data and
-            "difficulty" in quiz_data and
-            "questions" in quiz_data and
-                len(quiz_data["questions"]) == num_questions):
-
-            print("✅ AI generation successful!")
-            return quiz_data
-    except Exception as e:
-        print(f"❌ AI generation failed: {e}")
-
-    # Fallback to hardcoded quiz
-    print("🔄 Using hardcoded quiz")
-    return {
-        "topic": topic,
-        "difficulty": difficulty,
-        "questions": [
-            {
-                "id": i + 1,
-                "question": f"Sample question {i + 1} for {topic}?",
-                "options": [f"Option A {i + 1}", f"Option B {i + 1}", f"Option C {i + 1}", f"Option D {i + 1}"],
-                "correctAnswer": f"Option A {i + 1}"
+        result = generate_quiz_content(topic, difficulty, num_questions)
+        
+        if result['success']:
+            # Format to match expected structure
+            quiz_data = {
+                "topic": topic,
+                "difficulty": difficulty,
+                "questions": []
             }
-            for i in range(num_questions)
-        ]
-    }
+            
+            for i, question in enumerate(result['questions'], 1):
+                quiz_data["questions"].append({
+                    "id": i,
+                    "question": question.get("question", ""),
+                    "options": question.get("options", []),
+                    "correctAnswer": question["options"][question["correct_answer"]] if question.get("correct_answer", 0) < len(question.get("options", [])) else question.get("options", [""])[0]
+                })
+            
+            return quiz_data
+        else:
+            raise Exception("AI generation failed")
+
+    except Exception as e:
+        raise e

@@ -226,13 +226,12 @@ def generate_video_from_transcript_text(text: str, upload_to_cloudinary: bool = 
     
     # Use AI if available, otherwise use fallback
     if not deps['gemini']:
-        print("[Serverless Video] Gemini AI not available, using fallback scene generation...")
-    
-    print(f"[Serverless Video] Generating script from text ({len(text)} chars)...")
+        return json.dumps({
+            'error': 'Gemini AI not available or configured. Cannot generate video script.'
+        })
     
     # Generate scenes
     scenes = generate_script_from_text(text)
-    print(f"[Serverless Video] Generated {len(scenes)} scenes")
     
     # Generate image slides for each scene
     scene_images = []
@@ -250,7 +249,9 @@ def generate_video_from_transcript_text(text: str, upload_to_cloudinary: bool = 
                 'color': color
             })
         except Exception as e:
-            print(f"[Serverless Video] Error creating slide {i}: {e}")
+            return json.dumps({
+                'error': f"Error creating slide {i}: {e}"
+            })
     
     # For now, return JSON with all scenes data
     # Frontend can display as slideshow with narration text
@@ -261,8 +262,6 @@ def generate_video_from_transcript_text(text: str, upload_to_cloudinary: bool = 
         'message': 'Video slides generated successfully. Display as slideshow on frontend.',
         'note': 'Full video rendering with audio requires external API (Pictory.ai, Synthesia) or client-side processing.'
     }
-    
-    print(f"[Serverless Video] Generated {len(scene_images)} slides")
     
     return json.dumps(result)
 
