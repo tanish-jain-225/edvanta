@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { UserInterestForm } from "../../components/ui/UserInterestForm";
+
 import { BookOpen, Mail, Lock } from "lucide-react";
 
 export function Login() {
@@ -21,8 +21,6 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showInterestForm, setShowInterestForm] = useState(false);
-  const [googleUser, setGoogleUser] = useState(null);
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
 
@@ -53,17 +51,25 @@ export function Login() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
+      
+      // Check if user document exists, create with default interests if not
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (
-        userDoc.exists() &&
-        Array.isArray(userDoc.data().interests) &&
-        userDoc.data().interests.length > 0
-      ) {
-        navigate("/dashboard");
-      } else {
-        setGoogleUser(user);
-        setShowInterestForm(true);
+      if (!userDoc.exists()) {
+        await setDoc(
+          doc(db, "users", user.uid),
+          {
+            name: user.displayName,
+            email: user.email,
+            role: "Student",
+            interests: ["Technology", "Science"], // Default interests
+            photoURL: user.photoURL || null,
+            createdAt: new Date(),
+          },
+          { merge: true }
+        );
       }
+      
+      navigate("/dashboard");
     } catch (error) {
       setError(error.message);
     } finally {
@@ -71,53 +77,7 @@ export function Login() {
     }
   };
 
-  if (showInterestForm && googleUser) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-xs sm:max-w-lg my-20">
-          <CardHeader className="text-center px-4 sm:px-6">
-            <CardTitle className="text-xl sm:text-2xl">Choose Your Interests</CardTitle>
-            <CardDescription className="text-sm sm:text-base">
-              Help us personalize your learning experience
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
-            <UserInterestForm
-              loading={loading}
-              onSubmit={async (selectedInterests) => {
-                setLoading(true);
-                setError("");
-                try {
-                  await setDoc(
-                    doc(db, "users", googleUser.uid),
-                    {
-                      name: googleUser.displayName,
-                      email: googleUser.email,
-                      role: "Student",
-                      interests: selectedInterests,
-                      photoURL: googleUser.photoURL || null,
-                      createdAt: new Date(),
-                    },
-                    { merge: true }
-                  );
-                  navigate("/dashboard");
-                } catch (error) {
-                  setError(error.message);
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            />
-            {error && (
-              <div className="bg-primary-50 border border-primary-200 rounded-md p-3 text-xs sm:text-sm text-primary-600">
-                {error}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-100 flex items-center justify-center p-4">

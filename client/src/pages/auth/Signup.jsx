@@ -13,24 +13,19 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { UserInterestForm } from "../../components/ui/UserInterestForm";
+
 import {
   BookOpen,
   Mail,
   Lock,
   User,
-  GraduationCap,
-  Briefcase,
 } from "lucide-react";
 
 export function Signup() {
-  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
-    role: "Student",
-    interests: [],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -47,8 +42,7 @@ export function Signup() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  if (step === 1) {
-    return (
+  return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-100 flex items-center justify-center p-4">
         <Card className="w-full max-w-xs sm:max-w-md my-20">
           <CardHeader className="text-center px-4 sm:px-6">
@@ -73,9 +67,32 @@ export function Signup() {
             )}
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                setStep(2);
+                setLoading(true);
+                setError("");
+                try {
+                  const userCredential = await createUserWithEmailAndPassword(
+                    auth,
+                    formData.email,
+                    formData.password
+                  );
+                  await updateProfile(userCredential.user, {
+                    displayName: formData.name,
+                  });
+                  await setDoc(doc(db, "users", userCredential.user.uid), {
+                    name: formData.name,
+                    email: formData.email,
+                    role: "Student", // Default role
+                    interests: ["Technology", "Science"], // Default interests
+                    createdAt: new Date(),
+                  });
+                  navigate("/dashboard");
+                } catch (error) {
+                  setError(error.message);
+                } finally {
+                  setLoading(false);
+                }
               }}
               className="space-y-3 sm:space-y-4"
             >
@@ -126,36 +143,8 @@ export function Signup() {
                 </div>
               </div>
 
-              <div className="space-y-1 sm:space-y-2">
-                <label className="text-xs sm:text-sm font-medium">Role</label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={
-                      formData.role === "Student" ? "default" : "outline"
-                    }
-                    className="flex-1 text-xs sm:text-sm py-2 sm:py-3"
-                    onClick={() => handleInputChange("role", "Student")}
-                  >
-                    <GraduationCap className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    Student
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={
-                      formData.role === "Professional" ? "default" : "outline"
-                    }
-                    className="flex-1 text-xs sm:text-sm py-2 sm:py-3"
-                    onClick={() => handleInputChange("role", "Professional")}
-                  >
-                    <Briefcase className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    Professional
-                  </Button>
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full text-sm sm:text-base py-2 sm:py-3">
-                Continue
+              <Button type="submit" className="w-full text-sm sm:text-base py-2 sm:py-3" disabled={loading}>
+                {loading ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
 
@@ -174,51 +163,4 @@ export function Signup() {
         </Card>
       </div>
     );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-xs sm:max-w-lg my-20">
-        <CardHeader className="text-center px-4 sm:px-6">
-          <CardTitle className="text-xl sm:text-2xl">Choose Your Interests</CardTitle>
-          <CardDescription className="text-sm sm:text-base">
-            Help us personalize your learning experience
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
-          <UserInterestForm
-            initialInterests={formData.interests}
-            loading={loading}
-            onBack={() => setStep(1)}
-            onSubmit={async (selectedInterests) => {
-              setLoading(true);
-              setError("");
-              try {
-                const userCredential = await createUserWithEmailAndPassword(
-                  auth,
-                  formData.email,
-                  formData.password
-                );
-                await updateProfile(userCredential.user, {
-                  displayName: formData.name,
-                });
-                await setDoc(doc(db, "users", userCredential.user.uid), {
-                  name: formData.name,
-                  email: formData.email,
-                  role: formData.role,
-                  interests: selectedInterests,
-                  createdAt: new Date(),
-                });
-                navigate("/dashboard");
-              } catch (error) {
-                setError(error.message);
-              } finally {
-                setLoading(false);
-              }
-            }}
-          />
-        </CardContent>
-      </Card>
-    </div>
-  );
 }

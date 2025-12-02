@@ -73,14 +73,20 @@ export function Navbar() {
             </Link>
 
             {/* Desktop Navigation Links */}
-            <div className="hidden md:flex items-center space-x-8">
-              {user && (
+            <div className="hidden md:flex items-center space-x-6">
+              {user ? (
                 <>
-                  <Link to="/" className="nav-link">
+                  <Link to="/" className="nav-link hover:text-primary transition-colors">
                     Home
                   </Link>
-                  <Link to="/dashboard" className="nav-link">
+                  <Link to="/dashboard" className="nav-link hover:text-primary transition-colors">
                     Dashboard
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/" className="nav-link hover:text-primary transition-colors">
+                    Home
                   </Link>
                 </>
               )}
@@ -244,19 +250,28 @@ export function Navbar() {
                 ) : (
                   <>
                     <Link
-                      to="/auth/login"
+                      to="/"
                       className="block px-4 py-3 text-base font-medium text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
                       onClick={closeMobileMenu}
                     >
-                      Login
+                      Home
                     </Link>
-                    <Link
-                      to="/auth/signup"
-                      className="block px-4 py-3 text-base font-medium bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors duration-200"
-                      onClick={closeMobileMenu}
-                    >
-                      Get Started
-                    </Link>
+                    <div className="pt-4 border-t border-gray-200 space-y-3">
+                      <Link
+                        to="/auth/login"
+                        className="block px-4 py-3 text-base font-medium text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                        onClick={closeMobileMenu}
+                      >
+                        Login
+                      </Link>
+                      <Link
+                        to="/auth/signup"
+                        className="block px-4 py-3 text-base font-medium bg-gradient-to-r from-primary to-primary-600 text-white rounded-lg hover:from-primary-600 hover:to-primary-700 transition-colors duration-200 text-center"
+                        onClick={closeMobileMenu}
+                      >
+                        Sign Up
+                      </Link>
+                    </div>
                   </>
                 )}
               </div>

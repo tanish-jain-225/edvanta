@@ -42,6 +42,7 @@ def tutor_ask():
     is_voice_input = data.get('isVoiceInput', True)
     user_email = data.get('userEmail')
     session_id = data.get('sessionId')  # Optional session ID for tracking
+    conversation_history = data.get('conversationHistory', [])  # Get conversation context
 
     if not prompt:
         return jsonify({"error": "Prompt is required"}), 400
@@ -59,8 +60,8 @@ def tutor_ask():
             "session_id": session_id
         }
 
-        # Call centralized AI for the response
-        ai_result = get_tutor_response(prompt, subject, conversation_history=None)
+        # Call centralized AI for the response with conversation history
+        ai_result = get_tutor_response(prompt, subject, conversation_history=conversation_history)
         
         if not ai_result['success']:
             raise Exception(f"AI tutor response failed: {ai_result.get('error', 'Unknown error')}")
@@ -69,6 +70,18 @@ def tutor_ask():
         # Optimize for voice if needed
         if is_voice_input:
             response = _optimize_for_voice(response)
+
+        # Save the conversation to database for persistence
+        try:
+            save_chat_message(
+                user_email=user_email,
+                message=prompt,
+                response=response,
+                conversation_id=session_id
+            )
+        except Exception as save_error:
+            print(f"Warning: Failed to save chat message: {save_error}")
+            # Continue without failing - message saving is not critical for response
 
         result = {
             "success": True,

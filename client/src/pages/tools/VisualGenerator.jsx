@@ -622,22 +622,21 @@ export function VisualGenerator() {
                   onChange={(e) => {
                     const text = e.target.value;
                     setContent(text);
-                    if (text.length > 10000) {
-                      setError('Text is too long. Please limit to 10,000 characters.');
-                    } else if (error.includes('Text is too long')) {
+                    // Remove character limit restrictions
+                    if (error.includes('Text is too long')) {
                       setError('');
                     }
                   }}
                   placeholder="Explain neural networks and their applications in modern AI..."
-                  maxLength={10000}
+                  // No maxLength restriction
                 />
                 <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white px-1 rounded">
-                  {content.length}/10,000
+                  {content.length.toLocaleString()} characters
                 </div>
               </div>
               <Button
                 onClick={handleTextSubmit}
-                disabled={loading || !content.trim() || content.length > 10000 || !user}
+                disabled={loading || !content.trim() || !user}
                 className="w-full"
               >
                 {loading ? (
@@ -666,7 +665,7 @@ export function VisualGenerator() {
             <CardContent className="space-y-3">
               <div className="border-2 border-dashed p-4 text-center rounded">
                 <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-xs text-gray-600 mb-2">Select a PDF (max 100MB)</p>
+                <p className="text-xs text-gray-600 mb-2">Select a PDF (unlimited size)</p>
                 <input
                   id="pdf-file"
                   type="file"
@@ -680,12 +679,7 @@ export function VisualGenerator() {
                         setError('Please select a valid PDF file.');
                         return;
                       }
-                      // Check file size
-                      const maxSize = 100 * 1024 * 1024; // 100MB
-                      if (file.size > maxSize) {
-                        setError(`File size (${Math.round(file.size / (1024 * 1024))}MB) exceeds the maximum limit of 100MB.`);
-                        return;
-                      }
+                      // No file size limit
                       setError(''); // Clear any previous errors
                     }
                     setPdfFile(file);
@@ -744,7 +738,7 @@ export function VisualGenerator() {
                     <div>
                       <p className="text-sm font-medium">Upload Audio</p>
                       <p className="text-[11px] text-gray-500">
-                        MP3 / WAV / M4A / WebM (max 100MB)
+                        MP3 / WAV / M4A / WebM (unlimited size)
                       </p>
                     </div>
                   </div>
@@ -757,14 +751,7 @@ export function VisualGenerator() {
                       onChange={(e) => {
                         const f = e.target.files?.[0] || null;
                         if (f) {
-                          // Validate file size
-                          const maxSize = 100 * 1024 * 1024; // 100MB
-                          if (f.size > maxSize) {
-                            setError(`Audio file size (${Math.round(f.size / (1024 * 1024))}MB) exceeds the maximum limit of 100MB.`);
-                            return;
-                          }
-                          
-                          // Validate file type
+                          // Validate file type only - no size limit
                           if (!f.type.startsWith('audio/')) {
                             setError('Please select a valid audio file.');
                             return;

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -28,6 +28,8 @@ import {
   Loader2,
   Square,
   CheckCircle,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 import { Input } from "../../components/ui/input";
 import backEndURL from "../../hooks/helper";
@@ -72,7 +74,18 @@ const UI_TEXT = {
   pressToAsk: "Press to ask another question",
   pressToStart: "Press the microphone button and speak your question",
   connectionError: "Connection error. Please try again.",
+  retryButton: "Retry",
+  networkOffline: "You're offline. Please check your connection.",
+  sessionTimeout: "Session has timed out due to inactivity.",
+  microphoneBlocked: "Microphone access is blocked. Please enable it in your browser settings.",
+  speechNotSupported: "Speech recognition is not supported in this browser.",
 };
+
+// Constants for better error handling
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_DELAY = 1000; // 1 second
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const NETWORK_CHECK_INTERVAL = 5000; // 5 seconds
 
 export function ConversationalTutor() {
   // Microphone states enum
@@ -91,6 +104,7 @@ export function ConversationalTutor() {
   const [selectedMode, setSelectedMode] = useState("tutor");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [sessionId, setSessionId] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -100,11 +114,22 @@ export function ConversationalTutor() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [errorCount, setErrorCount] = useState(0);
-  // Start with checking state true by default - will be set to false after verification completes
-  const [checkingForActiveSession, setCheckingForActiveSession] =
-    useState(true);
+  const [checkingForActiveSession, setCheckingForActiveSession] = useState(true);
   const [isStartButtonClicked, setIsStartButtonClicked] = useState(false);
   const [isEndButtonClicked, setIsEndButtonClicked] = useState(false);
+  
+  // Enhanced error handling state
+  const [lastError, setLastError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  
+  // Performance monitoring
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    responseTime: 0,
+    errorRate: 0,
+    totalRequests: 0,
+  });
 
   // Voice synthesis related
   const speechSynthesisRef = useRef(null);
@@ -113,66 +138,238 @@ export function ConversationalTutor() {
   const recognitionTimeoutRef = useRef(null);
   const synthesisUtteranceRef = useRef(null);
 
-  // Use authentication and toast
+  // Enhanced error handling and retry mechanism
+  const handleErrorWithRetry = useCallback(async (error, operation, maxRetries = MAX_RETRY_ATTEMPTS) => {
+    console.error('ConversationalTutor Error:', error);
+    
+    setLastError({
+      message: error.message || 'Unknown error occurred',
+      timestamp: Date.now(),
+      operation,
+    });
+    
+    if (retryCount < maxRetries) {
+      setRetryCount(prev => prev + 1);
+      
+      setTimeout(async () => {
+        try {
+          await operation();
+          setRetryCount(0);
+          setLastError(null);
+        } catch (retryError) {
+          if (retryCount + 1 >= maxRetries) {
+            setLastError({
+              message: `Failed after ${maxRetries} attempts: ${retryError.message}`,
+              timestamp: Date.now(),
+              operation: 'final_attempt',
+            });
+          } else {
+            handleErrorWithRetry(retryError, operation, maxRetries);
+          }
+        }
+      }, RETRY_DELAY * Math.pow(2, retryCount)); // Exponential backoff
+    }
+  }, [retryCount]);
+  
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  
+  // Activity tracking for session management
+  useEffect(() => {
+    const updateActivity = () => setLastActivity(Date.now());
+    
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, updateActivity, { passive: true });
+    });
+    
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, updateActivity);
+      });
+    };
+  }, []);
+  
+  // Session timeout monitoring
+  useEffect(() => {
+    if (!isSessionActive) return;
+    
+    const checkTimeout = () => {
+      const now = Date.now();
+      if (now - lastActivity > SESSION_TIMEOUT) {
+        console.warn('Session timed out due to inactivity');
+        endSession();
+      }
+    };
+    
+    const interval = setInterval(checkTimeout, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [isSessionActive, lastActivity]);
+
+  // Error Recovery Component
+  const ErrorRecoveryCard = ({ error, onRetry, onDismiss }) => (
+    <Card className="border-red-200 bg-red-50 mb-4">
+      <CardContent className="p-4">
+        <div className="flex items-start space-x-3">
+          <AlertCircle className="text-red-500 mt-0.5" size={20} />
+          <div className="flex-1">
+            <h3 className="font-semibold text-red-800 mb-1">
+              {!isOnline ? "Connection Issue" : "Error Occurred"}
+            </h3>
+            <p className="text-red-700 text-sm mb-3">{error.message}</p>
+            <div className="flex space-x-2">
+              {!isOnline ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => window.location.reload()}
+                  className="bg-white hover:bg-red-50 border-red-200"
+                >
+                  <RefreshCw size={14} className="mr-1" />
+                  Refresh Page
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={onRetry}
+                  disabled={retryCount >= MAX_RETRY_ATTEMPTS}
+                  className="bg-white hover:bg-red-50 border-red-200"
+                >
+                  <RefreshCw size={14} className="mr-1" />
+                  {retryCount >= MAX_RETRY_ATTEMPTS ? "Max Retries Reached" : "Try Again"}
+                </Button>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={onDismiss}
+                className="text-red-600 hover:bg-red-100"
+              >
+                Dismiss
+              </Button>
+            </div>
+            {retryCount > 0 && (
+              <p className="text-xs text-red-600 mt-2">
+                Attempt {retryCount} of {MAX_RETRY_ATTEMPTS}
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Offline Indicator Component
+  const OfflineIndicator = () => (
+    <div className="fixed top-4 right-4 z-50">
+      <Card className="border-orange-200 bg-orange-50">
+        <CardContent className="p-3">
+          <div className="flex items-center space-x-2">
+            <WifiOff className="text-orange-600" size={16} />
+            <span className="text-orange-800 text-sm font-medium">
+              You're offline
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+
+
+  // Use authentication and toast  
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // We'll keep the checkBackendConnection function but only call it when the user clicks Start
-  const checkBackendConnection = async () => {
-    // Set loading state but don't show connection status badges
+  // Enhanced backend connection check with retry mechanism
+  const checkBackendConnection = useCallback(async () => {
+    if (!isOnline) {
+      setLastError({ message: UI_TEXT.networkOffline, timestamp: Date.now() });
+      return false;
+    }
+    
     setIsLoading(true);
-
+    const startTime = Date.now();
+    
     try {
       const response = await axios.get(
-        `${backEndURL}/api/tutor/voice/connection`
+        `${backEndURL}/api/tutor/voice/connection`,
+        { timeout: 10000 }
       );
-
+      
+      const responseTime = Date.now() - startTime;
+      setPerformanceMetrics(prev => ({
+        ...prev,
+        responseTime,
+        totalRequests: prev.totalRequests + 1,
+      }));
+      
       if (response.data.success) {
         return true;
       } else {
-        console.error("❌ Backend connection error:", response.data.status);
-        alert(
-          "Voice services are not fully available. Some features may be limited."
-        );
-        return false;
+        throw new Error(response.data.status || 'Backend connection failed');
       }
     } catch (error) {
-      console.error("❌ Backend connection failed:", error);
-      alert(
-        "Could not connect to voice tutor services. Please try again later."
-      );
+      console.error('Backend connection error:', error);
+      
+      setPerformanceMetrics(prev => ({
+        ...prev,
+        errorRate: (prev.errorRate + 1) / (prev.totalRequests + 1),
+        totalRequests: prev.totalRequests + 1,
+      }));
+      
+      const errorMessage = error.code === 'ECONNABORTED' 
+        ? 'Connection timeout. Please try again.'
+        : 'Could not connect to voice tutor services. Please try again later.';
+        
+      setLastError({ message: errorMessage, timestamp: Date.now() });
       return false;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isOnline]);
 
-  // Initialize speech synthesis and handle page refresh
+  // Initialize speech synthesis with enhanced error handling
   useEffect(() => {
+    // Check browser support
     if (!window.speechSynthesis) {
-      console.error("Speech synthesis not supported");
-      alert(
-        "Your browser doesn't support speech synthesis. Try using Chrome, Edge, or Safari."
-      );
+      setLastError({ 
+        message: UI_TEXT.speechNotSupported, 
+        timestamp: Date.now() 
+      });
       return;
     }
 
     speechSynthesisRef.current = window.speechSynthesis;
 
-    // Add event listener for page refresh
+    // Add event liste.ner for page refresh with better cleanup
     const handleBeforeUnload = () => {
-      // Immediately cancel any ongoing speech
       if (speechSynthesisRef.current) {
         speechSynthesisRef.current.cancel();
+      }
+      if (speechRecognitionRef.current) {
+        speechRecognitionRef.current.stop();
+        speechRecognitionRef.current = null;
       }
     };
 
     // Register the beforeunload event listener
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    // Clean up
+    // Clean up function with comprehensive cleanup
     return () => {
-      // Clean up the event listener
       window.removeEventListener("beforeunload", handleBeforeUnload);
 
       // Cancel any ongoing speech
@@ -180,8 +377,20 @@ export function ConversationalTutor() {
         speechSynthesisRef.current.cancel();
       }
 
-      // We don't end the session when component unmounts anymore
-      // This allows the session to persist across page refreshes/navigation
+      // Stop speech recognition
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch (error) {
+          console.warn('Error stopping speech recognition:', error);
+        }
+        speechRecognitionRef.current = null;
+      }
+
+      // Clear all timeouts
+      if (recognitionTimeoutRef.current) {
+        clearTimeout(recognitionTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -345,7 +554,9 @@ export function ConversationalTutor() {
       const sessionData = response.data.session_data;
 
       // Priority 2: Update all session-related state
-      setSessionId(sessionData.session_id);
+      const newSessionId = sessionData.session_id;
+      setSessionId(newSessionId);
+      setCurrentSessionId(newSessionId);
       setSelectedMode(sessionData.mode || "tutor");
       setSelectedSubject(sessionData.subject || "");
       setIsSessionActive(true);
@@ -526,31 +737,67 @@ export function ConversationalTutor() {
 
       recognition.onerror = (event) => {
         console.error("Speech recognition error", event.error);
+        
+        // Update activity timestamp
+        setLastActivity(Date.now());
 
-        // Don't show alert for common errors
-        if (event.error === "no-speech") {
-          // Restart recognition if no speech was detected
-          try {
-            if (speechRecognitionRef.current && micState === MicState.ACTIVE) {
-              speechRecognitionRef.current.stop();
-              setTimeout(() => {
-                if (
-                  micState === MicState.ACTIVE &&
-                  speechRecognitionRef.current
-                ) {
-                  speechRecognitionRef.current.start();
-                }
-              }, 100);
+        // Handle different types of speech recognition errors
+        switch (event.error) {
+          case "no-speech":
+            // Restart recognition if no speech was detected
+            try {
+              if (speechRecognitionRef.current && micState === MicState.ACTIVE) {
+                speechRecognitionRef.current.stop();
+                setTimeout(() => {
+                  if (micState === MicState.ACTIVE && speechRecognitionRef.current) {
+                    speechRecognitionRef.current.start();
+                  }
+                }, 100);
+              }
+            } catch (e) {
+              console.error("Error restarting speech recognition", e);
+              setLastError({ 
+                message: "Speech recognition restart failed. Try clicking the microphone again.",
+                timestamp: Date.now() 
+              });
             }
-          } catch (e) {
-            console.error("Error restarting speech recognition", e);
-          }
-          return;
+            return;
+            
+          case "not-allowed":
+          case "service-not-allowed":
+            setLastError({ 
+              message: UI_TEXT.microphoneBlocked,
+              timestamp: Date.now() 
+            });
+            setMicState(MicState.DISABLED);
+            break;
+            
+          case "network":
+            setLastError({ 
+              message: "Network error during speech recognition. Check your connection.",
+              timestamp: Date.now() 
+            });
+            break;
+            
+          case "audio-capture":
+            setLastError({ 
+              message: "Microphone not available. Check your device settings.",
+              timestamp: Date.now() 
+            });
+            setMicState(MicState.DISABLED);
+            break;
+            
+          default:
+            setLastError({ 
+              message: `Speech recognition error: ${event.error}. Try refreshing the page.`,
+              timestamp: Date.now() 
+            });
         }
-
-        // For other errors, show an alert
-        setMicState(MicState.INACTIVE);
-        alert(`Microphone Error: ${event.error}. Please try again.`);
+        
+        // Auto-stop mic on certain errors to prevent continuous failures
+        if (event.error !== "no-speech") {
+          setMicState(MicState.INACTIVE);
+        }
       };
 
       recognition.onend = () => {
@@ -656,8 +903,11 @@ export function ConversationalTutor() {
 
         setMessages((prev) => [...prev, errorMessage]);
       } else {
-        // Show alert if not in a session yet
-        alert(UI_TEXT.deviceError);
+        // Show error if not in a session yet
+        setLastError({ 
+          message: UI_TEXT.microphoneBlocked,
+          timestamp: Date.now() 
+        });
       }
     }
   };
@@ -665,7 +915,10 @@ export function ConversationalTutor() {
   // Start microphone function - ultra robust implementation
   const startMicrophone = () => {
     if (!isSessionActive) {
-      alert("Please start a session first by selecting a mode and subject.");
+      setLastError({ 
+        message: "Please start a session first by selecting a mode and subject.",
+        timestamp: Date.now() 
+      });
       return;
     }
 
@@ -958,19 +1211,28 @@ export function ConversationalTutor() {
   const startSession = async () => {
     if (!user) {
       setIsStartButtonClicked(true);
-      alert("Please log in to start a tutoring session.");
+      setLastError({ 
+        message: "Please log in to start a tutoring session.",
+        timestamp: Date.now() 
+      });
       navigate("/auth/login");
       return;
     }
 
     if (!selectedSubject.trim()) {
-      alert("Please enter a subject to focus on.");
+      setLastError({ 
+        message: "Please enter a subject to focus on.",
+        timestamp: Date.now() 
+      });
       return;
     }
 
     // Show starting state immediately for instant feedback
     setIsStartingSession(true);
     setIsLoading(true);
+    
+    // Clear any existing messages from previous sessions
+    setMessages([]);
 
     // First check connection to backend services
     const connectionSuccessful = await checkBackendConnection();
@@ -987,7 +1249,10 @@ export function ConversationalTutor() {
       stream.getTracks().forEach((track) => track.stop());
     } catch (error) {
       console.error("Microphone access error:", error);
-      alert(UI_TEXT.deviceError);
+      setLastError({ 
+        message: UI_TEXT.microphoneBlocked, 
+        timestamp: Date.now() 
+      });
       setIsStartingSession(false);
       setIsLoading(false);
       return;
@@ -1008,15 +1273,17 @@ export function ConversationalTutor() {
       );
 
       if (response.data.success) {
-        setSessionId(response.data.session_id);
+        const newSessionId = response.data.session_id;
+        setSessionId(newSessionId);
+        setCurrentSessionId(newSessionId);
         setIsSessionActive(true);
 
         // Check if this is a resumed session
         if (response.data.is_resumed) {
-          // Fetch chat history for this session
-          fetchChatHistory();
+          // Fetch chat history for this session first, then add welcome back message
+          await fetchChatHistory();
 
-          // Add welcome back message
+          // Add welcome back message after history is loaded
           const welcomeBackMessage = {
             id: `welcome-back-${Date.now()}`,
             role: "assistant",
@@ -1024,6 +1291,7 @@ export function ConversationalTutor() {
               response.data.message ||
               `Welcome back to your ${response.data.mode} session about ${response.data.subject}`,
             timestamp: response.data.timestamp || new Date().toISOString(),
+            sessionId: response.data.session_id,
           };
 
           setMessages((prev) => [...prev, welcomeBackMessage]);
@@ -1034,21 +1302,25 @@ export function ConversationalTutor() {
             role: "assistant",
             content: response.data.message,
             timestamp: response.data.timestamp || new Date().toISOString(),
+            sessionId: response.data.session_id,
           };
 
           setMessages([welcomeMessage]);
         }
       } else {
-        alert(
-          response.data.error || "Failed to start session. Please try again."
-        );
+        setLastError({ 
+          message: response.data.error || "Failed to start session. Please try again.",
+          timestamp: Date.now() 
+        });
       }
     } catch (error) {
       console.error("Error starting session:", error);
-
-      alert(
-        "Failed to start a session. Please check your internet connection."
-      );
+      
+      const errorMessage = error.code === 'ECONNABORTED' 
+        ? "Session start timeout. Please check your connection and try again."
+        : "Failed to start a session. Please check your internet connection.";
+        
+      setLastError({ message: errorMessage, timestamp: Date.now() });
     } finally {
       // Ensure minimum loading time of 2 seconds
       await enforceMinimumLoadingTime(startTime);
@@ -1059,12 +1331,13 @@ export function ConversationalTutor() {
 
   // Fetch chat history for the current user
   const fetchChatHistory = async () => {
-    if (!user?.email || !sessionId) return;
+    const activeSessionId = currentSessionId || sessionId;
+    if (!user?.email || !activeSessionId) return;
 
     try {
       // Explicitly pass the sessionId to fetch only messages from the current session
       const response = await axios.get(
-        `${backEndURL}/api/tutor/chat/history?userEmail=${user.email}&sessionId=${sessionId}`
+        `${backEndURL}/api/tutor/chat/history?userEmail=${user.email}&sessionId=${activeSessionId}`
       );
 
       if (response.data.success && response.data.messages.length > 0) {
@@ -1074,6 +1347,7 @@ export function ConversationalTutor() {
           role: msg.is_ai ? "assistant" : "user",
           content: msg.content,
           timestamp: msg.timestamp,
+          sessionId: activeSessionId, // Add session ID for proper filtering
         }));
 
         setMessages(formattedMessages);
@@ -1126,6 +1400,7 @@ export function ConversationalTutor() {
 
         // Reset all session-related state
         setSessionId(null);
+        setCurrentSessionId(null);
         setIsSessionActive(false);
         setErrorCount(0);
       } else {
@@ -1133,10 +1408,14 @@ export function ConversationalTutor() {
           "Server returned unsuccessful end session response:",
           response.data
         );
-        alert(response.data.error || "Failed to end session properly.");
+        setLastError({ 
+          message: response.data.error || "Failed to end session properly.",
+          timestamp: Date.now() 
+        });
 
         // Force reset session state if there was an error
         setSessionId(null);
+        setCurrentSessionId(null);
         setIsSessionActive(false);
       }
     } catch (error) {
@@ -1161,6 +1440,7 @@ export function ConversationalTutor() {
 
       // Force reset session state if there was an error
       setSessionId(null);
+      setCurrentSessionId(null);
       setIsSessionActive(false);
     } finally {
       // Ensure minimum loading time of 2 seconds
@@ -1176,36 +1456,56 @@ export function ConversationalTutor() {
       return;
     }
 
-    if (!sessionId) {
+    if (!currentSessionId && !sessionId) {
       console.error("No active session, cannot send message");
-      alert("No active session. Please start a new session first.");
+      setLastError({ 
+        message: "No active session. Please start a new session first.",
+        timestamp: Date.now() 
+      });
       return;
     }
 
-    // Add user message to UI immediately
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: voiceText,
-      isVoiceInput: true, // Flag to show mic icon in UI
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setTranscript("");
-    setIsLoading(true);
-
-    // Scroll to bottom after sending a message
-    setTimeout(scrollToBottom, 100);
-
     try {
+      // Get last 10 messages for context - ensure they're from current session
+      const currentSession = currentSessionId || sessionId;
+      const conversationHistory = messages
+        .filter(msg => !msg.sessionId || msg.sessionId === currentSession) // Filter by session if sessionId is present
+        .slice(-10)
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp
+        }));
+      
+      // Show context indicator if we have history
+      const hasContext = conversationHistory.length > 0;
+
+      // Add user message to UI immediately
+      const userMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: voiceText,
+        isVoiceInput: true, // Flag to show mic icon in UI
+        timestamp: new Date().toISOString(),
+        hasContext: hasContext, // Flag to show context indicator
+        sessionId: currentSessionId || sessionId, // Track which session this belongs to
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+      setTranscript("");
+      setIsLoading(true);
+
+      // Scroll to bottom after sending a message
+      setTimeout(scrollToBottom, 100);
+
       const response = await axios.post(`${backEndURL}/api/tutor/ask`, {
         prompt: voiceText,
         mode: selectedMode,
         subject: selectedSubject,
         isVoiceInput: true, // Tell backend this came from voice
         userEmail: user?.email,
-        sessionId: sessionId,
+        sessionId: currentSessionId || sessionId,
+        conversationHistory: conversationHistory, // Include context
       });
 
       if (response.data.success) {
@@ -1214,6 +1514,7 @@ export function ConversationalTutor() {
           role: "assistant",
           content: response.data.response,
           timestamp: response.data.timestamp || new Date().toISOString(),
+          sessionId: currentSessionId || sessionId, // Track which session this belongs to
         };
 
         setMessages((prev) => [...prev, aiMessage]);
@@ -1327,6 +1628,32 @@ export function ConversationalTutor() {
 
   return (
     <div className="container px-2 sm:px-4 md:px-6 py-6 flex flex-col min-h-[85vh] gap-4 sm:gap-6 md:gap-8 w-full max-w-full">
+      
+      {/* Offline Indicator */}
+      {!isOnline && <OfflineIndicator />}
+      
+      {/* Performance Indicator (dev only) */}
+
+      
+      {/* Error Recovery UI */}
+      {lastError && (
+        <ErrorRecoveryCard 
+          error={lastError}
+          onRetry={() => {
+            setLastError(null);
+            setRetryCount(0);
+            if (isSessionActive) {
+              // Retry the last operation or restart session
+              startSession();
+            }
+          }}
+          onDismiss={() => {
+            setLastError(null);
+            setRetryCount(0);
+          }}
+        />
+      )}
+      
       <div className="flex items-center justify-between w-full">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">
@@ -1607,8 +1934,8 @@ export function ConversationalTutor() {
             {/* Fixed Mic Section at Bottom */}
             <CardFooter className="sticky bottom-0 left-0 right-0 z-10 border-t bg-card pt-2 pb-3 px-3 sm:px-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <div className="flex w-full flex-col items-center space-y-2">
-                {/* Clear Voice Message Button */}
-                {transcript && transcript.trim().length > 0 && (
+                {/* Clear Voice Message Button - only show when mic is active */}
+                {transcript && transcript.trim().length > 0 && micState === MicState.ACTIVE && (
                   <div
                     className="text-muted-foreground hover:text-destructive cursor-pointer text-xs"
                     onClick={() => {

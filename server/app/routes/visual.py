@@ -102,17 +102,51 @@ def text_to_video_sync():
             style=video_type
         )
         
-        # video_result always returns success=True with fallback scenes if AI fails
+        # Format response to match client expectations (slideshow format)
+        scenes = video_result.get('fallback_scenes', [])
+        
+        # Color palette for visual variety
+        colors = ['#4ECDC4', '#FF6B6B', '#4D96FF', '#FFD93D', '#6BCF7F', '#A78BFA', '#F97316', '#EC4899']
+        
+        # If video_spec has scenes, use those
+        if video_result.get('video_spec') and 'scenes' in video_result['video_spec']:
+            video_scenes = video_result['video_spec']['scenes']
+            scenes = []
+            for idx, scene in enumerate(video_scenes):
+                scenes.append({
+                    'narration': scene.get('narration', ''),
+                    'visual_description': scene.get('visual_prompt', scene.get('visual_description', '')),
+                    'visual': scene.get('visual_prompt', scene.get('visual_description', ''))[:100],
+                    'color': colors[idx % len(colors)],
+                    'duration': scene.get('duration', 5)
+                })
+        else:
+            # Ensure fallback scenes have required fields
+            for idx, scene in enumerate(scenes):
+                if 'color' not in scene:
+                    scene['color'] = colors[idx % len(colors)]
+                if 'visual' not in scene:
+                    scene['visual'] = scene.get('visual_description', '')[:100]
+                if 'duration' not in scene:
+                    scene['duration'] = 5
+        
         return jsonify({
             'success': True,
             'result': {
-                'video_spec': video_result.get('video_spec'),
-                'video_url': video_result.get('video_url'),
-                'status': video_result.get('status'),
+                'type': 'slideshow',
+                'scenes': scenes,
                 'duration': duration,
                 'resolution': resolution,
                 'total_words': len(text.split()),
-                'fallback_scenes': video_result.get('fallback_scenes', [])
+                'total_slides': len(scenes),
+                'auto_play': True,  # Enable auto-play
+                'transition_duration': 1,  # 1 second transitions
+                'status': video_result.get('status'),
+                'metadata': {
+                    'source': 'text',
+                    'user_email': user_email,
+                    'generation_mode': 'veo3' if video_result.get('video_spec') else 'fallback'
+                }
             },
             'user_email': user_email,
             'mode': 'veo3_required'
@@ -165,15 +199,51 @@ def pdf_url_to_video_sync():
         if not video_result['success']:
             raise Exception(f"Veo 3 PDF video generation failed: {video_result.get('error', 'Unknown error')}")
         
+        # Format response to match client expectations (slideshow format)
+        scenes = video_result.get('fallback_scenes', [])
+        
+        # Color palette for visual variety
+        colors = ['#4ECDC4', '#FF6B6B', '#4D96FF', '#FFD93D', '#6BCF7F', '#A78BFA', '#F97316', '#EC4899']
+        
+        # If video_spec has scenes, use those
+        if video_result.get('video_spec') and 'scenes' in video_result['video_spec']:
+            video_scenes = video_result['video_spec']['scenes']
+            scenes = []
+            for idx, scene in enumerate(video_scenes):
+                scenes.append({
+                    'narration': scene.get('narration', ''),
+                    'visual_description': scene.get('visual_prompt', scene.get('visual_description', '')),
+                    'visual': scene.get('visual_prompt', scene.get('visual_description', ''))[:100],
+                    'color': colors[idx % len(colors)],
+                    'duration': scene.get('duration', 5)
+                })
+        else:
+            # Ensure fallback scenes have required fields
+            for idx, scene in enumerate(scenes):
+                if 'color' not in scene:
+                    scene['color'] = colors[idx % len(colors)]
+                if 'visual' not in scene:
+                    scene['visual'] = scene.get('visual_description', '')[:100]
+                if 'duration' not in scene:
+                    scene['duration'] = 5
+        
         return jsonify({
             'success': True,
             'result': {
-                'video_spec': video_result.get('video_spec'),
-                'video_url': video_result.get('video_url'),
-                'status': video_result.get('status'),
+                'type': 'slideshow',
+                'scenes': scenes,
                 'duration': duration,
                 'resolution': resolution,
                 'extracted_text_length': len(text),
+                'total_slides': len(scenes),
+                'auto_play': True,
+                'transition_duration': 1,
+                'status': video_result.get('status'),
+                'metadata': {
+                    'source': 'pdf',
+                    'user_email': user_email,
+                    'generation_mode': 'veo3' if video_result.get('video_spec') else 'fallback'
+                }
             },
             'user_email': user_email,
             'mode': 'veo3_pdf_required'
@@ -221,15 +291,51 @@ def audio_url_to_video_sync():
         if not video_result['success']:
             raise Exception(f"Veo 3 audio video generation failed: {video_result.get('error', 'Unknown error')}")
         
+        # Format response to match client expectations (slideshow format)
+        scenes = video_result.get('fallback_scenes', [])
+        
+        # Color palette for visual variety
+        colors = ['#4ECDC4', '#FF6B6B', '#4D96FF', '#FFD93D', '#6BCF7F', '#A78BFA', '#F97316', '#EC4899']
+        
+        # If video_spec has scenes, use those
+        if video_result.get('video_spec') and 'scenes' in video_result['video_spec']:
+            video_scenes = video_result['video_spec']['scenes']
+            scenes = []
+            for idx, scene in enumerate(video_scenes):
+                scenes.append({
+                    'narration': scene.get('narration', ''),
+                    'visual_description': scene.get('visual_prompt', scene.get('visual_description', '')),
+                    'visual': scene.get('visual_prompt', scene.get('visual_description', ''))[:100],
+                    'color': colors[idx % len(colors)],
+                    'duration': scene.get('duration', 5)
+                })
+        else:
+            # Ensure fallback scenes have required fields
+            for idx, scene in enumerate(scenes):
+                if 'color' not in scene:
+                    scene['color'] = colors[idx % len(colors)]
+                if 'visual' not in scene:
+                    scene['visual'] = scene.get('visual_description', '')[:100]
+                if 'duration' not in scene:
+                    scene['duration'] = 5
+        
         return jsonify({
             'success': True,
             'result': {
-                'video_spec': video_result.get('video_spec'),
-                'video_url': video_result.get('video_url'),
-                'status': video_result.get('status'),
+                'type': 'slideshow',
+                'scenes': scenes,
                 'duration': duration,
                 'audio_source': audio_url,
-                'video_type': video_type
+                'video_type': video_type,
+                'total_slides': len(scenes),
+                'auto_play': True,
+                'transition_duration': 1,
+                'status': video_result.get('status'),
+                'metadata': {
+                    'source': 'audio',
+                    'user_email': user_email,
+                    'generation_mode': 'veo3' if video_result.get('video_spec') else 'fallback'
+                }
             },
             'user_email': user_email,
             'mode': 'veo3_audio_required'

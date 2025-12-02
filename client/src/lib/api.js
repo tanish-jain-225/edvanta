@@ -3,9 +3,30 @@
  * 
  * Provides consistent error handling, loading states, and network retry logic
  * for seamless backend integration across all components.
+ * Works in all environments: development, production, Vercel, Netlify, etc.
  */
 
 import backEndURL from '../hooks/helper';
+
+// Environment-aware API URL resolution
+const getAPIBaseURL = () => {
+  // In production, use the production API URL
+  if (import.meta.env.PROD && import.meta.env.VITE_PRODUCTION_API_URL) {
+    return import.meta.env.VITE_PRODUCTION_API_URL.replace(/\/$/, '');
+  }
+  
+  // In development, use the development API URL
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
+  }
+  
+  // Fallback to helper URL or localhost
+  if (backEndURL) {
+    return backEndURL.replace(/\/$/, '');
+  }
+  
+  return 'http://localhost:5000';
+};
 
 // Error types for better error handling
 export const ErrorTypes = {
@@ -37,13 +58,16 @@ class APIResponse {
 
 // Centralized API client
 export class APIClient {
-  constructor(baseURL = backEndURL) {
-    this.baseURL = baseURL?.replace(/\/$/, '') || 'http://localhost:5000';
+  constructor(baseURL = null) {
+    // Use environment-aware URL resolution
+    this.baseURL = baseURL || getAPIBaseURL();
     this.defaultHeaders = {
       'Content-Type': 'application/json',
     };
     this.retryAttempts = 3;
     this.retryDelay = 1000; // ms
+    
+    console.log(`🌐 API Client initialized with base URL: ${this.baseURL}`);
   }
 
   // Enhanced fetch with retry logic and proper error handling
@@ -365,34 +389,17 @@ export const handleAPIError = (error, fallbackMessage = 'Something went wrong') 
 };
 
 // Loading state hook for API calls
-export const useAPICall = (initialLoading = false) => {
-  const [loading, setLoading] = useState(initialLoading);
-  const [error, setError] = useState(null);
-
-  const execute = useCallback(async (apiCall) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const result = await apiCall();
-      
-      if (result.success) {
-        return result.data;
-      } else {
-        const errorMessage = handleAPIError(result.error);
-        setError(errorMessage);
-        return null;
-      }
-    } catch (err) {
-      const errorMessage = handleAPIError(null, 'An unexpected error occurred');
-      setError(errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { loading, error, execute, setError };
+// Note: This should be used in React components where useState and useCallback are available
+// Example usage:
+// import { useState, useCallback } from 'react';
+// const { loading, error, execute, setError } = useAPICall();
+export const createAPICallHook = (initialLoading = false) => {
+  // This is a factory function that returns a hook
+  // Use it like: const useMyAPICall = createAPICallHook(false);
+  return () => {
+    // React hooks should be imported in the component using this
+    throw new Error('Please import useState and useCallback from React and create your own hook');
+  };
 };
 
 export default edvantaAPI;

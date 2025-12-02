@@ -46,7 +46,7 @@ from app.config import Config
 # AI Model Settings
 DEFAULT_MODEL = 'gemini-2.5-flash'
 DEFAULT_TEMPERATURE = 0.7
-DEFAULT_MAX_TOKENS = 1024
+DEFAULT_MAX_TOKENS = 8192
 
 # Video Generation Settings
 VEO_3_MODEL = 'veo-3'
@@ -65,8 +65,12 @@ SYSTEM_PROMPTS = {
 6. If it's a coding question, provide code examples with explanations
 7. Be patient, supportive, and encouraging
 8. Adapt your teaching style to the student's level of understanding
-9. Reference previous messages in the conversation when relevant
-10. Build upon concepts discussed earlier in the session""",
+9. IMPORTANT: Always reference and build upon our conversation history when relevant
+10. Connect new concepts to topics we've already discussed
+11. Remember the student's current learning progress and adjust accordingly
+12. Use phrases like "As we discussed earlier" or "Building on what we covered" when appropriate
+13. Maintain continuity throughout the learning session
+14. If the student asks about something new, connect it to previous topics when possible""",
 
     'chatbot': """You are an intelligent educational assistant helping students with their academic questions. 
 Provide accurate, helpful responses while maintaining a supportive and encouraging tone. 
@@ -125,9 +129,10 @@ def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: 
             'max_output_tokens': max_tokens or Config.GEMINI_MAX_OUTPUT_TOKENS or DEFAULT_MAX_TOKENS,
         }
         
-        if hasattr(Config, 'GEMINI_TOP_P'):
+        # Remove artificial safety restrictions for better performance
+        if hasattr(Config, 'GEMINI_TOP_P') and Config.GEMINI_TOP_P:
             generation_config['top_p'] = Config.GEMINI_TOP_P
-        if hasattr(Config, 'GEMINI_TOP_K'):
+        if hasattr(Config, 'GEMINI_TOP_K') and Config.GEMINI_TOP_K:
             generation_config['top_k'] = Config.GEMINI_TOP_K
             
         return genai.GenerativeModel(
@@ -245,9 +250,21 @@ def generate_ai_response(
             full_prompt += f"System: {system_prompt}\n\n"
         
         if context:
-            full_prompt += f"Context: {json.dumps(context, indent=2)}\n\n"
+            # Format conversation history for better AI understanding
+            if 'conversation_history' in context and context['conversation_history']:
+                full_prompt += "Conversation History:\n"
+                for i, msg in enumerate(context['conversation_history'], 1):
+                    role = "Student" if msg.get('role') == 'user' else "Tutor"
+                    content = msg.get('content', '')
+                    full_prompt += f"{i}. {role}: {content}\n"
+                full_prompt += "\n"
             
-        full_prompt += f"User: {prompt}"
+            # Add other context information
+            other_context = {k: v for k, v in context.items() if k != 'conversation_history'}
+            if other_context:
+                full_prompt += f"Additional Context: {json.dumps(other_context, indent=2)}\n\n"
+            
+        full_prompt += f"Current Student Question: {prompt}\n\nTutor Response:"
         
         # Generate response
         response = model.generate_content(full_prompt)
@@ -276,6 +293,13 @@ def generate_ai_response(
             if hasattr(response, 'text'):
                 response_text = response.text
         except (ValueError, AttributeError) as e:
+            # Check if it's a MAX_TOKENS issue (finish_reason=2)
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                    print(f"MAX_TOKENS reached for {ai_type} - response truncated")
+                    if ai_type in ['resume', 'roadmap', 'video']:
+                        return {'success': False, 'response': '', 'error': 'max_tokens'}
             print(f"Error accessing response.text for {ai_type}: {e}")
         
         if not response or not response_text:
@@ -302,10 +326,10 @@ def generate_ai_response(
 # --- TUTORING & CHATBOT ---
 
 def get_tutor_response(prompt: str, subject: str = None, conversation_history: List[Dict] = None) -> Dict[str, Any]:
-    """Generate AI tutor response with educational focus."""
+    """Generate AI tutor response with educational focus and conversation context."""
     context = {
         'subject': subject,
-        'conversation_history': conversation_history[-5:] if conversation_history else []  # Last 5 messages
+        'conversation_history': conversation_history[-10:] if conversation_history else []  # Last 10 messages for better context
     }
     
     return generate_ai_response(
@@ -360,7 +384,7 @@ Create 3-5 nodes with proper progression. Return only the JSON."""
         prompt=prompt,
         system_prompt="You are a learning path expert. Return ONLY valid JSON, no markdown formatting.",
         ai_type='roadmap',
-        model_config={'max_tokens': 2048, 'temperature': 0.3}
+        model_config={'max_tokens': 6144, 'temperature': 0.4}
     )
     
     if result['success']:
@@ -412,13 +436,20 @@ def generate_quiz_content(topic: str, difficulty: str = 'medium', num_questions:
     
 Generate exactly {num_questions} multiple choice questions.
 
-Return ONLY a JSON array with this structure:
+CRITICAL REQUIREMENTS:
+- Use simple text questions without code blocks or special formatting
+- Escape all quotes properly in JSON
+- No markdown, no code snippets, just plain text
+- Each question should have exactly 4 options
+- Return ONLY the JSON array, nothing else
+
+Return ONLY this JSON structure:
 [
     {{
-        "question": "Question text here?",
+        "question": "What is the basic concept of {topic}?",
         "options": ["Option A", "Option B", "Option C", "Option D"],
         "correct_answer": 0,
-        "explanation": "Why this answer is correct"
+        "explanation": "Brief explanation"
     }}
 ]"""
 
@@ -426,27 +457,49 @@ Return ONLY a JSON array with this structure:
         prompt=prompt,
         system_prompt=SYSTEM_PROMPTS['quiz'],
         ai_type='quiz',
-        model_config={'temperature': 0.3}  # Lower temperature for more consistent questions
+        model_config={'temperature': 0.6, 'max_tokens': 6144}
     )
     
     if result['success']:
         try:
-            quiz_data = json.loads(result['response'])
+            # Clean the response to extract JSON
+            response_text = result['response'].strip()
+            
+            # Remove markdown code blocks
+            if '```json' in response_text:
+                start = response_text.find('```json') + 7
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            elif '```' in response_text:
+                start = response_text.find('```') + 3
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            
+            # Find JSON array boundaries
+            first_bracket = response_text.find('[')
+            last_bracket = response_text.rfind(']')
+            if first_bracket != -1 and last_bracket != -1:
+                response_text = response_text[first_bracket:last_bracket+1]
+            
+            quiz_data = json.loads(response_text)
             return {'success': True, 'questions': quiz_data, 'error': None}
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            print(f"Quiz JSON parse error: {e}. Response: {result['response'][:200]}...")
             return {
                 'success': False, 
                 'questions': [], 
-                'error': 'Failed to parse quiz JSON'
+                'error': f'Failed to parse quiz JSON: {str(e)}'
             }
     
     return result
 
 def analyze_resume(resume_text: str, job_description: str = "") -> Dict[str, Any]:
     """Analyze resume against job description using AI."""
-    # Truncate inputs to avoid token limits
-    resume_truncated = resume_text[:3000] if len(resume_text) > 3000 else resume_text
-    job_truncated = job_description[:1500] if len(job_description) > 1500 else job_description
+    # Use full text - no artificial truncation
+    resume_truncated = resume_text
+    job_truncated = job_description
     
     prompt = f"""Analyze resume vs job description. Return ONLY JSON, no markdown.
 
@@ -463,7 +516,7 @@ Return only the JSON object."""
         prompt=prompt,
         system_prompt="You are a resume analysis expert. Return ONLY valid JSON, no markdown.",
         ai_type='resume',
-        model_config={'temperature': 0.2, 'max_tokens': 1024}
+        model_config={'temperature': 0.3, 'max_tokens': 6144}
     )
     
     # Handle safety filter or empty response
@@ -537,13 +590,13 @@ Rules:
 - 10-20 words per narration
 - JSON only, no markdown
 
-Text: {text[:2000]}"""
+Text: {text}"""
 
     result = generate_ai_response(
         prompt=prompt,
         system_prompt=SYSTEM_PROMPTS['visual'],
         ai_type='visual',
-        model_config={'temperature': 0.4}
+        model_config={'temperature': 0.5, 'max_tokens': 4096}
     )
     
     if result['success']:
@@ -563,13 +616,19 @@ def create_fallback_visual_scenes(text: str, max_scenes: int = 8) -> List[Dict[s
     words = text.split()
     chunk_size = max(len(words) // max_scenes, 10)
     
+    # Color palette for slides
+    colors = ['#4ECDC4', '#FF6B6B', '#4D96FF', '#FFD93D', '#6BCF7F', '#A78BFA', '#F97316', '#EC4899']
+    
     scenes = []
     for i in range(0, min(len(words), chunk_size * max_scenes), chunk_size):
         chunk = " ".join(words[i:i + chunk_size])
         if len(chunk.strip()) > 0:
             scenes.append({
-                "narration": chunk[:100] + "..." if len(chunk) > 100 else chunk,
-                "visual_description": f"Educational illustration for scene {len(scenes) + 1}"
+                "narration": chunk[:150] + "..." if len(chunk) > 150 else chunk,
+                "visual_description": f"Educational illustration for scene {len(scenes) + 1}",
+                "visual": f"Slide {len(scenes) + 1}: {chunk[:50]}...",
+                "color": colors[len(scenes) % len(colors)],
+                "duration": 5  # seconds per slide
             })
     
     return scenes[:max_scenes]
@@ -596,46 +655,44 @@ def generate_video_with_veo3(
                 'fallback_scenes': create_fallback_visual_scenes(text)
             }
         
-        # Create comprehensive video generation prompt for Veo 3
-        video_prompt = f"""Generate a detailed video production description for creating an educational video.
+        # Create concise video generation prompt for Veo 3
+        # Calculate scene count based on duration
+        scene_count = max(3, min(6, duration // 5))  # 3-6 scenes
+        
+        video_prompt = f"""Create an educational video specification in JSON format.
 
-Content to visualize: {text[:1500]}
+Content: {text}
 
-Video Specifications:
-- Duration: {duration} seconds
-- Resolution: {resolution}
-- Aspect Ratio: {aspect_ratio}
-- Style: {style}
+Specs: {duration}s, {resolution}, {aspect_ratio}, {style} style
 
-Return a JSON object with this structure:
+Return ONLY this JSON structure with {scene_count} scenes:
 {{
-    "video_description": "Overall video description and style",
+    "video_description": "Brief video overview",
     "scenes": [
-        {{
-            "start_time": 0,
-            "duration": 5,
-            "visual_prompt": "Detailed description of visual elements, camera angles, lighting",
-            "narration": "Text to be spoken",
-            "transitions": "Type of transition to next scene"
-        }}
+        {{"start_time": 0, "duration": 5, "visual_prompt": "Visual elements", "narration": "Narration text", "transitions": "fade"}}
     ],
-    "background_music": "Style of background music",
-    "visual_style": "Overall visual aesthetic and color scheme"
+    "background_music": "Music style",
+    "visual_style": "Visual aesthetic"
 }}
 
-Focus on educational clarity, engaging visuals, and smooth transitions."""
+Keep descriptions concise. Return only valid JSON."""
 
         result = generate_ai_response(
             prompt=video_prompt,
             system_prompt=SYSTEM_PROMPTS['video'],
             ai_type='video',
-            model_config={'temperature': 0.6, 'max_tokens': 2048}
+            model_config={'temperature': 0.6, 'max_tokens': 12288}  # Increased token limit for complex videos
         )
         
         if result['success'] and result.get('response'):
             try:
                 # Clean and parse the video generation response
                 response_text = result['response']
+                
+                # Check if response looks truncated (no closing brace)
+                if not response_text.strip().endswith('}'):
+                    print(f"Video response appears truncated (no closing brace)")
+                    raise json.JSONDecodeError("Truncated response", response_text, len(response_text))
                 
                 # Remove markdown code blocks
                 if '```json' in response_text:
@@ -655,7 +712,24 @@ Focus on educational clarity, engaging visuals, and smooth transitions."""
                 if first_brace != -1 and last_brace != -1:
                     response_text = response_text[first_brace:last_brace+1]
                 
-                video_spec = json.loads(response_text)
+                # Try to fix common JSON issues before parsing
+                response_text = fix_json_syntax(response_text)
+                
+                # Attempt to parse JSON with error recovery
+                try:
+                    video_spec = json.loads(response_text)
+                except json.JSONDecodeError as first_error:
+                    # Try one more aggressive cleanup
+                    print(f"First JSON parse attempt failed: {first_error}")
+                    # Extract just the object content more aggressively
+                    lines = response_text.split('\n')
+                    cleaned_lines = []
+                    for line in lines:
+                        line = line.strip()
+                        if line and not line.startswith('//'):  # Remove comments
+                            cleaned_lines.append(line)
+                    response_text = '\n'.join(cleaned_lines)
+                    video_spec = json.loads(response_text)  # Will throw if still invalid
                 
                 # In a real implementation, this would call the actual Veo 3 API
                 # For now, we return the structured video specification
@@ -670,7 +744,8 @@ Focus on educational clarity, engaging visuals, and smooth transitions."""
                     'fallback_scenes': extract_scenes_from_spec(video_spec)
                 }
             except json.JSONDecodeError as e:
-                print(f"JSON parse error in video generation: {e}")
+                print(f"JSON parse error in video generation: {str(e)}")
+                print(f"Problematic JSON (first 500 chars): {response_text[:500]}")
                 # Fallback to scene-based generation
                 scenes = generate_visual_script(text, max_scenes=duration//5)
                 return {
@@ -682,7 +757,12 @@ Focus on educational clarity, engaging visuals, and smooth transitions."""
                 }
         
         # If AI response failed, use fallback
-        print(f"AI video generation failed: {result.get('error', 'unknown')}, using fallback scenes")
+        error_type = result.get('error', 'unknown')
+        if error_type in ['max_tokens', 'empty_response']:
+            print(f"AI video generation issue: {error_type} - using simple fallback scenes")
+        else:
+            print(f"AI video generation failed: {error_type} - using fallback scenes")
+        
         scenes = generate_visual_script(text, max_scenes=max(3, duration//5))
         return {
             'success': True,
@@ -699,6 +779,26 @@ Focus on educational clarity, engaging visuals, and smooth transitions."""
             'error': str(e),
             'fallback_scenes': create_fallback_visual_scenes(text)
         }
+
+def fix_json_syntax(json_text: str) -> str:
+    """Attempt to fix common JSON syntax errors."""
+    try:
+        # Remove trailing commas before closing braces/brackets
+        json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
+        
+        # Fix missing commas between array elements (common AI mistake)
+        json_text = re.sub(r'}\s*{', r'},{', json_text)
+        
+        # Fix missing commas between object properties
+        json_text = re.sub(r'"\s*\n\s*"', r'",\n"', json_text)
+        
+        # Remove any control characters
+        json_text = ''.join(char for char in json_text if ord(char) >= 32 or char in '\n\r\t')
+        
+        return json_text
+    except Exception as e:
+        print(f"Error fixing JSON syntax: {e}")
+        return json_text
 
 def extract_scenes_from_spec(video_spec: Dict) -> List[Dict[str, str]]:
     """Extract simple scenes from Veo 3 video specification for compatibility."""
@@ -759,31 +859,46 @@ def generate_video_from_text(
 # =============================================================================
 
 def save_chat_message(user_email: str, message: str, response: str, conversation_id: str = None) -> str:
-    """Save chat message to database with fallback to memory."""
+    """Save chat message to database - saves user and AI messages separately for proper persistence."""
     try:
         collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
         
-        chat_data = {
-            'user_email': user_email,
-            'message': message,
-            'response': response,
-            'conversation_id': conversation_id or str(ObjectId()),
-            'timestamp': datetime.utcnow(),
-            'created_at': datetime.utcnow()
-        }
-        
-        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
         if collection is None:
             raise Exception("MongoDB connection required for chat storage - no fallbacks available")
         
-        result = collection.insert_one(chat_data)
+        session_id = conversation_id or str(ObjectId())
+        timestamp = datetime.utcnow()
+        
+        # Save user message
+        user_message = {
+            'user_email': user_email,
+            'content': message,
+            'is_ai': False,
+            'session_id': session_id,
+            'timestamp': timestamp.isoformat(),
+            'created_at': timestamp
+        }
+        
+        # Save AI response
+        ai_message = {
+            'user_email': user_email,
+            'content': response,
+            'is_ai': True,
+            'session_id': session_id,
+            'timestamp': timestamp.isoformat(),
+            'created_at': timestamp
+        }
+        
+        # Insert both messages
+        collection.insert_one(user_message)
+        result = collection.insert_one(ai_message)
         return str(result.inserted_id)
             
     except Exception as e:
         print(f"Error saving chat message: {e}")
         return ""
 
-def get_chat_history(user_email: str, limit: int = 20) -> List[Dict]:
+def get_chat_history(user_email: str, limit: int = 20, session_id: str = None) -> List[Dict]:
     """Get chat history from database - MongoDB required."""
     try:
         collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
@@ -791,22 +906,30 @@ def get_chat_history(user_email: str, limit: int = 20) -> List[Dict]:
         if collection is None:
             raise Exception("MongoDB connection required for chat history - no fallbacks available")
         
-        cursor = collection.find(
-            {'user_email': user_email}
-        ).sort('timestamp', -1).limit(limit)
+        # Build query filter
+        query_filter = {'user_email': user_email}
+        if session_id:
+            query_filter['session_id'] = session_id
+        
+        cursor = collection.find(query_filter).sort('created_at', 1).limit(limit)
         
         history = []
         for doc in cursor:
-            doc['id'] = str(doc['_id'])
-            del doc['_id']
-            history.append(doc)
+            # Format message for client expectations
+            message = {
+                'content': doc.get('content', ''),
+                'is_ai': doc.get('is_ai', False),
+                'timestamp': doc.get('timestamp', datetime.utcnow().isoformat()),
+                'session_id': doc.get('session_id', '')
+            }
+            history.append(message)
         return history
             
     except Exception as e:
         print(f"Error retrieving chat history: {e}")
         return []
 
-def clear_chat_history(user_email: str) -> bool:
+def clear_chat_history(user_email: str, session_id: str = None) -> bool:
     """Clear chat history for user - MongoDB required."""
     try:
         collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
@@ -814,8 +937,13 @@ def clear_chat_history(user_email: str) -> bool:
         if collection is None:
             raise Exception("MongoDB connection required for chat operations - no fallbacks available")
         
-        collection.delete_many({'user_email': user_email})
-        return True
+        # Build query filter
+        query_filter = {'user_email': user_email}
+        if session_id:
+            query_filter['session_id'] = session_id
+        
+        result = collection.delete_many(query_filter)
+        return result.deleted_count > 0
         
     except Exception as e:
         print(f"Error clearing chat history: {e}")
