@@ -278,14 +278,22 @@ export function Roadmap() {
   };
 
   // Calculate total duration of a roadmap
-  const calculateTotalDuration = (nodes) => {
+  const calculateTotalDuration = (nodes, roadmapDuration) => {
+    // If we have the duration from the roadmap data, use it
+    if (roadmapDuration && typeof roadmapDuration === 'number') {
+      return roadmapDuration === 1 ? "1 week" : `${roadmapDuration} weeks`;
+    }
+    
+    // Fallback: try to calculate from nodes if available
     if (!nodes || !Array.isArray(nodes)) return "N/A";
 
+    // Look for week property (timeline position) or recommended_weeks property
     const totalWeeks = nodes.reduce((sum, node) => {
-      return sum + (parseInt(node.recommended_weeks) || 0);
+      const weeks = parseInt(node.recommended_weeks) || parseInt(node.week) || 0;
+      return Math.max(sum, weeks); // Use max week number as total duration
     }, 0);
 
-    return totalWeeks ? `${totalWeeks} weeks` : "N/A";
+    return totalWeeks ? (totalWeeks === 1 ? "1 week" : `${totalWeeks} weeks`) : "N/A";
   };
 
   // Function to download roadmap as PDF
@@ -455,7 +463,7 @@ export function Roadmap() {
           {/* Search Bar for Generated Roadmaps */}
           <div className="w-full max-w-xs">
             <Input
-              placeholder="Search your roadmaps..."
+              placeholder="Search by goal..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="text-sm"
@@ -488,13 +496,28 @@ export function Roadmap() {
             {/* While comparing strings - No extra spaces after string ends */}
             {savedRoadmaps
               .filter(
-                (roadmap) =>
-                  roadmap.title
-                    .toLowerCase()
-                    .includes(searchTerm.toLowerCase().trim()) ||
-                  roadmap.description
-                    .toLowerCase()
-                    .includes(searchTerm.toLowerCase().trim())
+                (roadmap) => {
+                  const searchLower = searchTerm.toLowerCase().trim();
+                  if (!searchLower) return true;
+                  
+                  // Search primarily based on goal (title) with higher priority
+                  const titleMatch = roadmap.title.toLowerCase().includes(searchLower);
+                  
+                  // Also check if any skills/topics in the roadmap match the search
+                  const skillsMatch = roadmap.skills && roadmap.skills.some(skill => 
+                    skill.toLowerCase().includes(searchLower)
+                  );
+                  
+                  // Check if any node titles match (these represent learning goals/topics)
+                  const nodesMatch = roadmap.data?.nodes && roadmap.data.nodes.some(node => 
+                    node.title && node.title.toLowerCase().includes(searchLower)
+                  );
+                  
+                  // Secondary: check description for broader context
+                  const descriptionMatch = roadmap.description.toLowerCase().includes(searchLower);
+                  
+                  return titleMatch || skillsMatch || nodesMatch || descriptionMatch;
+                }
               )
               .map((roadmap) => (
                 <Card
@@ -507,7 +530,7 @@ export function Roadmap() {
                     </CardTitle>
                     <CardDescription className="text-xs mt-1">
                       Created: {roadmap.dateCreated} • Duration:{" "}
-                      {calculateTotalDuration(roadmap.data.nodes)}
+                      {calculateTotalDuration(roadmap.data.nodes, roadmap.duration)}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="px-4 pb-4 flex-grow flex flex-col">
@@ -641,7 +664,7 @@ export function Roadmap() {
                         Total Duration
                       </p>
                       <p className="text-xs xs:text-sm sm:text-base font-medium truncate">
-                        {calculateTotalDuration(selectedRoadmap.data.nodes)}
+                        {calculateTotalDuration(selectedRoadmap.data.nodes, selectedRoadmap.duration)}
                       </p>
                     </div>
                   </div>

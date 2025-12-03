@@ -71,6 +71,8 @@
     scroll-behavior: smooth;
     /* Prevent horizontal overflow */
     overflow-x: hidden;
+    /* Ensure scroll position resets */
+    scroll-padding-top: 80px; /* Account for fixed navbar */
   }
 
   body {

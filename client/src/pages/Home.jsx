@@ -101,7 +101,20 @@ function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section with 3D Robot (lazy loaded) */}
-      <Suspense fallback={<div className="h-64 items-center justify-center flex">Loading 3D Experience...</div>}>
+      <Suspense fallback={
+        <div className="h-64 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <div className="relative">
+              <Palette className="h-8 w-8 mx-auto text-primary loading-pulse-float" />
+              <div className="absolute inset-0 rounded-full bg-primary/10 loading-glow"></div>
+            </div>
+            <div className="w-32 h-1 bg-gray-200 rounded-full overflow-hidden mx-auto">
+              <div className="h-full bg-gradient-to-r from-primary-400 to-primary-600 loading-progress-bar rounded-full"></div>
+            </div>
+            <p className="text-sm text-gray-500 loading-fade-in">Loading 3D Experience...</p>
+          </div>
+        </div>
+      }>
         <HeroSpline />
       </Suspense>
 

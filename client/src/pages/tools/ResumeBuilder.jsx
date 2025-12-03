@@ -43,14 +43,14 @@ import backEndURL from "../../hooks/helper";
 
 export function ResumeBuilder() {
   const [selectedTemplate, setSelectedTemplate] = useState("modern");
-  const [activeSection, setActiveSection] = useState("personal");
+  const [currentStep, setCurrentStep] = useState(0);
   const [resumeData, setResumeData] = useState({
     personal: {
-      name: "John Doe",
-      email: "john.doe@email.com",
-      phone: "+1 (555) 123-4567",
-      location: "San Francisco, CA",
-      website: "johndoe.dev",
+      name: "",
+      email: "",
+      phone: "",
+      location: "",
+      website: "",
     },
     summary: "",
     experience: [],
@@ -71,28 +71,50 @@ export function ResumeBuilder() {
 
 
   const sections = [
-    { id: "personal", name: "Personal Info", icon: User, completed: true },
-    {
-      id: "summary",
-      name: "Professional Summary",
-      icon: FileText,
-      completed: false,
-    },
-    {
-      id: "experience",
-      name: "Work Experience",
-      icon: Briefcase,
-      completed: false,
-    },
-    {
-      id: "education",
-      name: "Education",
-      icon: GraduationCap,
-      completed: false,
-    },
-    { id: "skills", name: "Skills", icon: Star, completed: false },
-    { id: "projects", name: "Projects", icon: Target, completed: false },
+    { id: "personal", name: "Personal Info", icon: User, step: 1 },
+    { id: "summary", name: "Professional Summary", icon: FileText, step: 2 },
+    { id: "experience", name: "Work Experience", icon: Briefcase, step: 3 },
+    { id: "education", name: "Education", icon: GraduationCap, step: 4 },
+    { id: "skills", name: "Skills", icon: Star, step: 5 },
+    { id: "projects", name: "Projects", icon: Target, step: 6 },
   ];
+
+  const currentSection = sections[currentStep];
+
+  function goToNextStep() {
+    if (currentStep < sections.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  }
+
+  function goToPreviousStep() {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  }
+
+  function isCurrentStepValid() {
+    const currentSectionId = sections[currentStep]?.id;
+    
+    switch (currentSectionId) {
+      case "personal":
+        return resumeData.personal.name.trim() !== "" && 
+               resumeData.personal.email.trim() !== "";
+      case "summary":
+        return resumeData.summary.trim() !== "";
+      case "experience":
+        return resumeData.experience.length > 0;
+      case "education":
+        return resumeData.education.length > 0;
+      case "skills":
+        return resumeData.skills.length > 0;
+      case "projects":
+        // Projects can be optional
+        return true;
+      default:
+        return true;
+    }
+  }
 
   
 
@@ -115,26 +137,22 @@ export function ResumeBuilder() {
       setAnalyzeError("Job description is required");
       return;
     }
+    if (!analyzeTab.file) {
+      setAnalyzeError("Please upload a resume file");
+      return;
+    }
+    
     setAnalyzeLoading(true);
     try {
-      let payload;
-      if (analyzeTab.text.trim()) {
-        payload = {
-          resume_text: analyzeTab.text.trim(),
-          job_description: analyzeTab.job.trim(),
-        };
-      } else if (analyzeTab.file) {
-        const uploaded = await uploadResumeFile(analyzeTab.file);
-        payload = {
-          public_id: uploaded.public_id,
-          file_format: analyzeTab.file.name.toLowerCase().endsWith(".docx")
-            ? "docx"
-            : "pdf",
-          job_description: analyzeTab.job.trim(),
-        };
-      } else {
-        throw new Error("Provide resume text or upload a file");
-      }
+      const uploaded = await uploadResumeFile(analyzeTab.file);
+      const payload = {
+        public_id: uploaded.public_id,
+        file_format: analyzeTab.file.name.toLowerCase().endsWith(".docx")
+          ? "docx"
+          : "pdf",
+        job_description: analyzeTab.job.trim(),
+      };
+      
       const res = await fetch(`${backEndURL}/api/resume/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -272,6 +290,102 @@ export function ResumeBuilder() {
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [previewModal, setPreviewModal] = useState({ open: false, content: "" });
+
+  async function generateResume() {
+    setSubmitError("");
+    // minimal validation: name must exist
+    if (!resumeData.personal?.name?.trim()) {
+      setSubmitError("Full name is required in Personal Info");
+      return;
+    }
+
+    // Build a simple plain-text resume from the structured data
+    const pieces = [];
+    const p = resumeData.personal || {};
+    pieces.push(`Name: ${p.name || ""}`);
+    if (p.email) pieces.push(`Email: ${p.email}`);
+    if (p.phone) pieces.push(`Phone: ${p.phone}`);
+    if (p.location) pieces.push(`Location: ${p.location}`);
+    if (p.website) pieces.push(`Website: ${p.website}`);
+
+    // Include professional summary if present
+    if (resumeData.summary && resumeData.summary.trim()) {
+      pieces.push("", "Professional Summary:", resumeData.summary);
+    }
+
+    if (resumeData.experience && resumeData.experience.length) {
+      pieces.push("", "Work Experience:");
+      resumeData.experience.forEach((e) => {
+        pieces.push(`- ${e.title || ""} | ${e.company || ""} | ${e.start || ""} - ${e.end || ""}`);
+        if (e.description) pieces.push(`  ${e.description}`);
+      });
+    }
+
+    if (resumeData.education && resumeData.education.length) {
+      pieces.push("", "Education:");
+      resumeData.education.forEach((ed) => {
+        pieces.push(`- ${ed.degree || ""} | ${ed.school || ""} | ${ed.start || ""} - ${ed.end || ""}`);
+        if (ed.description) pieces.push(`  ${ed.description}`);
+      });
+    }
+
+    if (resumeData.skills && resumeData.skills.length) {
+      pieces.push("", "Skills:");
+      pieces.push(resumeData.skills.map((s) => `${s.name}${s.level ? ` (${s.level})` : ""}`).join(", "));
+    }
+
+    if (resumeData.projects && resumeData.projects.length) {
+      pieces.push("", "Projects:");
+      resumeData.projects.forEach((pr) => {
+        pieces.push(`- ${pr.name || ""}${pr.link ? ` (${pr.link})` : ""}`);
+        if (pr.description) pieces.push(`  ${pr.description}`);
+      });
+    }
+
+    const resume_content = pieces.join("\n");
+    
+    // Show preview modal
+    setPreviewModal({ open: true, content: resume_content });
+  }
+
+  async function downloadResume() {
+    try {
+      const response = await fetch(`${backEndURL}/api/resume/download`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resume_data: resumeData
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${resumeData.personal.name || 'Resume'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setPreviewModal({ open: false, content: "" });
+    } catch (error) {
+      console.error('Error downloading resume:', error);
+      alert('Failed to download resume. Please try again.');
+    }
+  }
+
+  function closePreviewModal() {
+    setPreviewModal({ open: false, content: "" });
+  }
 
   async function submitResume() {
     setSubmitError("");
@@ -389,8 +503,8 @@ export function ResumeBuilder() {
                 Analyze Resume vs Job Description
               </CardTitle>
               <CardDescription>
-                Upload a PDF/DOCX or paste your resume text, and provide the job
-                description (required).
+                Upload a PDF/DOCX resume file and provide the job
+                description to get AI-powered analysis and recommendations.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -435,22 +549,6 @@ export function ResumeBuilder() {
                       </p>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Or Paste Resume Text
-                    </label>
-                    <textarea
-                      className="w-full h-40 p-3 text-sm border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Paste your resume text here..."
-                      value={analyzeTab.text}
-                      onChange={(e) =>
-                        setAnalyzeTab((prev) => ({
-                          ...prev,
-                          text: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
                 </div>
                 <div className="space-y-3">
                   <label className="text-sm font-medium">
@@ -472,7 +570,7 @@ export function ResumeBuilder() {
                     disabled={
                       analyzeLoading ||
                       !analyzeTab.job.trim() ||
-                      (!analyzeTab.file && !analyzeTab.text.trim())
+                      !analyzeTab.file
                     }
                     className="w-full text-sm sm:text-base py-2 sm:py-3"
                   >
@@ -600,405 +698,406 @@ export function ResumeBuilder() {
         </TabsContent>
 
         <TabsContent value="builder" className="space-y-4 sm:space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            {/* Resume Sections */}
-            <div className="lg:col-span-1 space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg sm:text-xl">
-                    Resume Sections
-                  </CardTitle>
-                  <CardDescription>
-                    Complete each section to build your resume
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {sections.map((section) => (
+          {/* Step Indicator */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Step {currentStep + 1} of {sections.length}</h2>
+              </div>
+              <div className="flex items-center justify-center sm:justify-start space-x-1 sm:space-x-2 mb-4 overflow-x-auto">
+                {sections.map((section, index) => (
+                  <div key={section.id} className="flex items-center flex-shrink-0">
                     <div
-                      key={section.id}
-                      className={`flex items-center p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                        activeSection === section.id
-                          ? "bg-blue-50 border border-blue-200"
-                          : "hover:bg-gray-50 border border-transparent"
+                      className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${
+                        index <= currentStep
+                          ? "bg-green-500 text-white"
+                          : "bg-gray-200 text-gray-600"
                       }`}
-                      onClick={() => setActiveSection(section.id)}
                     >
-                      <section.icon
-                        className={`h-4 w-4 mr-3 ${
-                          section.completed ? "text-green-600" : "text-gray-400"
+                      {index < currentStep ? "✓" : index + 1}
+                    </div>
+                    {index < sections.length - 1 && (
+                      <div
+                        className={`w-6 sm:w-12 h-0.5 ${
+                          index < currentStep ? "bg-green-500" : "bg-gray-200"
                         }`}
                       />
-                      <span className="flex-1 text-sm font-medium">
-                        {section.name}
-                      </span>
-                      {section.completed && (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      )}
-                    </div>
-                  ))}
-
-                  <div className="pt-3 border-t">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Completion</span>
-                      <span className="text-sm text-gray-600">17%</span>
-                    </div>
-                    <Progress value={17} className="h-2" />
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-              {/* Quick Actions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base sm:text-lg">
-                    Quick Actions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
+          {/* Current Section Content */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <currentSection.icon className="h-5 w-5" />
+                {currentSection.name}
+              </CardTitle>
+              <CardDescription>
+                Fill in your information for this section
+                {currentSection.id === "personal" && (
+                  <span className="block text-red-600 text-xs mt-1">* Name and Email are required</span>
+                )}
+                {currentSection.id === "summary" && (
+                  <span className="block text-red-600 text-xs mt-1">* Professional Summary is required</span>
+                )}
+                {currentSection.id === "experience" && (
+                  <span className="block text-red-600 text-xs mt-1">* At least one work experience is required</span>
+                )}
+                {currentSection.id === "education" && (
+                  <span className="block text-red-600 text-xs mt-1">* At least one education entry is required</span>
+                )}
+                {currentSection.id === "skills" && (
+                  <span className="block text-red-600 text-xs mt-1">* At least one skill is required</span>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {currentSection.id === "personal" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Full Name *</label>
+                    <Input
+                      value={resumeData.personal.name}
+                      onChange={(e) =>
+                        setResumeData({
+                          ...resumeData,
+                          personal: {
+                            ...resumeData.personal,
+                            name: e.target.value,
+                          },
+                        })
+                      }
+                      className="text-sm sm:text-base"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Email Address *
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="email"
+                        value={resumeData.personal.email}
+                        onChange={(e) => setResumeData((prev) => ({
+                          ...prev,
+                          personal: { ...prev.personal, email: e.target.value },
+                        }))}
+                        className="pl-10 text-sm sm:text-base"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Phone Number
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        value={resumeData.personal.phone}
+                        onChange={(e) => setResumeData((prev) => ({
+                          ...prev,
+                          personal: { ...prev.personal, phone: e.target.value },
+                        }))}
+                        className="pl-10 text-sm sm:text-base"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Location</label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        value={resumeData.personal.location}
+                        onChange={(e) => setResumeData((prev) => ({
+                          ...prev,
+                          personal: { ...prev.personal, location: e.target.value },
+                        }))}
+                        className="pl-10 text-sm sm:text-base"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <label className="text-sm font-medium">
+                      Website/Portfolio
+                    </label>
+                    <div className="relative">
+                      <Globe className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        value={resumeData.personal.website}
+                        onChange={(e) => setResumeData((prev) => ({
+                          ...prev,
+                          personal: { ...prev.personal, website: e.target.value },
+                        }))}
+                        className="pl-10 text-sm sm:text-base"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {currentSection.id === "summary" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Professional Summary
+                    </label>
+                    <textarea
+                      placeholder="Write a compelling summary of your professional experience and goals..."
+                      className="w-full h-32 p-3 border rounded-lg text-sm sm:text-base resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={resumeData.summary}
+                      onChange={(e) => setResumeData((prev) => ({ ...prev, summary: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {currentSection.id === "experience" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-medium">Work Experience</h3>
+                    <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("experience")}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Experience
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {(resumeData.experience || []).length === 0 && (
+                      <div className="p-4 border rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-600 text-center">
+                          No work experience added yet. Click "Add Experience" to get started.
+                        </p>
+                      </div>
+                    )}
+                    {(resumeData.experience || []).map((exp, i) => (
+                      <div key={i} className="p-3 border rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-medium">{exp.title || "Title"} — {exp.company || "Company"}</div>
+                            <div className="text-xs text-gray-500">{exp.start} — {exp.end}</div>
+                            <div className="text-sm text-gray-700 mt-2">{exp.description}</div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <Button size="sm" variant="outline" onClick={() => { setModal({ open: true, section: 'experience', editIndex: i }); setModalForm(exp); }}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => deleteItem('experience', i)}>
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {currentSection.id === "education" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-medium">Education</h3>
+                    <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("education")}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Education
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {(resumeData.education || []).length === 0 && (
+                      <div className="p-4 border rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-600 text-center">No education added yet. Click "Add Education" to get started.</p>
+                      </div>
+                    )}
+                    {(resumeData.education || []).map((edu, i) => (
+                      <div key={i} className="p-3 border rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-medium">{edu.degree || "Degree"} — {edu.school || "School"}</div>
+                            <div className="text-xs text-gray-500">{edu.start} — {edu.end}</div>
+                            <div className="text-sm text-gray-700 mt-2">{edu.description}</div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <Button size="sm" variant="outline" onClick={() => { setModal({ open: true, section: 'education', editIndex: i }); setModalForm(edu); }}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => deleteItem('education', i)}>
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {currentSection.id === "skills" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-medium">Skills</h3>
+                    <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("skills")}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Skill
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {(resumeData.skills || []).length === 0 && (
+                      <div className="p-4 border rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-600 text-center">No skills added yet. Click "Add Skill" to get started.</p>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {(resumeData.skills || []).map((s, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2 bg-gray-100 rounded">
+                          <div className="text-sm">{s.name}</div>
+                          <div className="text-xs text-gray-500">{s.level}</div>
+                          <Button size="xs" variant="ghost" onClick={() => { setModal({ open: true, section: 'skills', editIndex: i }); setModalForm(s); }}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="xs" variant="ghost" onClick={() => deleteItem('skills', i)}>
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {currentSection.id === "projects" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-medium">Projects</h3>
+                    <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("projects")}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Project
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {(resumeData.projects || []).length === 0 && (
+                      <div className="p-4 border rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-600 text-center">No projects added yet. Click "Add Project" to get started.</p>
+                      </div>
+                    )}
+                    {(resumeData.projects || []).map((p, i) => (
+                      <div key={i} className="p-3 border rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-medium">{p.name || "Project"}</div>
+                            <div className="text-xs text-gray-500">{p.link}</div>
+                            <div className="text-sm text-gray-700 mt-2">{p.description}</div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <Button size="sm" variant="outline" onClick={() => { setModal({ open: true, section: 'projects', editIndex: i }); setModalForm(p); }}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => deleteItem('projects', i)}>
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Navigation Buttons */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  onClick={goToPreviousStep}
+                  disabled={currentStep === 0}
+                  className="flex items-center gap-2"
+                >
+                  ← Previous
+                </Button>
+                
+                <div className="text-sm text-gray-500">
+                  Step {currentStep + 1} of {sections.length}
+                </div>
+                
+                {currentStep < sections.length - 1 ? (
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start text-xs sm:text-sm"
+                    onClick={goToNextStep}
+                    disabled={!isCurrentStepValid()}
+                    className="flex items-center gap-2"
                   >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import from LinkedIn
+                    Next →
                   </Button>
+                ) : (
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start text-xs sm:text-sm"
+                    className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+                    onClick={generateResume}
+                    disabled={submitLoading || !isCurrentStepValid()}
                   >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Import Existing Resume
+                    {submitLoading ? 'Generating...' : 'Generate Resume'}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start text-xs sm:text-sm"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    AI Auto-Fill
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Section Editor */}
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                    {sections.find((s) => s.id === activeSection)?.icon &&
-                      React.createElement(
-                        sections.find((s) => s.id === activeSection).icon,
-                        { className: "h-5 w-5" }
-                      )}
-                    {sections.find((s) => s.id === activeSection)?.name}
-                  </CardTitle>
-                  <CardDescription>
-                    Fill in your information for this section
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {activeSection === "personal" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Full Name</label>
-                        <Input
-                          value={resumeData.personal.name}
-                          onChange={(e) =>
-                            setResumeData({
-                              ...resumeData,
-                              personal: {
-                                ...resumeData.personal,
-                                name: e.target.value,
-                              },
-                            })
-                          }
-                          className="text-sm sm:text-base"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">
-                          Email Address
-                        </label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            type="email"
-                            value={resumeData.personal.email}
-                            onChange={(e) => setResumeData((prev) => ({
-                              ...prev,
-                              personal: { ...prev.personal, email: e.target.value },
-                            }))}
-                            className="pl-10 text-sm sm:text-base"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">
-                          Phone Number
-                        </label>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            value={resumeData.personal.phone}
-                            onChange={(e) => setResumeData((prev) => ({
-                              ...prev,
-                              personal: { ...prev.personal, phone: e.target.value },
-                            }))}
-                            className="pl-10 text-sm sm:text-base"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Location</label>
-                        <div className="relative">
-                          <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            value={resumeData.personal.location}
-                            onChange={(e) => setResumeData((prev) => ({
-                              ...prev,
-                              personal: { ...prev.personal, location: e.target.value },
-                            }))}
-                            className="pl-10 text-sm sm:text-base"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2 sm:col-span-2">
-                        <label className="text-sm font-medium">
-                          Website/Portfolio
-                        </label>
-                        <div className="relative">
-                          <Globe className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            value={resumeData.personal.website}
-                            onChange={(e) => setResumeData((prev) => ({
-                              ...prev,
-                              personal: { ...prev.personal, website: e.target.value },
-                            }))}
-                            className="pl-10 text-sm sm:text-base"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeSection === "summary" && (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">
-                          Professional Summary
-                        </label>
-                        <textarea
-                          placeholder="Write a compelling summary of your professional experience and goals..."
-                          className="w-full h-32 p-3 border rounded-lg text-sm sm:text-base resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          value={resumeData.summary}
-                          onChange={(e) => setResumeData((prev) => ({ ...prev, summary: e.target.value }))}
-                        />
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs sm:text-sm"
-                      >
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate with AI
-                      </Button>
-                    </div>
-                  )}
-
-                  {activeSection === "experience" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-medium">Work Experience</h3>
-                        <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("experience")}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Experience
-                        </Button>
-                      </div>
-                      <div className="space-y-3">
-                        {(resumeData.experience || []).length === 0 && (
-                          <div className="p-4 border rounded-lg bg-gray-50">
-                            <p className="text-sm text-gray-600 text-center">
-                              No work experience added yet. Click "Add Experience" to get started.
-                            </p>
-                          </div>
-                        )}
-                        {(resumeData.experience || []).map((exp, i) => (
-                          <div key={i} className="p-3 border rounded-lg">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="font-medium">{exp.title || "Title"} — {exp.company || "Company"}</div>
-                                <div className="text-xs text-gray-500">{exp.start} — {exp.end}</div>
-                                <div className="text-sm text-gray-700 mt-2">{exp.description}</div>
-                              </div>
-                              <div className="flex flex-col items-end gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setModal({ open: true, section: 'experience', editIndex: i }); setModalForm(exp); }}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => deleteItem('experience', i)}>
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {activeSection === "education" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-medium">Education</h3>
-                        <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("education")}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Education
-                        </Button>
-                      </div>
-                      <div className="space-y-3">
-                        {(resumeData.education || []).length === 0 && (
-                          <div className="p-4 border rounded-lg bg-gray-50">
-                            <p className="text-sm text-gray-600 text-center">No education added yet. Click "Add Education" to get started.</p>
-                          </div>
-                        )}
-                        {(resumeData.education || []).map((edu, i) => (
-                          <div key={i} className="p-3 border rounded-lg">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="font-medium">{edu.degree || "Degree"} — {edu.school || "School"}</div>
-                                <div className="text-xs text-gray-500">{edu.start} — {edu.end}</div>
-                                <div className="text-sm text-gray-700 mt-2">{edu.description}</div>
-                              </div>
-                              <div className="flex flex-col items-end gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setModal({ open: true, section: 'education', editIndex: i }); setModalForm(edu); }}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => deleteItem('education', i)}>
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {activeSection === "skills" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-medium">Skills</h3>
-                        <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("skills")}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Skill
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        {(resumeData.skills || []).length === 0 && (
-                          <div className="p-4 border rounded-lg bg-gray-50">
-                            <p className="text-sm text-gray-600 text-center">No skills added yet. Click "Add Skill" to get started.</p>
-                          </div>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          {(resumeData.skills || []).map((s, i) => (
-                            <div key={i} className="flex items-center gap-2 p-2 bg-gray-100 rounded">
-                              <div className="text-sm">{s.name}</div>
-                              <div className="text-xs text-gray-500">{s.level}</div>
-                              <Button size="xs" variant="ghost" onClick={() => { setModal({ open: true, section: 'skills', editIndex: i }); setModalForm(s); }}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button size="xs" variant="ghost" onClick={() => deleteItem('skills', i)}>
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeSection === "projects" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-medium">Projects</h3>
-                        <Button size="sm" className="text-xs sm:text-sm" onClick={() => openAddModal("projects")}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Project
-                        </Button>
-                      </div>
-                      <div className="space-y-3">
-                        {(resumeData.projects || []).length === 0 && (
-                          <div className="p-4 border rounded-lg bg-gray-50">
-                            <p className="text-sm text-gray-600 text-center">No projects added yet. Click "Add Project" to get started.</p>
-                          </div>
-                        )}
-                        {(resumeData.projects || []).map((p, i) => (
-                          <div key={i} className="p-3 border rounded-lg">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="font-medium">{p.name || "Project"}</div>
-                                <div className="text-xs text-gray-500">{p.link}</div>
-                                <div className="text-sm text-gray-700 mt-2">{p.description}</div>
-                              </div>
-                              <div className="flex flex-col items-end gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setModal({ open: true, section: 'projects', editIndex: i }); setModalForm(p); }}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => deleteItem('projects', i)}>
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          {/* Generate Button - Only show on last step */}
+          {currentStep === sections.length - 1 && submitError && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="mb-3 p-2 text-sm text-red-700 bg-red-100 rounded">
+                  {submitError}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         
       </Tabs>
-
-      {/* Action Bar */}
-      <Card>
-        <CardContent className="pt-6">
-          {submitError && (
-            <div className="mb-3 p-2 text-sm text-red-700 bg-red-100 rounded">
-              {submitError}
+      
+      {/* Preview Modal */}
+      {previewModal.open && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black opacity-50"/>
+          <div className="relative bg-white w-[80vw] h-[80vh] rounded-lg shadow-lg flex flex-col my-20 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sticky top-0 left-0 right-0 bg-white p-2">
+              <h3 className="text-xl font-bold">Resume Preview</h3>
+              <Button size="sm" variant="ghost" onClick={closePreviewModal}>
+                ✕
+              </Button>
             </div>
-          )}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-            <Button className="flex-1 text-sm sm:text-base">
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF
-            </Button>
             
-            <Button variant="outline" className="flex-1 text-sm sm:text-base">
-              <Eye className="h-4 w-4 mr-2" />
-              Preview
-            </Button>
-            <Button
-              className="flex-1 text-sm sm:text-base bg-blue-600 text-white"
-              onClick={submitResume}
-              disabled={submitLoading}
-            >
-              {submitLoading ? 'Submitting...' : 'Submit Resume'}
-            </Button>
+            <div className="flex justify-center items-center">
+              <div className="bg-gray-50 p-4 rounded-lg border w-full max-w-[90%]">
+                <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
+                  {previewModal.content}
+                </pre>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between mt-4 sticky bottom-0 left-0 right-0 bg-white gap-2 p-2">
+              <Button variant="outline" onClick={closePreviewModal}>
+                Cancel
+              </Button>
+              <Button onClick={downloadResume} className="bg-blue-600 text-white hover:bg-blue-700">
+                <Download className="h-4 w-4 m-2" />
+                Download
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
+      
       {/* Modal Overlay */}
       {modal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black opacity-40" onClick={closeModal} />
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black opacity-50" />
           <div className="relative bg-white w-11/12 max-w-2xl rounded-lg p-4 shadow-lg">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-medium">{modal.editIndex >= 0 ? 'Edit' : 'Add'} {modal.section}</h3>

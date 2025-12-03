@@ -11,6 +11,7 @@ import { Sidebar } from "./components/Layout/Sidebar";
 import { useAuth } from "./hooks/useAuth";
 import { PageTransition } from "./components/ui/PageTransition";
 import { ScreenFatigueReminder } from "./components/ui/ScreenFatigueReminder";
+import ScrollToTop from "./components/ui/ScrollToTop";
 
 // PWA Components
 import OfflineIndicator from "./components/ui/OfflineIndicator";
@@ -227,6 +228,7 @@ function AppRoutes() {
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <AppRoutes />
       <ScreenFatigueReminder />
     </Router>

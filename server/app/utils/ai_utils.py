@@ -252,15 +252,18 @@ def generate_ai_response(
         if context:
             # Format conversation history for better AI understanding
             if 'conversation_history' in context and context['conversation_history']:
-                full_prompt += "Conversation History:\n"
-                for i, msg in enumerate(context['conversation_history'], 1):
+                full_prompt += "Previous Conversation (Last 10 messages for context):\n"
+                history = context['conversation_history'][-10:]  # Ensure only last 10 messages
+                for i, msg in enumerate(history, 1):
                     role = "Student" if msg.get('role') == 'user' else "Tutor"
-                    content = msg.get('content', '')
-                    full_prompt += f"{i}. {role}: {content}\n"
-                full_prompt += "\n"
+                    content = msg.get('content', '').strip()
+                    if content:  # Only add non-empty messages
+                        timestamp = msg.get('timestamp', '')
+                        full_prompt += f"{i}. {role}: {content}\n"
+                full_prompt += "\nImportant: Reference this conversation history when relevant. Build upon previous topics discussed.\n\n"
             
             # Add other context information
-            other_context = {k: v for k, v in context.items() if k != 'conversation_history'}
+            other_context = {k: v for k, v in context.items() if k != 'conversation_history' and v}
             if other_context:
                 full_prompt += f"Additional Context: {json.dumps(other_context, indent=2)}\n\n"
             

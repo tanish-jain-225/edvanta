@@ -11,6 +11,7 @@ from ..config import Config
 from datetime import datetime
 from app.utils.ai_utils import (
     get_chatbot_response,
+    get_tutor_response,
     save_chat_message,
     get_chat_history,
     clear_chat_history
@@ -57,8 +58,12 @@ def fix_id(document):
 def get_ai_response(question: str, context: str = "", chat_history: list = None):
     """Generate AI response for doubt solving with conversation context."""
     try:
-        # Use centralized chatbot response function
-        result = get_chatbot_response(question, user_email=None)
+        # Use centralized tutor response function with conversation history
+        result = get_tutor_response(
+            prompt=question, 
+            subject=None, 
+            conversation_history=chat_history[-10:] if chat_history else None
+        )
         
         if result['success']:
             return result['response']
@@ -303,10 +308,27 @@ def send_message():
         return jsonify({"error": "Message and userEmail/userId are required"}), 400
 
     try:
+        # Format conversation history for AI (last 10 messages only for context management)
+        formatted_history = []
+        recent_history = chat_history[-10:] if len(chat_history) > 10 else chat_history
+        
+        for msg in recent_history:
+            if msg.get('role') == 'user':
+                formatted_history.append({
+                    'role': 'user', 
+                    'content': msg.get('content', ''),
+                    'timestamp': msg.get('timestamp', datetime.utcnow().isoformat())
+                })
+            elif msg.get('role') == 'assistant':
+                formatted_history.append({
+                    'role': 'assistant', 
+                    'content': msg.get('content', ''),
+                    'timestamp': msg.get('timestamp', datetime.utcnow().isoformat())
+                })
 
-        # Get AI response with full conversation context - MUST WORK
+        # Get AI response with conversation context - MUST WORK
         ai_response = get_ai_response(
-            user_message, context="", chat_history=chat_history)
+            user_message, context="", chat_history=formatted_history)
 
         if not ai_response:
             raise Exception("AI response generation failed - no fallbacks available")
@@ -342,7 +364,8 @@ def send_message():
         response_data = {
             "success": True,
             "message": ai_response,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "context_messages_used": len(formatted_history)  # Debug info
         }
 
         return jsonify(response_data)

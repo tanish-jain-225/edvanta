@@ -624,18 +624,8 @@ export function Quizzes() {
   // Don't render until auth state is determined
   if (authLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <div className="text-center">
-          <div className="relative inline-block">
-            <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-          </div>
-          <p className="text-gray-700 font-medium mt-4 mb-2">
-            Verifying your account...
-          </p>
-          <p className="text-xs text-gray-500">
-            Preparing your personalized quiz experience
-          </p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -677,16 +667,8 @@ export function Quizzes() {
 
         <TabsContent value="browse" className="space-y-4 sm:space-y-6">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-10 sm:py-16">
-              <div className="relative">
-                <Loader2 className="h-10 w-10 sm:h-12 sm:w-12 animate-spin text-primary" />
-              </div>
-              <span className="text-sm sm:text-base text-gray-700 font-medium mt-4">
-                Loading your quizzes...
-              </span>
-              <p className="text-xs text-gray-500 mt-2">
-                Please wait while we prepare your learning content
-              </p>
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
@@ -972,16 +954,8 @@ export function Quizzes() {
             </CardHeader>
             <CardContent>
               {isLoadingHistory ? (
-                <div className="flex flex-col items-center justify-center py-10 sm:py-16">
-                  <div className="relative">
-                    <Loader2 className="h-10 w-10 sm:h-12 sm:w-12 animate-spin text-primary" />
-                  </div>
-                  <span className="text-sm sm:text-base text-gray-700 font-medium mt-4">
-                    Loading your quiz history...
-                  </span>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Please wait while we retrieve your progress data
-                  </p>
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                 </div>
               ) : quizHistory.length > 0 ? (
                 <div className="space-y-3 sm:space-y-4">

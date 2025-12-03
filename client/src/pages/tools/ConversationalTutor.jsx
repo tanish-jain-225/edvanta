@@ -76,7 +76,6 @@ const UI_TEXT = {
   connectionError: "Connection error. Please try again.",
   retryButton: "Retry",
   networkOffline: "You're offline. Please check your connection.",
-  sessionTimeout: "Session has timed out due to inactivity.",
   microphoneBlocked: "Microphone access is blocked. Please enable it in your browser settings.",
   speechNotSupported: "Speech recognition is not supported in this browser.",
 };
@@ -84,7 +83,6 @@ const UI_TEXT = {
 // Constants for better error handling
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 1000; // 1 second
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 const NETWORK_CHECK_INTERVAL = 5000; // 5 seconds
 
 export function ConversationalTutor() {
@@ -122,7 +120,15 @@ export function ConversationalTutor() {
   const [lastError, setLastError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  
+  // Counter for unique message IDs to prevent duplicates
+  const messageIdCounter = useRef(0);
+  
+  // Helper function to generate unique message IDs
+  const generateMessageId = (prefix = 'message') => {
+    messageIdCounter.current += 1;
+    return `${prefix}-${Date.now()}-${messageIdCounter.current}`;
+  };
   
   // Performance monitoring
   const [performanceMetrics, setPerformanceMetrics] = useState({
@@ -141,12 +147,6 @@ export function ConversationalTutor() {
   // Enhanced error handling and retry mechanism
   const handleErrorWithRetry = useCallback(async (error, operation, maxRetries = MAX_RETRY_ATTEMPTS) => {
     console.error('ConversationalTutor Error:', error);
-    
-    setLastError({
-      message: error.message || 'Unknown error occurred',
-      timestamp: Date.now(),
-      operation,
-    });
     
     if (retryCount < maxRetries) {
       setRetryCount(prev => prev + 1);
@@ -184,103 +184,59 @@ export function ConversationalTutor() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-  
-  // Activity tracking for session management
-  useEffect(() => {
-    const updateActivity = () => setLastActivity(Date.now());
-    
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-    events.forEach(event => {
-      document.addEventListener(event, updateActivity, { passive: true });
-    });
-    
-    return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, updateActivity);
-      });
-    };
-  }, []);
-  
-  // Session timeout monitoring
-  useEffect(() => {
-    if (!isSessionActive) return;
-    
-    const checkTimeout = () => {
-      const now = Date.now();
-      if (now - lastActivity > SESSION_TIMEOUT) {
-        console.warn('Session timed out due to inactivity');
-        endSession();
-      }
-    };
-    
-    const interval = setInterval(checkTimeout, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, [isSessionActive, lastActivity]);
-
-  // Error Recovery Component
-  const ErrorRecoveryCard = ({ error, onRetry, onDismiss }) => (
-    <Card className="border-red-200 bg-red-50 mb-4">
-      <CardContent className="p-4">
-        <div className="flex items-start space-x-3">
-          <AlertCircle className="text-red-500 mt-0.5" size={20} />
-          <div className="flex-1">
-            <h3 className="font-semibold text-red-800 mb-1">
-              {!isOnline ? "Connection Issue" : "Error Occurred"}
-            </h3>
-            <p className="text-red-700 text-sm mb-3">{error.message}</p>
-            <div className="flex space-x-2">
-              {!isOnline ? (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => window.location.reload()}
-                  className="bg-white hover:bg-red-50 border-red-200"
-                >
-                  <RefreshCw size={14} className="mr-1" />
-                  Refresh Page
-                </Button>
-              ) : (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={onRetry}
-                  disabled={retryCount >= MAX_RETRY_ATTEMPTS}
-                  className="bg-white hover:bg-red-50 border-red-200"
-                >
-                  <RefreshCw size={14} className="mr-1" />
-                  {retryCount >= MAX_RETRY_ATTEMPTS ? "Max Retries Reached" : "Try Again"}
-                </Button>
-              )}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onDismiss}
-                className="text-red-600 hover:bg-red-100"
-              >
-                Dismiss
-              </Button>
-            </div>
-            {retryCount > 0 && (
-              <p className="text-xs text-red-600 mt-2">
-                Attempt {retryCount} of {MAX_RETRY_ATTEMPTS}
-              </p>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   // Offline Indicator Component
   const OfflineIndicator = () => (
     <div className="fixed top-4 right-4 z-50">
-      <Card className="border-orange-200 bg-orange-50">
+      <Card className="border-orange-200 bg-orange-50 shadow-md">
         <CardContent className="p-3">
           <div className="flex items-center space-x-2">
             <WifiOff className="text-orange-600" size={16} />
             <span className="text-orange-800 text-sm font-medium">
               You're offline
             </span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Error Recovery Card Component
+  const ErrorRecoveryCard = ({ error, onRetry, onDismiss }) => (
+    <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
+      <Card className="border-red-200 bg-red-50 shadow-md">
+        <CardContent className="p-4">
+          <div className="flex flex-col space-y-3">
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="text-red-600 flex-shrink-0" size={16} />
+              <div className="flex-1">
+                <p className="text-red-800 text-sm font-medium mb-1">
+                  Error Occurred
+                </p>
+                <p className="text-red-700 text-xs">
+                  {error.message}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDismiss}
+                className="text-red-600 hover:text-red-800 h-8 px-3 text-xs"
+              >
+                Dismiss
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRetry}
+                className="border-red-300 text-red-600 hover:bg-red-100 h-8 px-3 text-xs"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Retry
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -439,38 +395,55 @@ export function ConversationalTutor() {
     return Promise.resolve(); // No need to wait if minimum time already passed
   };
 
-  // Primary useEffect - runs on component mount to check for active sessions
-  // This runs before any other logic to prioritize session restoration
-  // Note: checkingForActiveSession is already set to true by default
+  // Enhanced session cleanup and initialization
   useEffect(() => {
+    // Cleanup any existing speech on component mount
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current.cancel();
+    }
+    
+    // Clear any existing recognition
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch (error) {
+        // Ignore errors when stopping
+      }
+      speechRecognitionRef.current = null;
+    }
+    
+    // Reset all state to prevent overlaps
+    setMicState(MicState.INACTIVE);
+    setIsSpeaking(false);
+    setCurrentSpeakingMessageId(null);
+    setTranscript("");
+    
+    // Initialize fresh session check
+    setCheckingForActiveSession(true);
+    
     const verifySessionOnLoad = async () => {
       // If we already have a session, don't proceed
       if (isSessionActive || sessionId) {
-        setCheckingForActiveSession(false); // Make sure to clear the checking state
+        setCheckingForActiveSession(false);
         return;
       }
 
       // Wait for authentication to finish if it's still loading
       if (authLoading) {
-        // We keep checkingForActiveSession as true while waiting for auth
         return;
       }
 
-      // If we have a logged in user, immediately check for active sessions
+      // If we have a logged in user, check for active sessions
       if (user?.email) {
-        // Since checkingForActiveSession is already true, we can call the function directly
-        // without the risk of a loading glitch
         checkForActiveSession();
       } else {
-        // No user, so we can stop checking
         setCheckingForActiveSession(false);
       }
     };
 
-    // Execute immediately
     verifySessionOnLoad();
 
-    // Also set up visibility change listener here to ensure it's registered immediately
+    // Set up visibility change listener for session restoration
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
@@ -478,7 +451,7 @@ export function ConversationalTutor() {
         !isSessionActive &&
         !sessionId
       ) {
-        setCheckingForActiveSession(true); // Set to true before checking
+        setCheckingForActiveSession(true);
         checkForActiveSession();
       }
     };
@@ -488,7 +461,7 @@ export function ConversationalTutor() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []); // Empty dependency array means this only runs once on mount
+  }, []);
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -574,8 +547,8 @@ export function ConversationalTutor() {
           ) {
             // Transform the history format to match our UI format
             const formattedMessages = historyResponse.data.messages.map(
-              (msg) => ({
-                id: `history-${msg.timestamp}`,
+              (msg, index) => ({
+                id: `history-${msg.timestamp}-${index}`,
                 role: msg.is_ai ? "assistant" : "user",
                 content: msg.content,
                 timestamp: msg.timestamp,
@@ -586,7 +559,7 @@ export function ConversationalTutor() {
 
             // Add a system message about session restoration
             const restoredMessage = {
-              id: `system-${Date.now()}`,
+              id: generateMessageId('system'),
               role: "system",
               content:
                 "Your session has been restored. You can continue where you left off.",
@@ -600,7 +573,7 @@ export function ConversationalTutor() {
           } else {
             // Add a welcome back message even if no history
             const welcomeMessage = {
-              id: `welcome-${Date.now()}`,
+              id: generateMessageId('welcome'),
               role: "assistant",
               content: `Welcome back to your ${sessionData.mode} session about ${sessionData.subject}`,
               timestamp: new Date().toISOString(),
@@ -613,7 +586,7 @@ export function ConversationalTutor() {
 
           // Add a fallback message
           const fallbackMessage = {
-            id: `system-${Date.now()}`,
+            id: generateMessageId('system'),
             role: "system",
             content:
               "Your session has been restored, but we couldn't retrieve your chat history.",
@@ -627,7 +600,7 @@ export function ConversationalTutor() {
 
         // Continue with the session even if history fetch fails
         const errorMessage = {
-          id: `system-${Date.now()}`,
+          id: generateMessageId('system'),
           role: "system",
           content:
             "Your session has been restored, but there was an error loading your chat history.",
@@ -642,7 +615,7 @@ export function ConversationalTutor() {
       // Add retry logic for transient errors
       if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
         const timeoutMessage = {
-          id: `system-${Date.now()}`,
+          id: generateMessageId('system'),
           role: "system",
           content:
             "Connection timed out while checking for active sessions. Please try refreshing the page.",
@@ -736,32 +709,17 @@ export function ConversationalTutor() {
       };
 
       recognition.onerror = (event) => {
-        console.error("Speech recognition error", event.error);
-        
-        // Update activity timestamp
-        setLastActivity(Date.now());
+        // Only log non-routine errors
+        if (event.error !== "no-speech") {
+          console.error("Speech recognition error", event.error);
+        }
 
         // Handle different types of speech recognition errors
         switch (event.error) {
           case "no-speech":
-            // Restart recognition if no speech was detected
-            try {
-              if (speechRecognitionRef.current && micState === MicState.ACTIVE) {
-                speechRecognitionRef.current.stop();
-                setTimeout(() => {
-                  if (micState === MicState.ACTIVE && speechRecognitionRef.current) {
-                    speechRecognitionRef.current.start();
-                  }
-                }, 100);
-              }
-            } catch (e) {
-              console.error("Error restarting speech recognition", e);
-              setLastError({ 
-                message: "Speech recognition restart failed. Try clicking the microphone again.",
-                timestamp: Date.now() 
-              });
-            }
-            return;
+            // This is normal - user might just be thinking, don't show error
+            // Just keep the mic active and continue listening - no restart needed
+            break;
             
           case "not-allowed":
           case "service-not-allowed":
@@ -880,7 +838,7 @@ export function ConversationalTutor() {
       // If we're in an active session, set a system message to confirm mic is working
       if (isSessionActive) {
         const successMessage = {
-          id: `system-${Date.now()}`,
+          id: generateMessageId('system'),
           role: "system",
           content: "Microphone is now connected and ready to use.",
           timestamp: new Date().toISOString(),
@@ -894,7 +852,7 @@ export function ConversationalTutor() {
       // Add a helpful system message
       if (isSessionActive) {
         const errorMessage = {
-          id: `system-${Date.now()}`,
+          id: generateMessageId('system'),
           role: "system",
           content:
             "Could not access your microphone. Please check your browser permissions and try again.",
@@ -1020,11 +978,15 @@ export function ConversationalTutor() {
         };
 
         utterance.onerror = (event) => {
-          console.error("Speech synthesis error:", event);
+          // Only log errors that aren't normal interruptions
+          if (event.error !== "interrupted" && event.error !== "canceled") {
+            console.error("Speech synthesis error:", event);
+          }
           setIsSpeaking(false);
           setCurrentSpeakingMessageId(null);
-          // Also auto-on mic if error interrupts speech
-          if (isSessionActive && micState !== MicState.ACTIVE) {
+          // Only auto-restart mic for actual errors, not interruptions
+          if (event.error !== "interrupted" && event.error !== "canceled" &&
+              isSessionActive && micState !== MicState.ACTIVE) {
             startMicrophone();
           }
         };
@@ -1047,9 +1009,14 @@ export function ConversationalTutor() {
           }
         };
         utterance.onerror = (event) => {
+          // Only log non-interruption errors
+          if (event.error !== "interrupted" && event.error !== "canceled") {
+            console.error("Speech synthesis error (fallback):", event);
+          }
           setIsSpeaking(false);
           setCurrentSpeakingMessageId(null);
-          if (isSessionActive && micState !== MicState.ACTIVE) {
+          if (event.error !== "interrupted" && event.error !== "canceled" &&
+              isSessionActive && micState !== MicState.ACTIVE) {
             startMicrophone();
           }
         };
@@ -1086,29 +1053,17 @@ export function ConversationalTutor() {
     try {
       // Method 1: Cancel all speech in the queue
       if (speechSynthesisRef.current) {
+        // Mark that we're intentionally stopping to prevent error logs
+        speechSynthesisRef.current.intentionalStop = true;
         speechSynthesisRef.current.cancel();
       }
 
-      // Method 2: Try to pause first, then cancel (sometimes more reliable)
-      try {
-        if (speechSynthesisRef.current && speechSynthesisRef.current.speaking) {
-          speechSynthesisRef.current.pause();
-          setTimeout(() => {
-            if (speechSynthesisRef.current) {
-              speechSynthesisRef.current.cancel();
-            }
-          }, 50);
-        }
-      } catch (e) {
-        console.error("Error with pause-then-cancel approach:", e);
-        // Fallback to direct cancel already happened above
-      }
-
-      // Method 3: If there's a specific utterance, just clear the ref (do not manually call onend)
+      // Method 2: Clear the utterance reference to prevent conflicts
       if (synthesisUtteranceRef.current) {
         synthesisUtteranceRef.current = null;
       }
     } catch (error) {
+      // Only log unexpected errors
       console.error("Error stopping speech:", error);
     }
 
@@ -1118,7 +1073,10 @@ export function ConversationalTutor() {
 
     // Auto-on mic if requested, session is active, and mic is not already active
     if (autoMicOn && isSessionActive && micState !== MicState.ACTIVE) {
-      startMicrophone();
+      // Small delay to ensure speech is fully stopped
+      setTimeout(() => {
+        startMicrophone();
+      }, 100);
     }
   };
 
@@ -1149,7 +1107,7 @@ export function ConversationalTutor() {
       if (response.data.success) {
         // Add the system message to the chat
         const toggleMessage = {
-          id: `system-${Date.now()}`,
+          id: generateMessageId('system'),
           role: "system",
           content:
             response.data.message ||
@@ -1169,7 +1127,7 @@ export function ConversationalTutor() {
 
       // Add a local message anyway
       const fallbackMessage = {
-        id: `system-${Date.now()}`,
+        id: generateMessageId('system'),
         role: "system",
         content: `Voice output ${newVoiceState ? "enabled" : "disabled"}.`,
         timestamp: new Date().toISOString(),
@@ -1207,7 +1165,7 @@ export function ConversationalTutor() {
     },
   ];
 
-  // Start a new tutoring session
+  // Start a new tutoring session with proper cleanup
   const startSession = async () => {
     if (!user) {
       setIsStartButtonClicked(true);
@@ -1227,19 +1185,32 @@ export function ConversationalTutor() {
       return;
     }
 
+    // Check if there's already an active session and clean it up
+    if (isSessionActive || sessionId) {
+      console.warn("Ending existing session before starting new one");
+      await endSession();
+      // Add a small delay to ensure cleanup is complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
     // Show starting state immediately for instant feedback
     setIsStartingSession(true);
     setIsLoading(true);
     
-    // Clear any existing messages from previous sessions
+    // Clear any existing messages and state
     setMessages([]);
+    setErrorCount(0);
+    setMicState(MicState.INACTIVE);
+    setIsSpeaking(false);
+    setCurrentSpeakingMessageId(null);
+    setTranscript("");
 
     // First check connection to backend services
     const connectionSuccessful = await checkBackendConnection();
     if (!connectionSuccessful) {
       setIsStartingSession(false);
       setIsLoading(false);
-      return; // Don't proceed if connection failed
+      return;
     }
 
     // Check microphone before starting
@@ -1285,24 +1256,24 @@ export function ConversationalTutor() {
 
           // Add welcome back message after history is loaded
           const welcomeBackMessage = {
-            id: `welcome-back-${Date.now()}`,
+            id: generateMessageId('welcome-back'),
             role: "assistant",
             content:
               response.data.message ||
               `Welcome back to your ${response.data.mode} session about ${response.data.subject}`,
             timestamp: response.data.timestamp || new Date().toISOString(),
-            sessionId: response.data.session_id,
+            sessionId: newSessionId,
           };
 
           setMessages((prev) => [...prev, welcomeBackMessage]);
         } else {
           // Reset messages and add welcome message for new session
           const welcomeMessage = {
-            id: `welcome-${Date.now()}`,
+            id: generateMessageId('welcome'),
             role: "assistant",
             content: response.data.message,
             timestamp: response.data.timestamp || new Date().toISOString(),
-            sessionId: response.data.session_id,
+            sessionId: newSessionId,
           };
 
           setMessages([welcomeMessage]);
@@ -1357,7 +1328,7 @@ export function ConversationalTutor() {
     }
   };
 
-  // End the current session
+  // End the current session with comprehensive cleanup
   const endSession = async () => {
     if (!sessionId) return;
 
@@ -1367,10 +1338,18 @@ export function ConversationalTutor() {
     // Record start time for minimum loading time
     const startTime = Date.now();
 
-    // Stop any active speech or recognition
-    stopSpeaking();
+    // Stop any active speech or recognition immediately
+    stopSpeaking(false); // Don't auto-restart mic
     if (micState === MicState.ACTIVE) {
       stopMicrophone();
+    }
+    
+    // Clear speech recognition completely
+    cleanupSpeechRecognition();
+    
+    // Cancel any speech synthesis
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current.cancel();
     }
 
     try {
@@ -1382,27 +1361,36 @@ export function ConversationalTutor() {
           isVoiceInput: true,
         },
         {
-          timeout: 8000, // Increased timeout for potentially slow connections
+          timeout: 10000, // Extended timeout for session cleanup
         }
       );
 
       if (response.data.success) {
         // Add a confirmation message
         const confirmMessage = {
-          id: `system-${Date.now()}`,
+          id: generateMessageId('system'),
           role: "system",
           content:
             "Your session has been ended successfully. Start a new session any time.",
           timestamp: new Date().toISOString(),
         };
 
+        // Clear all messages and set only the confirmation
         setMessages([confirmMessage]);
 
-        // Reset all session-related state
+        // Reset ALL session-related state comprehensively
         setSessionId(null);
         setCurrentSessionId(null);
         setIsSessionActive(false);
         setErrorCount(0);
+        setMicState(MicState.INACTIVE);
+        setIsSpeaking(false);
+        setCurrentSpeakingMessageId(null);
+        setTranscript("");
+        setConnectionStatus(null);
+        setLastError(null);
+        setRetryCount(0);
+        
       } else {
         console.error(
           "Server returned unsuccessful end session response:",
@@ -1413,35 +1401,42 @@ export function ConversationalTutor() {
           timestamp: Date.now() 
         });
 
-        // Force reset session state if there was an error
+        // Force reset session state even on error to prevent hanging sessions
         setSessionId(null);
         setCurrentSessionId(null);
         setIsSessionActive(false);
+        setMicState(MicState.INACTIVE);
+        setIsSpeaking(false);
+        setCurrentSpeakingMessageId(null);
+        setTranscript("");
       }
     } catch (error) {
       console.error("Error ending session:", error);
 
       // Show more detailed error to help with debugging
       if (error.response) {
-        // The request was made and the server responded with an error status
         console.error("Server error response:", error.response.data);
         console.error("Status code:", error.response.status);
       } else if (error.request) {
-        // The request was made but no response was received
         console.error("No response received from server");
       } else {
-        // Something happened in setting up the request
         console.error("Request setup error:", error.message);
       }
 
-      alert(
-        "Failed to end session properly due to connection issues. You may need to refresh the page."
-      );
+      setLastError({
+        message: "Failed to end session properly due to connection issues. Session has been reset locally.",
+        timestamp: Date.now()
+      });
 
-      // Force reset session state if there was an error
+      // Force reset session state on any error to prevent hanging sessions
       setSessionId(null);
       setCurrentSessionId(null);
       setIsSessionActive(false);
+      setMicState(MicState.INACTIVE);
+      setIsSpeaking(false);
+      setCurrentSpeakingMessageId(null);
+      setTranscript("");
+      setMessages([]); // Clear messages on forced reset
     } finally {
       // Ensure minimum loading time of 2 seconds
       await enforceMinimumLoadingTime(startTime);
@@ -1450,13 +1445,14 @@ export function ConversationalTutor() {
     }
   };
 
-  // Send voice message to tutor
+  // Send voice message to tutor with session validation
   const sendMessage = async (voiceText) => {
     if (!voiceText.trim()) {
       return;
     }
 
-    if (!currentSessionId && !sessionId) {
+    const activeSessionId = currentSessionId || sessionId;
+    if (!activeSessionId) {
       console.error("No active session, cannot send message");
       setLastError({ 
         message: "No active session. Please start a new session first.",
@@ -1465,11 +1461,23 @@ export function ConversationalTutor() {
       return;
     }
 
+    // Validate session is still active
+    if (!isSessionActive) {
+      console.error("Session is no longer active");
+      setLastError({ 
+        message: "Session has ended. Please start a new session.",
+        timestamp: Date.now() 
+      });
+      return;
+    }
+
     try {
       // Get last 10 messages for context - ensure they're from current session
-      const currentSession = currentSessionId || sessionId;
       const conversationHistory = messages
-        .filter(msg => !msg.sessionId || msg.sessionId === currentSession) // Filter by session if sessionId is present
+        .filter(msg => {
+          // Only include messages from the current session or system messages
+          return !msg.sessionId || msg.sessionId === activeSessionId || msg.role === 'system';
+        })
         .slice(-10)
         .map(msg => ({
           role: msg.role,
@@ -1480,18 +1488,25 @@ export function ConversationalTutor() {
       // Show context indicator if we have history
       const hasContext = conversationHistory.length > 0;
 
-      // Add user message to UI immediately
+      // Add user message to UI immediately with session validation
       const userMessage = {
-        id: `user-${Date.now()}`,
+        id: generateMessageId('user'),
         role: "user",
         content: voiceText,
-        isVoiceInput: true, // Flag to show mic icon in UI
+        isVoiceInput: true,
         timestamp: new Date().toISOString(),
-        hasContext: hasContext, // Flag to show context indicator
-        sessionId: currentSessionId || sessionId, // Track which session this belongs to
+        hasContext: hasContext,
+        sessionId: activeSessionId, // Always track session
       };
 
-      setMessages((prev) => [...prev, userMessage]);
+      setMessages((prev) => {
+        // Filter out any messages from different sessions to prevent overlap
+        const currentSessionMessages = prev.filter(msg => 
+          !msg.sessionId || msg.sessionId === activeSessionId || msg.role === 'system'
+        );
+        return [...currentSessionMessages, userMessage];
+      });
+      
       setTranscript("");
       setIsLoading(true);
 
@@ -1502,22 +1517,28 @@ export function ConversationalTutor() {
         prompt: voiceText,
         mode: selectedMode,
         subject: selectedSubject,
-        isVoiceInput: true, // Tell backend this came from voice
+        isVoiceInput: true,
         userEmail: user?.email,
-        sessionId: currentSessionId || sessionId,
-        conversationHistory: conversationHistory, // Include context
+        sessionId: activeSessionId, // Always send current session ID
+        conversationHistory: conversationHistory,
       });
 
       if (response.data.success) {
         const aiMessage = {
-          id: `assistant-${Date.now()}`,
+          id: generateMessageId('assistant'),
           role: "assistant",
           content: response.data.response,
           timestamp: response.data.timestamp || new Date().toISOString(),
-          sessionId: currentSessionId || sessionId, // Track which session this belongs to
+          sessionId: activeSessionId, // Always track session
         };
 
-        setMessages((prev) => [...prev, aiMessage]);
+        setMessages((prev) => {
+          // Again, filter to prevent session overlap
+          const currentSessionMessages = prev.filter(msg => 
+            !msg.sessionId || msg.sessionId === activeSessionId || msg.role === 'system'
+          );
+          return [...currentSessionMessages, aiMessage];
+        });
 
         // Scroll to bottom after receiving AI response
         setTimeout(scrollToBottom, 100);
@@ -1526,12 +1547,13 @@ export function ConversationalTutor() {
       } else {
         // Handle error response
         const errorMessage = {
-          id: `error-${Date.now()}`,
+          id: generateMessageId('error'),
           role: "system",
           content:
             response.data.error ||
             "Sorry, there was an error processing your request.",
           timestamp: new Date().toISOString(),
+          sessionId: activeSessionId,
         };
 
         setMessages((prev) => [...prev, errorMessage]);
@@ -1540,11 +1562,12 @@ export function ConversationalTutor() {
         // If we get too many errors, suggest ending the session
         if (errorCount > 2) {
           const suggestionMessage = {
-            id: `suggestion-${Date.now()}`,
+            id: generateMessageId('suggestion'),
             role: "system",
             content:
               "You're experiencing multiple errors. You may want to end this session and try again later.",
             timestamp: new Date().toISOString(),
+            sessionId: activeSessionId,
           };
 
           setMessages((prev) => [...prev, suggestionMessage]);
@@ -1555,11 +1578,12 @@ export function ConversationalTutor() {
 
       // Add error message to the chat
       const errorMessage = {
-        id: `error-${Date.now()}`,
+        id: generateMessageId('error'),
         role: "system",
         content:
           "Sorry, there was an error communicating with the tutor service. Please try again.",
         timestamp: new Date().toISOString(),
+        sessionId: activeSessionId,
       };
 
       setMessages((prev) => [...prev, errorMessage]);
@@ -1627,7 +1651,7 @@ export function ConversationalTutor() {
   }
 
   return (
-    <div className="container px-2 sm:px-4 md:px-6 py-6 flex flex-col min-h-[85vh] gap-4 sm:gap-6 md:gap-8 w-full max-w-full">
+    <div className="container px-4 sm:px-6 lg:px-8 py-6 flex flex-col min-h-[85vh] gap-6 w-full max-w-full">
       
       {/* Offline Indicator */}
       {!isOnline && <OfflineIndicator />}
@@ -1654,12 +1678,12 @@ export function ConversationalTutor() {
         />
       )}
       
-      <div className="flex items-center justify-between w-full">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-4">
+        <div className="text-center sm:text-left">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">
             {UI_TEXT.voiceTutor}
           </h1>
-          <p className="text-muted-foreground">{UI_TEXT.interactiveVoice}</p>
+          <p className="text-base text-muted-foreground">{UI_TEXT.interactiveVoice}</p>
         </div>
 
         {/* Connection status badges removed as requested */}
@@ -1667,7 +1691,7 @@ export function ConversationalTutor() {
 
       {/* Show session verification loading spinner first - this should appear immediately */}
       {checkingForActiveSession ? (
-        <div className="flex-1 flex items-center justify-center flex-col gap-4">
+        <div className="flex-1 flex items-center justify-center flex-col gap-4 px-4">
           <div className="animate-pulse flex flex-col items-center justify-center text-center p-8">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
             <h3 className="text-lg font-medium">Verifying session status...</h3>
@@ -1678,32 +1702,32 @@ export function ConversationalTutor() {
         </div>
       ) : !isSessionActive ? (
         // Session setup screen
-        <div className="flex flex-col lg:flex-row flex-1 gap-4 sm:gap-6 w-full">
+        <div className="flex flex-col lg:flex-row flex-1 gap-6 w-full">
           <Card className="flex-1 w-full">
-            <CardHeader className="sm:pb-4">
-              <CardTitle className="text-xl sm:text-2xl">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">
                 {UI_TEXT.chooseLearningMode}
               </CardTitle>
               <CardDescription>{UI_TEXT.selectInteraction}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4">
+            <CardContent className="space-y-4">
               {modes.map((mode) => (
                 <div
                   key={mode.id}
-                  className={`flex items-center space-x-3 p-2 sm:p-3 rounded-lg cursor-pointer border transition-colors ${selectedMode === mode.id
+                  className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer border transition-colors shadow-sm hover:shadow-md ${selectedMode === mode.id
                     ? "border-primary bg-primary/10"
                     : "border-border hover:border-primary/50"
                     }`}
                   onClick={() => setSelectedMode(mode.id)}
                 >
                   <div className="bg-primary/20 p-2 rounded-full flex-shrink-0">
-                    <mode.icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                    <mode.icon className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-sm sm:text-base">
+                    <h3 className="font-medium text-base">
                       {mode.name}
                     </h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       {mode.description}
                     </p>
                   </div>
@@ -1712,9 +1736,9 @@ export function ConversationalTutor() {
             </CardContent>
           </Card>
 
-          <Card className="flex-1 flex flex-col w-full">
-            <CardHeader className="sm:pb-4">
-              <CardTitle className="text-xl sm:text-2xl">
+          <Card className="flex-1 flex flex-col w-full min-h-0">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">
                 {UI_TEXT.subjectFocus}
               </CardTitle>
               <CardDescription>{UI_TEXT.enterTopic}</CardDescription>
@@ -1727,30 +1751,30 @@ export function ConversationalTutor() {
                   onChange={(e) => setSelectedSubject(e.target.value)}
                   className="w-full"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {UI_TEXT.subjectHint}
                 </p>
               </div>
 
-              <div className="mt-6 sm:mt-8 pt-3 sm:pt-4 border-t">
-                <h3 className="font-medium mb-2">{UI_TEXT.voiceInteraction}</h3>
-                <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
+              <div className="mt-6 pt-4 border-t">
+                <h3 className="font-medium mb-2 text-base">{UI_TEXT.voiceInteraction}</h3>
+                <p className="text-sm text-muted-foreground mb-4">
                   {UI_TEXT.voiceDescription}
                 </p>
 
-                <div className="space-y-2 text-xs sm:text-sm">
+                <div className="space-y-2 text-sm">
                   <p className="font-medium">{UI_TEXT.howItWorks}</p>
-                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                    <li>{UI_TEXT.stepOne}</li>
-                    <li>{UI_TEXT.stepTwo}</li>
-                    <li>{UI_TEXT.stepThree}</li>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground pl-2">
+                    <li className="leading-relaxed">{UI_TEXT.stepOne}</li>
+                    <li className="leading-relaxed">{UI_TEXT.stepTwo}</li>
+                    <li className="leading-relaxed">{UI_TEXT.stepThree}</li>
                   </ol>
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="pt-4">
               <Button
-                className="w-full py-2 sm:py-3 text-sm sm:text-base"
+                className="w-full h-12 text-base font-medium shadow-md hover:shadow-lg"
                 onClick={startSession}
                 disabled={
                   isStartingSession || isLoading || !selectedSubject.trim()
@@ -1767,28 +1791,28 @@ export function ConversationalTutor() {
         </div>
       ) : (
         // Active session screen
-        <div className="flex flex-col lg:flex-row flex-1 gap-4 sm:gap-6 w-full">
+        <div className="flex flex-col lg:flex-row gap-6 w-full">
           {/* Chat area */}
-          <Card className="relative flex flex-col flex-1 w-full overflow-hidden">
+          <Card className="relative flex flex-col w-full overflow-y-auto max-h-[80vh] shadow-md">
             {/* Fixed Header */}
-            <CardHeader className="sticky top-0 z-10 bg-card pb-2 sm:pb-3 border-b shadow-sm">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <CardTitle className="text-xl sm:text-2xl">
+            <CardHeader className="sticky top-0 z-10 bg-card pb-3 border-b shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-xl truncate">
                     {selectedMode === "tutor"
                       ? "AI Tutor"
                       : modes.find((m) => m.id === selectedMode)?.name}
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="truncate">
                     {selectedSubject || UI_TEXT.noSubject}
                   </CardDescription>
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex justify-end">
                   <Button
                     variant={isVoiceEnabled ? "default" : "outline"}
                     size="sm"
                     onClick={toggleVoice}
-                    className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+                    className="flex items-center gap-2 text-sm px-3 h-8"
                     title={
                       isVoiceEnabled
                         ? "Voice output enabled"
@@ -1797,12 +1821,12 @@ export function ConversationalTutor() {
                   >
                     {isVoiceEnabled ? (
                       <>
-                        <Volume2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <Volume2 className="h-4 w-4" />
                         <span>Voice On</span>
                       </>
                     ) : (
                       <>
-                        <VolumeX className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <VolumeX className="h-4 w-4" />
                         <span>Voice Off</span>
                       </>
                     )}
@@ -1811,15 +1835,10 @@ export function ConversationalTutor() {
               </div>
             </CardHeader>
             {/* Scrollable Chat Section */}
-            <div className="flex-1 min-h-0 relative">
+            <div className="flex-1 relative">
               <CardContent className="p-0 border-none bg-muted/20">
-                <div
-                  className="overflow-y-auto p-4 bg-background/70 custom-scrollbar chat-pattern"
-                  style={{
-                    height: "50vh", // default for most screens
-                  }}
-                >
-                  <div className="flex flex-col space-y-3 sm:space-y-4">
+                <div className="p-4 bg-background/70 custom-scrollbar chat-pattern">
+                  <div className="flex flex-col space-y-4">
                     {messages.map((message) => (
                       <div
                         key={message.id}
@@ -1829,16 +1848,16 @@ export function ConversationalTutor() {
                           } w-full`}
                       >
                         <div
-                          className={`max-w-[95%] sm:max-w-[90%] md:max-w-[80%] rounded-lg p-3 sm:p-4 ${message.role === "user"
+                          className={`max-w-[85%] rounded-lg p-4 shadow-sm ${message.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : message.role === "system"
-                              ? "bg-muted text-muted-foreground text-xs sm:text-sm"
+                              ? "bg-muted text-muted-foreground text-sm"
                               : "bg-secondary"
                             }`}
                         >
                           {message.role === "user" && message.isVoiceInput && (
-                            <div className="flex items-center justify-end text-xs text-primary-foreground/70 m-1 sm:m-2">
-                              <Mic className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                            <div className="flex items-center justify-end text-xs text-primary-foreground/70 mb-2">
+                              <Mic className="h-3 w-3" />
                               <span className="ml-1">
                                 {UI_TEXT.voiceMessage}
                               </span>
@@ -1848,49 +1867,43 @@ export function ConversationalTutor() {
                           {message.role === "assistant" &&
                             isSpeaking &&
                             currentSpeakingMessageId === message.id && (
-                              <div className="flex items-center text-xs text-muted-foreground mb-1">
-                                <Volume2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1 animate-pulse" />
-                                {UI_TEXT.speaking}
+                              <div className="flex items-center text-xs text-muted-foreground mb-2">
+                                <Volume2 className="h-3 w-3 mr-1 animate-pulse" />
+                                <span>{UI_TEXT.speaking}</span>
                               </div>
                             )}
 
-                          <div className="whitespace-pre-wrap break-words text-sm p-2">
+                          <div className="whitespace-pre-wrap break-words text-sm p-1">
                             {message.content}
                           </div>
 
                           {message.role === "assistant" && (
-                            <div className="flex flex-wrap justify-end mt-2 gap-1 sm:gap-2">
+                            <div className="flex justify-end mt-2 gap-1">
                               {isVoiceEnabled &&
                                 (isSpeaking &&
                                   currentSpeakingMessageId === message.id ? (
                                   <Button
                                     variant="destructive"
                                     size="sm"
-                                    className="h-6 sm:h-7 px-2 sm:px-3 text-xs"
+                                    className="h-6 px-2 text-xs"
                                     onClick={stopSpeaking}
                                     title="Stop speaking"
                                   >
                                     <Square className="h-3 w-3 mr-1" />
-                                    <span className="hidden sm:inline">
-                                      Stop Speaking
-                                    </span>
-                                    <span className="sm:hidden">Stop</span>
+                                    <span>Stop</span>
                                   </Button>
                                 ) : (
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 sm:h-7 px-2 text-xs"
+                                    className="h-6 px-2 text-xs"
                                     onClick={() =>
                                       speakText(message.content, message.id)
                                     }
                                     title={UI_TEXT.speakAgain}
                                   >
                                     <Play className="h-3 w-3 mr-1" />
-                                    <span className="hidden sm:inline">
-                                      {UI_TEXT.speakAgain}
-                                    </span>
-                                    <span className="sm:hidden">Play</span>
+                                    <span>Play</span>
                                   </Button>
                                 ))}
                             </div>
@@ -1901,9 +1914,8 @@ export function ConversationalTutor() {
 
                     {isLoading && (
                       <div className="flex justify-start w-full">
-                        <div className="bg-secondary/80 backdrop-blur-sm rounded-lg p-3 max-w-[90%] sm:max-w-[80%] shadow-sm border border-primary/10">
+                        <div className="bg-secondary/80 backdrop-blur-sm rounded-lg p-3 max-w-[80%] shadow-sm border border-primary/10">
                           <div className="flex items-center space-x-3">
-                            {/* Elegant thinking animation */}
                             <div className="flex space-x-1">
                               <div
                                 className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse"
@@ -1918,7 +1930,7 @@ export function ConversationalTutor() {
                                 style={{ animationDelay: "600ms" }}
                               ></div>
                             </div>
-                            <span className="text-xs sm:text-sm text-muted-foreground">
+                            <span className="text-sm text-muted-foreground">
                               {UI_TEXT.tutorThinking}
                             </span>
                           </div>
@@ -1932,19 +1944,26 @@ export function ConversationalTutor() {
               </CardContent>
             </div>
             {/* Fixed Mic Section at Bottom */}
-            <CardFooter className="sticky bottom-0 left-0 right-0 z-10 border-t bg-card pt-2 pb-3 px-3 sm:px-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-              <div className="flex w-full flex-col items-center space-y-2">
-                {/* Clear Voice Message Button - only show when mic is active */}
+            <CardFooter className="sticky bottom-0 left-0 right-0 z-10 border-t bg-card pt-3 pb-4 px-6 shadow-sm">
+              <div className="flex w-full flex-col items-center space-y-3">
                 {transcript && transcript.trim().length > 0 && micState === MicState.ACTIVE && (
                   <div
-                    className="text-muted-foreground hover:text-destructive cursor-pointer text-xs"
+                    className="text-muted-foreground hover:text-destructive cursor-pointer text-sm"
                     onClick={() => {
+                      setTranscript("");
+                      
+                      if (speechRecognitionRef.current) {
+                        try {
+                          speechRecognitionRef.current.manualStop = true;
+                          speechRecognitionRef.current.messageSent = true;
+                          speechRecognitionRef.current.stop();
+                        } catch (error) {
+                          console.error("Error stopping speech recognition:", error);
+                        }
+                      }
+                      
                       cleanupSpeechRecognition();
                       setMicState(MicState.INACTIVE);
-                      setTranscript("");
-                      setTimeout(() => {
-                        if (isSessionActive) startMicrophone();
-                      }, 100);
                     }}
                   >
                     Clear
@@ -1959,7 +1978,7 @@ export function ConversationalTutor() {
                         : "default"
                   }
                   size="icon"
-                  className={`h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 rounded-full shadow-md ${micState === MicState.ACTIVE
+                  className={`h-14 w-14 rounded-full shadow-md hover:shadow-lg ${micState === MicState.ACTIVE
                     ? "animate-pulse shadow-red-200"
                     : micState === MicState.DISABLED
                       ? "opacity-60 cursor-not-allowed"
@@ -1969,17 +1988,17 @@ export function ConversationalTutor() {
                   disabled={micState === MicState.DISABLED || isLoading}
                 >
                   {micState === MicState.ACTIVE ? (
-                    <Square className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+                    <Square className="h-6 w-6" />
                   ) : micState === MicState.DISABLED ? (
-                    <MicOff className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+                    <MicOff className="h-6 w-6" />
                   ) : (
-                    <Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+                    <Mic className="h-6 w-6" />
                   )}
                 </Button>
 
                 {micState === MicState.ACTIVE ? (
                   <div className="w-full flex flex-col items-center">
-                    <div className="flex items-center justify-center space-x-1 mb-1">
+                    <div className="flex items-center justify-center space-x-1 mb-2">
                       <div
                         className="bg-red-400 h-1.5 w-1.5 rounded-full animate-bounce"
                         style={{ animationDelay: "0ms" }}
@@ -1997,20 +2016,20 @@ export function ConversationalTutor() {
                         style={{ animationDelay: "450ms" }}
                       ></div>
                     </div>
-                    <p className="text-xs text-red-500 font-medium">
+                    <p className="text-sm text-red-500 font-medium">
                       Recording...
                     </p>
-                    <p className="text-xs sm:text-sm text-muted-foreground text-center">
+                    <p className="text-sm text-muted-foreground text-center">
                       {UI_TEXT.speakClearly}
                     </p>
                     {transcript && (
-                      <div className="w-full max-h-16 sm:max-h-20 overflow-y-auto mt-2 p-2 bg-red-50 border border-red-100 rounded-md text-xs sm:text-sm text-center">
+                      <div className="w-full max-h-20 overflow-y-auto mt-2 p-2 bg-red-50 border border-red-100 rounded-md text-sm text-center">
                         {transcript}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <p className="text-xs sm:text-sm text-center text-muted-foreground">
+                  <p className="text-sm text-center text-muted-foreground">
                     {micState === MicState.DISABLED
                       ? isSpeaking
                         ? UI_TEXT.aiSpeaking
@@ -2023,69 +2042,69 @@ export function ConversationalTutor() {
           </Card>
 
           {/* Info panel */}
-          <Card className="lg:w-[280px] xl:w-[300px] flex flex-col w-full">
-            <CardHeader className="pb-2 sm:pb-3">
-              <CardTitle className="text-lg sm:text-xl">Session Info</CardTitle>
+          <Card className="relative flex flex-col w-full max-h-[80vh] overflow-y-auto shadow-md">
+            <CardHeader className="sticky top-0 z-10 bg-card pb-3 border-b shadow-sm">
+              <CardTitle className="text-xl">Session Info</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4 flex-grow text-sm">
+            <CardContent className="flex flex-col gap-4 p-6">
               <div>
-                <h3 className="font-medium mb-1">Mode</h3>
-                <Badge variant="secondary" className="text-xs">
+                <h3 className="font-medium mb-2 text-base">Mode</h3>
+                <Badge variant="secondary" className="text-sm">
                   {modes.find((m) => m.id === selectedMode)?.name ||
                     selectedMode}
                 </Badge>
               </div>
 
               <div>
-                <h3 className="font-medium mb-1">Subject</h3>
-                <Badge variant="secondary" className="text-xs">
+                <h3 className="font-medium mb-2 text-base">Subject</h3>
+                <Badge variant="secondary" className="text-sm truncate max-w-full">
                   {selectedSubject}
                 </Badge>
               </div>
 
-              <div className="pt-3 sm:pt-4 border-t">
-                <h3 className="font-medium mb-2">Quick Tips</h3>
-                <ul className="text-xs sm:text-sm space-y-2">
+              <div>
+                <h3 className="font-medium mb-3 text-base">Quick Tips</h3>
+                <ul className="text-sm space-y-3">
                   <li className="flex items-start">
-                    <Mic className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 mt-0.5 text-primary flex-shrink-0" />
-                    <span>
+                    <Mic className="h-4 w-4 mr-2 mt-0.5 text-primary flex-shrink-0" />
+                    <span className="leading-relaxed">
                       Click the microphone button to start and stop recording
                     </span>
                   </li>
                   <li className="flex items-start">
-                    <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 mt-0.5 text-primary flex-shrink-0" />
-                    <span>
+                    <Volume2 className="h-4 w-4 mr-2 mt-0.5 text-primary flex-shrink-0" />
+                    <span className="leading-relaxed">
                       Use the Voice On/Off button at the top to control voice
                       output
                     </span>
                   </li>
                   <li className="flex items-start">
-                    <Play className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 mt-0.5 text-primary flex-shrink-0" />
-                    <span>Click Play on any message to hear it again</span>
+                    <Play className="h-4 w-4 mr-2 mt-0.5 text-primary flex-shrink-0" />
+                    <span className="leading-relaxed">Click Play on any message to hear it again</span>
                   </li>
                   <li className="flex items-start">
-                    <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 mt-0.5 text-destructive flex-shrink-0" />
-                    <span className="font-medium">
+                    <AlertCircle className="h-4 w-4 mr-2 mt-0.5 text-destructive flex-shrink-0" />
+                    <span className="font-medium leading-relaxed">
                       To end the session, use the red button below
                     </span>
                   </li>
                 </ul>
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="sticky bottom-0 left-0 right-0 z-10 border-t bg-card py-3 px-6 shadow-sm">
               <Button
                 variant="destructive"
-                className="w-full py-1.5 sm:py-2 text-sm sm:text-base font-medium shadow-md hover:bg-red-600"
+                className="w-full h-12 text-base font-medium shadow-md hover:bg-red-600 hover:shadow-lg"
                 onClick={endSession}
                 disabled={isEndingSession || isLoading}
               >
                 {isEndingSession ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Ending Session...
+                    <span>Ending...</span>
                   </>
                 ) : (
-                  <>End Session</>
+                  <span>End Session</span>
                 )}
               </Button>
             </CardFooter>

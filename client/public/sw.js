@@ -10,7 +10,9 @@ const STATIC_ASSETS = [
   '/src/App.css',
   '/src/index.css',
   '/edvanta-logo.png',
-  '/manifest.json'
+  '/manifest.json',
+  // Add loading CSS for instant availability
+  '/src/components/ui/custom-css/LoadingIndicator.css'
 ];
 
 // API endpoints that should be cached for offline access
