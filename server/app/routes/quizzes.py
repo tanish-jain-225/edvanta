@@ -14,20 +14,27 @@ from ..config import Config
 
 quizzes_bp = Blueprint("quizzes", __name__)
 
-# MongoDB connection - REQUIRED
+# MongoDB connection - GRACEFUL ERROR HANDLING
 try:
     mongo_uri = Config.MONGODB_URI
     db_name = Config.MONGODB_DB_NAME
     mongo_collection_name_1 = Config.MONGODB_QUIZ_COLLECTION
     mongo_collection_name_2 = Config.MONGODB_QUIZ_HISTORY_COLLECTION
 
-    client = MongoClient(mongo_uri)
+    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+    # Test connection
+    client.server_info()
     db = client[db_name]
     quizzes_collection = db[mongo_collection_name_1]
     quiz_history_collection = db[mongo_collection_name_2]
-
+    print(f"Quiz MongoDB connected successfully to {db_name}")
 except Exception as e:
-    raise Exception(f"MongoDB connection required for quizzes - no fallbacks: {str(e)}")
+    print(f"Quiz MongoDB connection failed: {str(e)}")
+    # Set to None to handle gracefully in routes
+    client = None
+    db = None
+    quizzes_collection = None
+    quiz_history_collection = None
 
 
 @quizzes_bp.route("/api/quizzes/generate", methods=["POST"])

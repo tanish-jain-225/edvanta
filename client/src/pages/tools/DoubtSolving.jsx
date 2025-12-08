@@ -555,7 +555,7 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
   }
 
   return (
-    <div className="flex flex-col bg-gray-50 overflow-y-auto max-h-[80vh]">
+    <div className="flex flex-col bg-gray-50 overflow-y-auto h-[90vh]">
       {/* Header - Sticky */}
       <div className="sticky top-0 left-0 right-0 bg-white border-b z-50 p-6 shadow-md">
         <div className="flex items-center justify-between gap-4 w-full">
@@ -780,7 +780,7 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
       {/* Chat History Modal */}
       {isHistoryOpen && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md h-[90vh] overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b bg-gray-50">
               <h3 className="text-lg font-semibold text-gray-900">
                 Chat History

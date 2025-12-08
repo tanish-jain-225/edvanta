@@ -10,12 +10,6 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Progress } from "../../components/ui/progress";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../../components/ui/tabs";
-import {
   Upload,
   FileText,
   Wand2,
@@ -26,8 +20,6 @@ import {
   Clock,
   Sparkles,
   History,
-  Mic,
-  Square,
   Play,
   Trash2,
 } from "lucide-react";
@@ -53,7 +45,7 @@ const steps = [
   { id: "download", title: "Download", icon: Download },
 ];
 
-export function VisualGenerator() {
+export default function VisualGenerator() {
   // Scroll to top when component mounts
   useEffect(() => {
     window.scrollTo({
@@ -64,19 +56,9 @@ export function VisualGenerator() {
 
   const { user } = useAuth();
 
-  // Core inputs
+  // Core inputs - text only
   const [content, setContent] = useState("");
-  const [pdfFile, setPdfFile] = useState(null);
-  const [audioFile, setAudioFile] = useState(null);
-  const [videoData, setVideoData] = useState(null); // Changed from videoUrl to support slideshow data
-
-  // Recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const [recordedAudioUrl, setRecordedAudioUrl] = useState("");
-  const mediaRecorderRef = useRef(null);
-  const recordedChunksRef = useRef([]);
-  const recordedAudioElementRef = useRef(null);
+  const [videoData, setVideoData] = useState(null);
 
   // UI / progress state
   const [progress, setProgress] = useState(0);
@@ -84,6 +66,8 @@ export function VisualGenerator() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [historyVideos, setHistoryVideos] = useState([]);
+
+  // Remove audio recording functionality - text input only
 
   // Derived step index from progress (simple thresholds)
   const currentStep = (() => {
@@ -93,15 +77,6 @@ export function VisualGenerator() {
     if (progress >= 10) return 1; // summarize
     return 0; // input
   })();
-
-  const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-  // Validate Cloudinary configuration
-  const isCloudinaryConfigured = CLOUD_NAME && UPLOAD_PRESET;
-  if (!isCloudinaryConfigured) {
-    console.warn('⚠️ Cloudinary not configured properly. File uploads may fail.');
-  }
 
   async function postJSON(path, body) {
     setError("");
@@ -212,55 +187,13 @@ export function VisualGenerator() {
     };
   }, [user]);
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      recordedChunksRef.current = [];
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      rec.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, {
-          type: "audio/webm",
-        });
-        const url = URL.createObjectURL(blob);
-        setRecordedAudioUrl(url);
-        setAudioFile(
-          new File([blob], `recording-${Date.now()}.webm`, {
-            type: "audio/webm",
-          })
-        );
-      };
-      rec.start();
-      mediaRecorderRef.current = rec;
-      setIsRecording(true);
-      setRecordSeconds(0);
-    } catch (e) {
-      setError(e.message || "Microphone denied");
-    }
-  };
-  const stopRecording = () => {
-    if (!mediaRecorderRef.current) return;
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
-    setIsRecording(false);
-  };
-  useEffect(() => {
-    if (!isRecording) return;
-    const id = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [isRecording]);
+  // Audio recording functionality removed - text input only
   const formatTime = (t) =>
     `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(
       2,
       "0"
     )}`;
-  const discardRecording = () => {
-    setRecordedAudioUrl("");
-    setAudioFile(null);
-    recordedChunksRef.current = [];
-  };
+  // Audio recording functionality removed
 
   async function uploadToCloudinary(file) {
     if (!isCloudinaryConfigured) {
@@ -277,13 +210,11 @@ export function VisualGenerator() {
     form.append("file", file);
     form.append("upload_preset", UPLOAD_PRESET);
     
-    const resourceType = file.type.startsWith("audio")
+    const resourceType = file.type.startsWith("video")
       ? "video"
-      : file.type.startsWith("video")
-        ? "video"
-        : file.type === "application/pdf"
-          ? "raw"
-          : "image";
+      : file.type === "application/pdf"
+        ? "raw"
+        : "image";
           
     const endpoint = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
     
@@ -429,85 +360,14 @@ export function VisualGenerator() {
       // Error is already set in uploadToCloudinary or postJSON
     }
   };
-  const handleAudioSubmit = async () => {
-    if (!audioFile) {
-      setError('Please select an audio file or record audio.');
-      return;
-    }
-    
-    if (!user?.email) {
-      setError('Please sign in to use video generation.');
-      return;
-    }
-    
-    // Note: Audio transcription is not automatic in serverless mode
-    // We'll show a message about this limitation
-    setError('Audio transcription is not available in serverless mode. Please use text input instead.');
-    return;
-    
-    // Keep the code below for future enhancement when transcription is available
-    /*
-    // Validate audio file
-    const supportedTypes = ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/webm', 'audio/ogg'];
-    if (!audioFile.type.startsWith('audio/') && !supportedTypes.some(type => audioFile.type === type)) {
-      setError('Please select a valid audio file (MP3, WAV, M4A, WebM, or OGG).');
-      return;
-    }
-    
-    setLoading(true);
-    setProgress(5);
-    setError('');
-    
-    try {
-      setProgress(15); // Show upload progress
-      const audUrl = await uploadToCloudinary(audioFile);
-      
-      setProgress(30); // Upload complete, starting processing
-      const res = await postJSON("/api/visual/audio-url-to-video", {
-        audio_url: audUrl,
-        transcript: 'Manual transcription required', // Would need manual input
-        user_email: user.email,
-      });
-      
-      setProgress(70);
-      
-      if (!res.success || !res.result) {
-        throw new Error('Invalid response from server.');
-      }
-      
-      const resultData = typeof res.result === 'string' ? JSON.parse(res.result) : res.result;
-      
-      if (resultData.type === 'slideshow' && resultData.scenes) {
-        setProgress(100);
-        setVideoData(resultData);
-        setLoading(false);
-        
-        await saveVideoRecord({
-          sourceType: 'audio',
-          inputSample: audioFile.name,
-          videoData: resultData,
-          isSlideshow: true
-        });
-      } else {
-        throw new Error('Unexpected response format from server.');
-      }
-    } catch (e) {
-      setProgress(0);
-      setLoading(false);
-    }
-    */
-  };
-
-
-
-
+  // Audio functionality removed - text input only
 
   return (
     <div className="space-y-6 p-4">
       <div>
         <h1 className="text-2xl font-bold">Visual Content Generator</h1>
         <p className="text-sm text-gray-600">
-          Convert Text / PDF / Audio (upload or record) into video.
+          Convert Text / PDF into video.
         </p>
         {!user && (
           <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -602,284 +462,50 @@ export function VisualGenerator() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="text" className="space-y-4">
-        <TabsList className="grid grid-cols-3 w-full">
-          <TabsTrigger value="text">Text</TabsTrigger>
-          <TabsTrigger value="pdf">PDF</TabsTrigger>
-          <TabsTrigger value="audio">Audio</TabsTrigger>
-        </TabsList>
-        <TabsContent value="text">
-          <Card>
-            <CardHeader>
-              <CardTitle>Text Input</CardTitle>
-              <CardDescription>Paste or type your content.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="relative">
-                <textarea
-                  className="w-full h-48 p-3 border rounded resize-none"
-                  value={content}
-                  onChange={(e) => {
-                    const text = e.target.value;
-                    setContent(text);
-                    // Remove character limit restrictions
-                    if (error.includes('Text is too long')) {
-                      setError('');
-                    }
-                  }}
-                  placeholder="Explain neural networks and their applications in modern AI..."
-                  // No maxLength restriction
-                />
-                <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white px-1 rounded">
-                  {content.length.toLocaleString()} characters
-                </div>
-              </div>
-              <Button
-                onClick={handleTextSubmit}
-                disabled={loading || !content.trim() || !user}
-                className="w-full"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    Generate Video
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="pdf">
-          <Card>
-            <CardHeader>
-              <CardTitle>PDF Upload</CardTitle>
-              <CardDescription>
-                Upload a PDF (sent to Cloudinary)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="border-2 border-dashed p-4 text-center rounded">
-                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-xs text-gray-600 mb-2">Select a PDF (unlimited size)</p>
-                <input
-                  id="pdf-file"
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    if (file) {
-                      // Validate file type
-                      if (file.type !== 'application/pdf') {
-                        setError('Please select a valid PDF file.');
-                        return;
-                      }
-                      // No file size limit
-                      setError(''); // Clear any previous errors
-                    }
-                    setPdfFile(file);
-                  }}
-                />
-                <Button asChild variant="outline" size="sm" className="w-full" disabled={!isCloudinaryConfigured}>
-                  <label htmlFor="pdf-file">
-                    {!isCloudinaryConfigured ? 'Upload Unavailable' : 'Choose PDF'}
-                  </label>
-                </Button>
-                {pdfFile && (
-                  <div className="mt-2 text-[10px] text-blue-600">
-                    <p className="font-medium">{pdfFile.name}</p>
-                    <p className="text-gray-500">{Math.round(pdfFile.size / (1024 * 1024) * 100) / 100} MB</p>
-                  </div>
-                )}
-                {!isCloudinaryConfigured && (
-                  <p className="mt-2 text-[10px] text-red-600">
-                    Cloudinary not configured
-                  </p>
-                )}
-              </div>
-              <Button
-                onClick={handlePdfSubmit}
-                disabled={loading || !pdfFile || !user || !isCloudinaryConfigured}
-                className="w-full"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    {progress <= 10 ? 'Uploading...' : 'Processing...'}
-                  </>
-                ) : (
-                  <>
-                    Generate from PDF
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="audio">
-          <Card>
-            <CardHeader>
-              <CardTitle>Audio Upload / Record</CardTitle>
-              <CardDescription>
-                Upload an audio file or record now.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="border-2 border-dashed p-4 rounded">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Upload className="h-8 w-8 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium">Upload Audio</p>
-                      <p className="text-[11px] text-gray-500">
-                        MP3 / WAV / M4A / WebM (unlimited size)
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                    <input
-                      id="audio-file"
-                      type="file"
-                      accept="audio/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] || null;
-                        if (f) {
-                          // Validate file type only - no size limit
-                          if (!f.type.startsWith('audio/')) {
-                            setError('Please select a valid audio file.');
-                            return;
-                          }
-                          
-                          setError(''); // Clear any previous errors
-                          setRecordedAudioUrl(""); // Clear recorded audio if file is selected
-                        }
-                        setAudioFile(f);
-                      }}
-                    />
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      disabled={isRecording || !isCloudinaryConfigured}
-                    >
-                      <label htmlFor="audio-file">
-                        {!isCloudinaryConfigured ? 'Unavailable' : 'Choose'}
-                      </label>
-                    </Button>
-                  </div>
-                </div>
-                {audioFile && !recordedAudioUrl && (
-                  <div className="mt-2 text-[11px] text-blue-600">
-                    <p className="font-medium">{audioFile.name}</p>
-                    <p className="text-gray-500">{Math.round(audioFile.size / (1024 * 1024) * 100) / 100} MB</p>
-                  </div>
-                )}
-                {!isCloudinaryConfigured && (
-                  <p className="mt-2 text-[10px] text-red-600">
-                    Cloudinary not configured
-                  </p>
-                )}
-              </div>
-              <div className="border p-4 rounded bg-gray-50">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    <Mic className="h-4 w-4" /> Record
-                  </p>
-                  <span className="text-xs font-mono px-2 py-1 rounded bg-white border">
-                    {isRecording ? formatTime(recordSeconds) : "00:00"}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {!isRecording && (
-                    <Button size="sm" onClick={startRecording}>
-                      <Mic className="h-4 w-4 mr-1" />
-                      Start
-                    </Button>
-                  )}
-                  {isRecording && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={stopRecording}
-                    >
-                      <Square className="h-4 w-4 mr-1" />
-                      Stop
-                    </Button>
-                  )}
-                  {recordedAudioUrl && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (recordedAudioElementRef.current) {
-                            recordedAudioElementRef.current.currentTime = 0;
-                            recordedAudioElementRef.current.play();
-                          }
-                        }}
-                      >
-                        <Play className="h-4 w-4 mr-1" />
-                        Preview
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={discardRecording}
-                        className="text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Discard
-                      </Button>
-                    </>
-                  )}
-                </div>
-                {isRecording && (
-                  <p className="mt-2 text-[11px] text-red-600 animate-pulse">
-                    Recording...
-                  </p>
-                )}
-                {recordedAudioUrl && (
-                  <audio
-                    ref={recordedAudioElementRef}
-                    controls
-                    src={recordedAudioUrl}
-                    className="w-full mt-3"
-                  />
-                )}
-              </div>
-              <Button
-                onClick={handleAudioSubmit}
-                disabled={loading || !audioFile || !user || !isCloudinaryConfigured}
-                className="w-full"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    {progress <= 10 ? 'Uploading...' : 'Processing...'}
-                  </>
-                ) : recordedAudioUrl ? (
-                  <>
-                    Generate from Recording
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                ) : (
-                  <>
-                    Generate from Audio
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <Card>
+        <CardHeader>
+          <CardTitle>Text Input</CardTitle>
+          <CardDescription>Enter your content to generate an educational video.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="relative">
+            <textarea
+              className="w-full h-48 p-3 border rounded resize-none"
+              value={content}
+              onChange={(e) => {
+                const text = e.target.value;
+                setContent(text);
+                // Remove character limit restrictions
+                if (error.includes('Text is too long')) {
+                  setError('');
+                }
+              }}
+              placeholder="Explain neural networks and their applications in modern AI..."
+              // No maxLength restriction
+            />
+            <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white px-1 rounded">
+              {content.length.toLocaleString()} characters
+            </div>
+          </div>
+          <Button
+            onClick={handleTextSubmit}
+            disabled={loading || !content.trim() || !user}
+            className="w-full"
+          >
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Processing...
+              </>
+            ) : (
+              <>
+                Generate Video
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
       {videoData && (
         <Card>
@@ -987,8 +613,6 @@ export function VisualGenerator() {
                       setVideoData(null);
                       setContent("");
                       setPdfFile(null);
-                      setAudioFile(null);
-                      setRecordedAudioUrl("");
                       setProgress(0);
                       setError("");
                     }}

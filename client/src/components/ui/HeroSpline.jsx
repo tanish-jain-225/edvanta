@@ -1,6 +1,6 @@
 export default function HeroSpline() {
   return (
-    <section className="relative w-full min-h-[70vh] md:min-h-[80vh] overflow-hidden">
+    <section className="relative w-full overflow-hidden">
       {/* Overlay copy: above robot, left-aligned, doesn't block pointer events */}
       <div className="pointer-events-none absolute left-0 top-0 z-20 px-6 md:px-16 lg:px-24 py-8 md:py-40 max-w-[45rem]">
         <h1
@@ -9,7 +9,7 @@ export default function HeroSpline() {
         >
           Meet Your AI Learning Companion
         </h1>
-        <p className="text-md md:text-xl text-gray-700 max-w-xl">
+        <p className="text-md md:text-xl text-gray-700 max-w-[300px]">
           Unlock interactive, visual and personalized education with Edvanta's
           3D AI robot. Experience the future of learning—engaging, smart and
           always by your side.
@@ -25,7 +25,7 @@ export default function HeroSpline() {
             allow="autoplay; fullscreen; xr-spatial-tracking"
             loading="lazy"
             title="3D Hero"
-            style={{ minHeight: 320 }}
+            style={{ minHeight: 300 }}
           />
         </div>
       </div>

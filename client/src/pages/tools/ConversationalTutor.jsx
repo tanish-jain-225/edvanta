@@ -28,8 +28,6 @@ import {
   Loader2,
   Square,
   CheckCircle,
-  WifiOff,
-  RefreshCw,
 } from "lucide-react";
 import { Input } from "../../components/ui/input";
 import backEndURL from "../../hooks/helper";
@@ -74,15 +72,11 @@ const UI_TEXT = {
   pressToAsk: "Press to ask another question",
   pressToStart: "Press the microphone button and speak your question",
   connectionError: "Connection error. Please try again.",
-  retryButton: "Retry",
-  networkOffline: "You're offline. Please check your connection.",
   microphoneBlocked: "Microphone access is blocked. Please enable it in your browser settings.",
   speechNotSupported: "Speech recognition is not supported in this browser.",
 };
 
 // Constants for better error handling
-const MAX_RETRY_ATTEMPTS = 3;
-const RETRY_DELAY = 1000; // 1 second
 const NETWORK_CHECK_INTERVAL = 5000; // 5 seconds
 
 export function ConversationalTutor() {
@@ -118,8 +112,6 @@ export function ConversationalTutor() {
   
   // Enhanced error handling state
   const [lastError, setLastError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   // Counter for unique message IDs to prevent duplicates
   const messageIdCounter = useRef(0);
@@ -143,33 +135,6 @@ export function ConversationalTutor() {
   const messagesEndRef = useRef(null);
   const recognitionTimeoutRef = useRef(null);
   const synthesisUtteranceRef = useRef(null);
-
-  // Enhanced error handling and retry mechanism
-  const handleErrorWithRetry = useCallback(async (error, operation, maxRetries = MAX_RETRY_ATTEMPTS) => {
-    console.error('ConversationalTutor Error:', error);
-    
-    if (retryCount < maxRetries) {
-      setRetryCount(prev => prev + 1);
-      
-      setTimeout(async () => {
-        try {
-          await operation();
-          setRetryCount(0);
-          setLastError(null);
-        } catch (retryError) {
-          if (retryCount + 1 >= maxRetries) {
-            setLastError({
-              message: `Failed after ${maxRetries} attempts: ${retryError.message}`,
-              timestamp: Date.now(),
-              operation: 'final_attempt',
-            });
-          } else {
-            handleErrorWithRetry(retryError, operation, maxRetries);
-          }
-        }
-      }, RETRY_DELAY * Math.pow(2, retryCount)); // Exponential backoff
-    }
-  }, [retryCount]);
   
   // Network status monitoring
   useEffect(() => {
@@ -184,64 +149,6 @@ export function ConversationalTutor() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
-  // Offline Indicator Component
-  const OfflineIndicator = () => (
-    <div className="fixed top-4 right-4 z-50">
-      <Card className="border-orange-200 bg-orange-50 shadow-md">
-        <CardContent className="p-3">
-          <div className="flex items-center space-x-2">
-            <WifiOff className="text-orange-600" size={16} />
-            <span className="text-orange-800 text-sm font-medium">
-              You're offline
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-
-  // Error Recovery Card Component
-  const ErrorRecoveryCard = ({ error, onRetry, onDismiss }) => (
-    <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
-      <Card className="border-red-200 bg-red-50 shadow-md">
-        <CardContent className="p-4">
-          <div className="flex flex-col space-y-3">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="text-red-600 flex-shrink-0" size={16} />
-              <div className="flex-1">
-                <p className="text-red-800 text-sm font-medium mb-1">
-                  Error Occurred
-                </p>
-                <p className="text-red-700 text-xs">
-                  {error.message}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDismiss}
-                className="text-red-600 hover:text-red-800 h-8 px-3 text-xs"
-              >
-                Dismiss
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onRetry}
-                className="border-red-300 text-red-600 hover:bg-red-100 h-8 px-3 text-xs"
-              >
-                <RefreshCw className="h-3 w-3 mr-1" />
-                Retry
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
 
 
 
@@ -295,7 +202,7 @@ export function ConversationalTutor() {
     } finally {
       setIsLoading(false);
     }
-  }, [isOnline]);
+  }, []);
 
   // Initialize speech synthesis with enhanced error handling
   useEffect(() => {
@@ -504,8 +411,8 @@ export function ConversationalTutor() {
     try {
       // Priority 1: Get the active session as quickly as possible
       const response = await axios.get(
-        `${backEndURL}/api/tutor/session/active?userEmail=${user.email}`,
-        { timeout: 8000 } // Increased timeout for potentially slow connections
+        `${backEndURL}/api/tutor/session/active?userEmail=${user.email}`
+        // No timeout limit to ensure active sessions are always fetched
       );
 
       if (!response.data.success) {
@@ -536,8 +443,8 @@ export function ConversationalTutor() {
 
       try {
         const historyResponse = await axios.get(
-          `${backEndURL}/api/tutor/chat/history?userEmail=${user.email}&sessionId=${sessionData.session_id}`,
-          { timeout: 8000 } // Increased timeout for potentially slow connections
+          `${backEndURL}/api/tutor/chat/history?userEmail=${user.email}&sessionId=${sessionData.session_id}`
+          // No timeout limit to ensure chat history is always fetched
         );
 
         if (historyResponse.data.success) {
@@ -718,7 +625,18 @@ export function ConversationalTutor() {
         switch (event.error) {
           case "no-speech":
             // This is normal - user might just be thinking, don't show error
-            // Just keep the mic active and continue listening - no restart needed
+            // Automatically restart recognition if mic should still be active
+            if (micState === MicState.ACTIVE) {
+              setTimeout(() => {
+                if (micState === MicState.ACTIVE && speechRecognitionRef.current) {
+                  try {
+                    speechRecognitionRef.current.start();
+                  } catch (restartError) {
+                    console.warn("Could not restart recognition after no-speech:", restartError);
+                  }
+                }
+              }, 100); // Small delay to prevent rapid restart loops
+            }
             break;
             
           case "not-allowed":
@@ -763,6 +681,7 @@ export function ConversationalTutor() {
         const wasManualStop = speechRecognitionRef.current?.manualStop === true;
         const messageSent = speechRecognitionRef.current?.messageSent === true;
         const hasTranscript = transcript.trim().length > 0;
+        const shouldStayActive = micState === MicState.ACTIVE && !wasManualStop;
 
         // Clear the flags
         if (speechRecognitionRef.current) {
@@ -775,8 +694,25 @@ export function ConversationalTutor() {
           sendMessage(transcript.trim());
         }
 
-        // Always ensure mic state is inactive when recognition ends
-        setMicState(MicState.INACTIVE);
+        // If mic should stay active (user didn't manually stop), restart recognition
+        if (shouldStayActive) {
+          setTimeout(() => {
+            // Double-check the mic state is still active before restarting
+            if (micState === MicState.ACTIVE) {
+              try {
+                // Create new recognition instance to avoid stale state
+                initializeSpeechRecognition();
+              } catch (restartError) {
+                console.warn("Could not restart recognition on end:", restartError);
+                // If restart fails, set mic to inactive
+                setMicState(MicState.INACTIVE);
+              }
+            }
+          }, 100); // Small delay to ensure clean restart
+        } else {
+          // Only set mic to inactive if it was manually stopped or should not stay active
+          setMicState(MicState.INACTIVE);
+        }
       };
 
       speechRecognitionRef.current = recognition;
@@ -1389,7 +1325,6 @@ export function ConversationalTutor() {
         setTranscript("");
         setConnectionStatus(null);
         setLastError(null);
-        setRetryCount(0);
         
       } else {
         console.error(
@@ -1653,30 +1588,8 @@ export function ConversationalTutor() {
   return (
     <div className="container px-4 sm:px-6 lg:px-8 py-6 flex flex-col min-h-[85vh] gap-6 w-full max-w-full">
       
-      {/* Offline Indicator */}
-      {!isOnline && <OfflineIndicator />}
-      
       {/* Performance Indicator (dev only) */}
 
-      
-      {/* Error Recovery UI */}
-      {lastError && (
-        <ErrorRecoveryCard 
-          error={lastError}
-          onRetry={() => {
-            setLastError(null);
-            setRetryCount(0);
-            if (isSessionActive) {
-              // Retry the last operation or restart session
-              startSession();
-            }
-          }}
-          onDismiss={() => {
-            setLastError(null);
-            setRetryCount(0);
-          }}
-        />
-      )}
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-4">
         <div className="text-center sm:text-left">

@@ -85,8 +85,10 @@ def create_app() -> Flask:
             blueprint = blueprint_loader()
             app.register_blueprint(blueprint)
             registered_blueprints.append(name)
+            app.logger.info(f"Successfully registered blueprint: {name}")
         except Exception as e:
-            return app
+            app.logger.error(f"Failed to register blueprint '{name}': {str(e)}")
+            # Continue with other blueprints instead of returning early
 
     @app.route("/", methods=["GET"])
     def health():
@@ -100,7 +102,9 @@ def create_app() -> Flask:
             "debug": config.DEBUG,
             "is_serverless": config.IS_SERVERLESS,
             "platform": _detect_platform(config),
-            "registered_blueprints": list(app.blueprints.keys()) if hasattr(app, 'blueprints') else []
+            "registered_blueprints": list(app.blueprints.keys()) if hasattr(app, 'blueprints') else [],
+            "total_blueprints": len(registered_blueprints),
+            "mongodb_uri_configured": bool(config.MONGODB_URI and config.MONGODB_URI != "mongodb://localhost:27017/")
         }
 
     def _detect_platform(config):

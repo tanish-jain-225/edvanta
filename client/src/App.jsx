@@ -13,17 +13,12 @@ import { PageTransition } from "./components/ui/PageTransition";
 import { ScreenFatigueReminder } from "./components/ui/ScreenFatigueReminder";
 import ScrollToTop from "./components/ui/ScrollToTop";
 
-// PWA Components
-import OfflineIndicator from "./components/ui/OfflineIndicator";
-import PWAInstallPrompt from "./components/ui/PWAInstallPrompt";
-
 // Pages
 import Home from "./pages/Home";
 import { Login } from "./pages/auth/Login";
 import { Signup } from "./pages/auth/Signup";
 import { Dashboard } from "./pages/Dashboard";
-import OfflineDashboard from "./pages/OfflineDashboard";
-import { VisualGenerator } from "./pages/tools/VisualGenerator";
+import VisualGenerator from "./pages/tools/VisualGenerator";
 import { DoubtSolving } from "./pages/tools/DoubtSolving";
 import { Quizzes } from "./pages/tools/Quizzes";
 import { ConversationalTutor } from "./pages/tools/ConversationalTutor";
@@ -55,11 +50,9 @@ function useUnifiedLoading(location, authLoading) {
 function DashboardLayout({ children }) {
   return (
     <div className="min-h-screen bg-gray-50">
-      <OfflineIndicator />
       <Navbar />
       <Sidebar />
       <main className="md:ml-64 pt-16 p-3 sm:p-4 md:p-4 min-h-screen overflow-x-hidden">
-        <PWAInstallPrompt className="mb-4" />
         <PageTransition>{children}</PageTransition>
       </main>
     </div>
@@ -70,11 +63,9 @@ function DashboardLayout({ children }) {
 function PublicLayout({ children }) {
   return (
     <div className="min-h-screen">
-      <OfflineIndicator />
       <Navbar />
       <div className="pt-16">
         {/* Added pt-16 to account for fixed navbar height */}
-        <PWAInstallPrompt className="mx-4 mt-4" />
         <PageTransition>{children}</PageTransition>
       </div>
     </div>
@@ -143,16 +134,6 @@ function AppRoutes() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <Dashboard />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/offline-dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <OfflineDashboard />
                 </DashboardLayout>
               </ProtectedRoute>
             }

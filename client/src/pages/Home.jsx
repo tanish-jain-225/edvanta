@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
+import { useResponsive } from "../hooks/useResponsive";
 import {
   Palette,
   MessageSquare,
@@ -19,6 +20,8 @@ import {
   FileText,
   ArrowRight,
   CheckCircle,
+  Zap,
+  Clock,
 } from "lucide-react";
 
 const features = [
@@ -87,6 +90,34 @@ const steps = [
   },
 ];
 
+const stats = [
+  { number: "10K+", label: "Active Learners", icon: Brain },
+  { number: "50K+", label: "Quizzes Generated", icon: MessageSquare },
+  { number: "1M+", label: "Learning Minutes", icon: Clock },
+  { number: "95%", label: "Success Rate", icon: CheckCircle },
+];
+
+const testimonials = [
+  {
+    quote: "Edvanta transformed how I learn programming. The AI-generated roadmaps are incredibly detailed.",
+    author: "Sarah Chen",
+    role: "Software Developer",
+    avatar: "SC"
+  },
+  {
+    quote: "The voice tutor feature is amazing! It's like having a personal teacher available 24/7.",
+    author: "Michael Rodriguez", 
+    role: "Data Science Student",
+    avatar: "MR"
+  },
+  {
+    quote: "I improved my skills 3x faster using Edvanta's personalized learning paths.",
+    author: "Emily Johnson",
+    role: "Product Manager",
+    avatar: "EJ"
+  }
+];
+
 const comparisons = [
   { feature: "AI-Powered Content Generation", edvanta: true, others: false },
   { feature: "Animated Visual Lessons", edvanta: true, others: false },
@@ -98,20 +129,22 @@ const comparisons = [
 ];
 
 function Home() {
+  const { isMobile, isTablet, isDesktop } = useResponsive();
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Hero Section with 3D Robot (lazy loaded) */}
       <Suspense fallback={
-        <div className="h-64 flex items-center justify-center">
-          <div className="text-center space-y-3">
-            <div className="relative">
-              <Palette className="h-8 w-8 mx-auto text-primary loading-pulse-float" />
-              <div className="absolute inset-0 rounded-full bg-primary/10 loading-glow"></div>
+        <div className="h-72 md:h-80 lg:h-96 flex items-center justify-center bg-surface">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="relative flex items-center justify-center">
+              <Zap className="h-8 w-8 text-primary animate-pulse" />
+              <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping"></div>
             </div>
-            <div className="w-32 h-1 bg-gray-200 rounded-full overflow-hidden mx-auto">
-              <div className="h-full bg-gradient-to-r from-primary-400 to-primary-600 loading-progress-bar rounded-full"></div>
+            <div className="w-32 h-1 bg-border rounded-full overflow-hidden flex">
+              <div className="h-full bg-gradient-to-r from-primary to-primary-600 animate-pulse rounded-full"></div>
             </div>
-            <p className="text-sm text-gray-500 loading-fade-in">Loading 3D Experience...</p>
+            <p className="text-sm text-gray-600">Loading 3D Experience...</p>
           </div>
         </div>
       }>
@@ -119,34 +152,35 @@ function Home() {
       </Suspense>
 
       {/* Features Section */}
-      <section id="features" className="py-12 sm:py-16 lg:py-20 bg-surface">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 sm:mb-16">
-            <Badge variant="secondary" className="mb-4">
+      <section id="features" className="py-16 lg:py-24 bg-surface flex-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col">
+          <div className="flex flex-col items-center text-center mb-16">
+            <Badge variant="secondary" className="mb-6 px-4 py-2 flex items-center">
+              <Zap className="h-4 w-4 mr-2" />
               Features
             </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-text-primary mb-4 text-balance px-4">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
               Everything You Need to Excel
             </h2>
-            <p className="text-base sm:text-lg lg:text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed px-4">
+            <p className="text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               Our comprehensive platform combines the latest AI technology with
-              proven educational methods.
+              proven educational methods to accelerate your learning journey.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          <div className="flex flex-wrap justify-center items-stretch gap-6 lg:gap-8">
             {features.map((feature, index) => (
-              <Card key={index} className="group transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardHeader className="pb-4">
+              <Card key={index} className="group transition-all duration-300 hover:shadow-xl hover:-translate-y-2 border-border flex flex-col flex-1 min-w-72 max-w-96">
+                <CardHeader className="pb-4 flex flex-col items-start">
                   <div
-                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-r ${feature.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-soft`}
+                    className={`w-12 h-12 rounded-xl bg-gradient-to-r ${feature.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg flex-shrink-0`}
                   >
-                    <feature.icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                    <feature.icon className="h-6 w-6 text-white" />
                   </div>
-                  <CardTitle className="text-lg sm:text-xl">{feature.title}</CardTitle>
+                  <CardTitle className="text-xl font-semibold text-gray-900 mb-2">{feature.title}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-sm sm:text-base leading-relaxed">
+                <CardContent className="flex flex-col flex-1">
+                  <CardDescription className="text-gray-600 leading-relaxed flex-1">
                     {feature.description}
                   </CardDescription>
                 </CardContent>
@@ -157,33 +191,41 @@ function Home() {
       </section>
 
       {/* How It Works */}
-      <section className="py-12 sm:py-16 lg:py-20 bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 sm:mb-16">
-            <Badge variant="secondary" className="mb-4">
+      <section className="py-16 lg:py-24 bg-background flex-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col">
+          <div className="flex flex-col items-center text-center mb-16">
+            <Badge variant="secondary" className="mb-6 px-4 py-2 flex items-center">
+              <ArrowRight className="h-4 w-4 mr-2" />
               Process
             </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-text-primary mb-4 text-balance px-4">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
               How Edvanta Works
             </h2>
-            <p className="text-base sm:text-lg lg:text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed px-4">
+            <p className="text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               Get started in three simple steps and transform your learning
-              experience.
+              experience with AI-powered education.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 sm:gap-12">
+          <div className="flex flex-wrap justify-center items-start gap-8 lg:gap-12">
             {steps.map((step, index) => (
-              <div key={index} className="text-center px-4">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-r from-primary to-primary-600 text-white text-xl sm:text-2xl font-bold flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-soft">
-                  {step.number}
+              <div key={index} className="flex flex-col items-center text-center group flex-1 min-w-64 max-w-80">
+                <div className="relative mb-8 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-r from-primary to-primary-600 text-white text-2xl font-bold flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    {step.number}
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="hidden xl:block absolute top-8 left-full w-full h-0.5 bg-gradient-to-r from-primary/50 to-transparent transform -translate-y-0.5"></div>
+                  )}
                 </div>
-                <h3 className="text-lg sm:text-xl font-semibold text-text-primary mb-3 sm:mb-4">
-                  {step.title}
-                </h3>
-                <p className="text-sm sm:text-base text-text-secondary leading-relaxed">
-                  {step.description}
-                </p>
+                <div className="flex flex-col items-center space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {step.title}
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    {step.description}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
@@ -191,49 +233,53 @@ function Home() {
       </section>
 
       {/* Comparison */}
-      <section className="py-12 sm:py-16 lg:py-20 bg-surface">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 sm:mb-16">
-            <Badge variant="secondary" className="mb-4">
+      <section className="py-16 lg:py-24 bg-surface flex-1">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col">
+          <div className="flex flex-col items-center text-center mb-16">
+            <Badge variant="secondary" className="mb-6 px-4 py-2 flex items-center">
+              <CheckCircle className="h-4 w-4 mr-2" />
               Comparison
             </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-text-primary mb-4 text-balance px-4">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
               Why Choose Edvanta?
             </h2>
-            <p className="text-base sm:text-lg lg:text-xl text-text-secondary px-4">
-              See how we compare to traditional learning platforms.
+            <p className="text-lg lg:text-xl text-gray-600">
+              See how we compare to traditional learning platforms and 
+              discover what sets us apart.
             </p>
           </div>
 
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-gray-50 border-b">
-              <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
-                <div></div>
-                <div className="font-semibold text-primary text-sm sm:text-base">Edvanta</div>
-                <div className="font-semibold text-text-secondary text-sm sm:text-base">Others</div>
+          <Card className="overflow-hidden shadow-xl border-border flex flex-col">
+            <CardHeader className="bg-gray-50/80 border-b border-border">
+              <div className="flex items-center justify-between w-full">
+                <div className="text-gray-900 font-medium flex-1 text-center">Features</div>
+                <div className="font-semibold text-primary text-lg flex-1 text-center">Edvanta</div>
+                <div className="font-semibold text-gray-600 flex-1 text-center">Others</div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2 sm:space-y-4 p-4 sm:p-6">
+            <CardContent className="p-0 flex flex-col">
               {comparisons.map((item, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-3 gap-2 sm:gap-4 items-center py-2 sm:py-3 border-b border-border last:border-b-0"
+                  className={`flex items-center justify-between py-4 px-6 border-b border-border last:border-b-0 ${
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                  } hover:bg-primary/5 transition-colors duration-200`}
                 >
-                  <div className="font-medium text-text-primary text-xs sm:text-sm lg:text-base">
+                  <div className="font-medium text-gray-900 text-sm lg:text-base flex-1">
                     {item.feature}
                   </div>
-                  <div className="text-center">
+                  <div className="flex justify-center flex-1">
                     {item.edvanta ? (
-                      <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-success mx-auto" />
+                      <CheckCircle className="h-5 w-5 text-green-600" />
                     ) : (
-                      <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-muted mx-auto"></div>
+                      <div className="w-5 h-5 rounded-full bg-gray-200"></div>
                     )}
                   </div>
-                  <div className="text-center">
+                  <div className="flex justify-center flex-1">
                     {item.others ? (
-                      <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-success mx-auto" />
+                      <CheckCircle className="h-5 w-5 text-green-600" />
                     ) : (
-                      <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-muted mx-auto"></div>
+                      <div className="w-5 h-5 rounded-full bg-gray-200"></div>
                     )}
                   </div>
                 </div>
@@ -244,25 +290,34 @@ function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-12 sm:py-16 lg:py-20 bg-gradient-to-r from-primary to-primary-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4 px-4">
-            Ready to Transform Your Learning?
-          </h2>
-          <p className="text-base sm:text-lg lg:text-xl text-primary-100 mb-6 sm:mb-8 px-4">
-            Join thousands of students and professionals already using Edvanta
-            to accelerate their growth.
-          </p>
-          <Button
-            size="lg"
-            variant="outline"
-            className="bg-white text-primary hover:bg-gray-100 border-white text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-4"
-            asChild
-          >
-            <Link to="/auth/signup">
-              Get Started Now <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
-            </Link>
-          </Button>
+      <section className="py-16 lg:py-24 bg-gradient-to-r from-primary to-primary-700 relative overflow-hidden flex-1">
+        {/* Background decoration */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/90 to-primary-800/95"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full transform translate-x-32 -translate-y-32"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full transform -translate-x-20 translate-y-20"></div>
+        
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
+          <div className="flex flex-col items-center space-y-6">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">
+              Ready to Transform Your Learning?
+            </h2>
+            <p className="text-lg lg:text-xl text-white/90 max-w-2xl">
+              Join thousands of students and professionals already using Edvanta
+              to accelerate their growth and achieve their learning goals.
+            </p>
+            <div className="flex justify-center pt-4">
+              <Button
+                size="lg"
+                variant="outline"
+                className="bg-white text-primary hover:bg-gray-50 border-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center"
+                asChild
+              >
+                <Link to="/auth/signup">
+                  Get Started Now <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
     </div>

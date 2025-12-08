@@ -227,7 +227,6 @@ Returns detailed status of:
 
 ### Error Handling
 - **Graceful Degradation** - Features disable gracefully when dependencies unavailable
-- **Fallback Responses** - AI features provide basic responses when APIs offline
 - **CORS Enforcement** - Proper headers on all responses including errors
 - **Detailed Logging** - Comprehensive error reporting for debugging
 

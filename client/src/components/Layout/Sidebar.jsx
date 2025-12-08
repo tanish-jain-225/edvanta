@@ -11,8 +11,7 @@ import {
   FileText,
   Trophy,
   Settings,
-  Wifi,
-  WifiOff
+  Wifi
 } from 'lucide-react'
 
 const navigation = [
@@ -23,7 +22,6 @@ const navigation = [
   { name: 'Voice Tutor', href: '/tools/conversational-tutor', icon: Mic },
   { name: 'Roadmap', href: '/tools/roadmap', icon: MapPin },
   { name: 'Resume Builder', href: '/tools/resume-builder', icon: FileText },
-  { name: 'Offline Mode', href: '/offline-dashboard', icon: WifiOff, badge: 'PWA' },
 ]
 
 export function Sidebar({ className }) {

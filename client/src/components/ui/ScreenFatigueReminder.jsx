@@ -49,6 +49,7 @@ export function ScreenFatigueReminder() {
   const [currentTip, setCurrentTip] = useState(0);
   const [lastShown, setLastShown] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [tipCycleKey, setTipCycleKey] = useState(0); // Key to reset the auto-cycle timer
 
   useEffect(() => {
     // Check if user has seen a reminder recently
@@ -88,7 +89,7 @@ export function ScreenFatigueReminder() {
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);
-  }, [isVisible]);
+  }, [isVisible, tipCycleKey]); // Include tipCycleKey to restart timer when it changes
 
   const showReminder = () => {
     // Select a random tip
@@ -136,6 +137,9 @@ export function ScreenFatigueReminder() {
       setCurrentTip((prev) => (prev + 1) % SCREEN_FATIGUE_TIPS.length);
       setIsTransitioning(false);
     }, 150);
+    
+    // Reset the 10-second auto-cycle timer
+    setTipCycleKey(prev => prev + 1);
   };
 
   if (!isVisible) return null;

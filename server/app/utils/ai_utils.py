@@ -192,7 +192,7 @@ def get_db_connection():
         if not connection_string or not Config.MONGODB_DB_NAME:
             return None
             
-        client = MongoClient(Config.MONGODB_URI, serverSelectionTimeoutMS=5000)
+        client = MongoClient(Config.MONGODB_URI)
         client.server_info()  # Force connection test
         
         return client[Config.MONGODB_DB_NAME]
