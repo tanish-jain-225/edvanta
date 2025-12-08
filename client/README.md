@@ -1,30 +1,30 @@
 # Edvanta Client
 
-A modern React-based Progressive Web App (PWA) for AI-powered educational tools. Built with cutting-edge technologies for optimal performance, accessibility, and offline functionality.
+A modern React-based educational platform built with cutting-edge technologies for optimal performance and accessibility. Features AI-powered learning tools with a beautiful, responsive interface.
 
 ## 🌟 Key Features
 
-### **Progressive Web App (PWA)**
-- 📱 **Mobile-First Design** - Responsive interface optimized for all devices
-- 🔄 **Offline Functionality** - Real data caching for offline learning
-- 📲 **Installable** - Add to home screen like a native app
-- ⚡ **Fast Loading** - Service worker caching and lazy loading
-- 🔔 **Push Notifications** - Stay updated with learning progress
+### **Modern React Application**
+- 📱 **Responsive Design** - Mobile-first interface optimized for all devices
+- ⚡ **Fast Loading** - Vite build system with optimized bundling
+- 🎨 **Beautiful UI** - Modern design with smooth animations
+- 🔥 **Hot Reload** - Instant development feedback with Vite HMR
+- 📦 **Component-Based** - Modular, reusable UI components
 
 ### **AI-Powered Learning Tools**
-- 🎥 **Visual Content Generator** - Convert text/PDF/audio to educational slideshows
+- 🎥 **Visual Content Generator** - Convert text/PDF to educational slideshows
 - 🤖 **Doubt Solving Chatbot** - AI-powered Q&A with conversation history
 - 📝 **Quiz Generator** - AI-generated personalized quizzes with scoring
-- 👨‍🏫 **Conversational Tutor** - Voice & text-based AI tutoring
+- 👨‍🏫 **Conversational Tutor** - Interactive AI tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestones
 - 📄 **Resume Builder** - Resume analysis and job-fit optimization
 
-### **Modern User Experience**
+### **Enhanced User Experience**
 - 🔐 **Firebase Authentication** - Secure user accounts with profile management
 - 📊 **Real-time Analytics** - Progress tracking and performance insights
-- 🎨 **Beautiful UI** - TailwindCSS with Radix UI components
-- 🌙 **Screen Fatigue Prevention** - Built-in break reminders
-- 📱 **Responsive Design** - Seamless experience across all devices
+- 🎨 **TailwindCSS Design** - Beautiful UI with Radix UI components
+- 🌙 **Screen Fatigue Prevention** - Built-in break reminders with timer reset
+- 📱 **Fully Responsive** - Seamless experience across all devices
 
 ## 🚀 Quick Start
 
@@ -96,92 +96,101 @@ After deployment:
 
 ```
 client/
-├── index.html              # Entry point
-├── package.json            # Dependencies & scripts
-├── vite.config.ts          # Vite configuration
-├── tailwind.config.js      # TailwindCSS setup
-├── vercel.json             # Vercel deployment config
+├── index.html              # Entry point with React root
+├── package.json            # Dependencies & scripts (Vite-based)
+├── vite.config.ts          # Vite configuration with React plugin
+├── tailwind.config.js      # TailwindCSS v4.1.12 setup
+├── postcss.config.js       # PostCSS with Autoprefixer
+├── eslint.config.js        # ESLint v9 configuration
+├── vercel.json             # Vercel deployment configuration
 ├── .env.example            # Environment variables template
+├── .gitignore              # Git ignore patterns
 ├── public/
-│   ├── manifest.json       # PWA manifest
-│   └── sw.js              # Service worker
+│   ├── manifest.json       # Web app manifest
+│   ├── edvanta-logo.png    # Brand logo asset
+│   └── default-avatar.svg  # Default user avatar
 ├── src/
-│   ├── App.jsx            # Root component with routing
-│   ├── main.jsx           # React entry point
+│   ├── App.jsx            # Root component with React Router setup
+│   ├── main.jsx           # React 18 entry point with StrictMode
+│   ├── App.css            # Global application styles
+│   ├── index.css          # TailwindCSS imports and base styles
+│   ├── assets/            # Static assets and images
 │   ├── components/
 │   │   ├── Layout/        # Navigation & layout components
-│   │   │   ├── Navbar.jsx
-│   │   │   └── Sidebar.jsx
-│   │   └── ui/            # Reusable UI components
-│   │       ├── badge.jsx
-│   │       ├── button.jsx
-│   │       ├── card.jsx
-│   │       ├── input.jsx
-│   │       ├── progress.jsx
-│   │       ├── tabs.jsx
-│   │       ├── PWAInstallPrompt.jsx
-│   │       ├── OfflineIndicator.jsx
-│   │       ├── PageTransition.jsx
-│   │       └── ScreenFatigueReminder.jsx
+│   │   │   ├── Navbar.jsx # Main navigation header
+│   │   │   └── Sidebar.jsx # Mobile sidebar navigation
+│   │   └── ui/            # Reusable UI component library
+│   │       ├── badge.jsx  # Status and category badges
+│   │       ├── button.jsx # Button variants with CVA
+│   │       ├── card.jsx   # Content cards with header/footer
+│   │       ├── input.jsx  # Form input components
+│   │       ├── progress.jsx # Progress bars and indicators
+│   │       ├── tabs.jsx   # Tab navigation components
+│   │       ├── HeroSpline.jsx # 3D hero section with animations
+│   │       ├── PageTransition.jsx # Smooth page transitions
+│   │       ├── ScreenFatigueReminder.jsx # Break reminder system
+│   │       ├── ScrollToTop.jsx # Auto-scroll component
+│   │       ├── UserInterestForm.jsx # User preference form
+│   │       └── custom-css/ # Custom CSS modules
+│   │           ├── LoadingIndicator.css
+│   │           └── PageTransition.css
+│   ├── contexts/          # React Context providers (empty)
 │   ├── hooks/             # Custom React hooks
-│   │   ├── useAuth.js     # Firebase authentication
-│   │   ├── useOfflineStorage.js  # PWA offline data
-│   │   ├── useOfflineSync.js     # Data synchronization
-│   │   ├── usePWA.js      # PWA functionality
-│   │   └── useResponsive.js      # Responsive utilities
-│   ├── lib/               # Core utilities
-│   │   ├── api.js         # API client & endpoints
-│   │   ├── firebase.js    # Firebase configuration
-│   │   └── utils.js       # Helper functions
-│   ├── pages/             # Route components
-│   │   ├── Home.jsx       # Landing page
-│   │   ├── Dashboard.jsx  # User dashboard
-│   │   ├── OfflineDashboard.jsx  # PWA offline mode
+│   │   ├── helper.js      # API base URL helper
+│   │   ├── useAuth.js     # Firebase authentication hook
+│   │   └── useResponsive.js # Responsive design utilities
+│   ├── lib/               # Core utilities and configuration
+│   │   ├── api.js         # Axios API client & endpoints
+│   │   ├── firebase.js    # Firebase v12 configuration
+│   │   └── utils.js       # Utility functions and helpers
+│   ├── pages/             # Route-based page components
+│   │   ├── Home.jsx       # Landing page with hero section
+│   │   ├── Dashboard.jsx  # User dashboard and analytics
 │   │   ├── auth/          # Authentication pages
-│   │   │   ├── Login.jsx
-│   │   │   └── Signup.jsx
-│   │   └── tools/         # Learning tools
-│   │       ├── VisualGenerator.jsx
-│   │       ├── DoubtSolving.jsx
-│   │       ├── Quizzes.jsx
-│   │       ├── ConversationalTutor.jsx
-│   │       ├── Roadmap.jsx
-│   │       └── ResumeBuilder.jsx
-│   └── utils/             # Test utilities
-│       ├── test-pwa.js
-│       ├── test-sync.js
-│       └── test-visual.js
+│   │   │   ├── Login.jsx  # User login with Firebase
+│   │   │   └── Signup.jsx # User registration
+│   │   └── tools/         # AI-powered learning tools
+│   │       ├── VisualGenerator.jsx # Text/PDF to slideshow
+│   │       ├── DoubtSolving.jsx    # AI chatbot for Q&A
+│   │       ├── Quizzes.jsx         # Quiz generation & scoring
+│   │       ├── ConversationalTutor.jsx # AI tutoring system
+│   │       ├── Roadmap.jsx         # Learning path generator
+│   │       └── ResumeBuilder.jsx   # Resume analysis tool
+│   └── utils/             # Testing and development utilities
+│       └── test-visual.js # Visual generator testing
 ```
 
 ## 🛠️ Technology Stack
 
 ### **Core Framework**
-- **React 18.3.1** - Modern React with hooks and Suspense
-- **Vite 6.3.5** - Lightning-fast build tool and dev server
-- **React Router 7.8.0** - Client-side routing with nested routes
+- **React 18.3.1** - Modern React with hooks, Suspense, and concurrent features
+- **Vite 6.3.5** - Next-generation frontend build tool with HMR
+- **React Router DOM 7.8.0** - Declarative routing with nested route support
 
 ### **Styling & UI**
-- **TailwindCSS 4.1.12** - Utility-first CSS framework
-- **Radix UI** - Accessible component primitives
-- **Lucide React** - Beautiful icon library
-- **Class Variance Authority** - Utility for component variants
+- **TailwindCSS 4.1.12** - Utility-first CSS framework with JIT compiler
+- **Radix UI Components** - Accessible, unstyled component primitives
+  - `@radix-ui/react-progress` - Progress indicators
+  - `@radix-ui/react-slot` - Component composition utilities
+  - `@radix-ui/react-tabs` - Tab navigation components
+- **Lucide React 0.539.0** - Beautiful, customizable icon library
+- **Class Variance Authority 0.7.1** - Component variant utilities
+- **Clsx 2.1.1 + Tailwind Merge 3.3.1** - Conditional class name utilities
 
-### **State & Data**
-- **Firebase 12.1.0** - Authentication and real-time database
-- **Axios 1.11.0** - HTTP client for API communication
-- **Custom Hooks** - Offline storage, PWA features, authentication
+### **State & Data Management**
+- **Firebase 12.1.0** - Authentication, Firestore database, and storage
+- **Axios 1.11.0** - Promise-based HTTP client for API communication
+- **Custom React Hooks** - Authentication, responsive design utilities
 
-### **PWA & Performance**
-- **Service Worker** - Background sync and caching
-- **Web App Manifest** - App metadata and install prompts
-- **Offline Storage** - Real data caching with localStorage
-- **Lazy Loading** - Code splitting and route-based loading
-
-### **Development Tools**
-- **ESLint 9.9.1** - Code linting with React rules
-- **TypeScript Config** - Type checking for Vite config
-- **PostCSS** - CSS processing with Autoprefixer
-- **Vercel** - Deployment and hosting platform
+### **Development & Build Tools**
+- **ESLint 9.9.1** - Code linting with modern React rules
+- **PostCSS 8.5.6** - CSS processing with Autoprefixer
+- **TailwindCSS Plugins**:
+  - `@tailwindcss/forms` - Form styling utilities
+  - `@tailwindcss/typography` - Rich text formatting
+  - `@tailwindcss/vite` - Vite integration plugin
+- **TypeScript Support** - Type checking for configuration files
+- **Vercel Integration** - Optimized deployment configuration
 
 ## 🔧 Available Scripts
 
@@ -197,7 +206,7 @@ npm run lint     # Run ESLint code checking
 The client communicates with the Edvanta backend through a centralized API client (`lib/api.js`):
 
 ### **Endpoints**
-- **Visual Generation**: `/api/visual/text-to-video`, `/api/visual/pdf-url-to-video`
+### **Visual Generation**: `/api/visual/text-to-video`, `/api/visual/pdf-url-to-video`
 - **Chatbot**: `/api/chat`, `/api/chat/history/{user_email}`
 - **Quizzes**: `/api/quizzes/generate`, `/api/quizzes/score`
 - **Tutoring**: `/api/tutor/ask`, `/api/tutor/voice`
@@ -210,46 +219,26 @@ The app automatically detects environment and switches API URLs:
 - **Development**: `VITE_API_BASE_URL` (localhost:5000)
 - **Production**: `VITE_PRODUCTION_API_URL` (deployed backend)
 
-## 📱 Progressive Web App Features
-
-### **Offline Functionality**
-- **Real Data Only**: No dummy data - only cached real content available offline
-- **Smart Caching**: Automatically caches API responses when online
-- **Offline Indicators**: Visual feedback for offline status
-- **Offline Dashboard**: Dedicated offline experience with cached data
-- **Background Sync**: Data synchronizes when connection restored
-
-### **Installation**
-- **Add to Home Screen**: Install prompt for mobile devices
-- **App-like Experience**: Standalone display mode
-- **Shortcuts**: Quick access to key features
-- **Icons & Branding**: Custom app icons and splash screens
-
-### **Performance**
-- **Service Worker**: Caches assets and API responses
-- **Lazy Loading**: Routes and components loaded on demand
-- **Image Optimization**: Responsive images with proper sizing
-- **Bundle Splitting**: Optimized JavaScript chunks
-
 ## 🎨 UI/UX Features
 
 ### **Design System**
-- **Component Library**: Consistent, reusable UI components
-- **Responsive Design**: Mobile-first with breakpoint optimization
-- **Accessibility**: WCAG compliant with keyboard navigation
-- **Color Palette**: Brand-consistent theming throughout
+- **Component Library**: Consistent, reusable UI components with Radix primitives
+- **Responsive Design**: Mobile-first approach with TailwindCSS breakpoints
+- **Accessibility**: WCAG compliant with proper ARIA labels and keyboard navigation
+- **Modern Animations**: Smooth transitions with CSS transforms and Framer Motion patterns
 
-### **User Experience**
-- **Page Transitions**: Smooth animations between routes
-- **Loading States**: Skeleton screens and progress indicators
-- **Error Handling**: Graceful error boundaries and user feedback
-- **Screen Fatigue**: Built-in break reminders for healthy usage
+### **User Experience Enhancements**
+- **Page Transitions**: Smooth animations between routes with loading states
+- **Loading States**: Skeleton screens and progress indicators throughout the app
+- **Error Handling**: Graceful error boundaries with user-friendly messages
+- **Screen Fatigue Prevention**: Smart break reminders with timer reset functionality
+- **Responsive Navigation**: Adaptive navbar with mobile-optimized sidebar
 
 ### **Interactive Features**
-- **Real-time Updates**: Live data synchronization
-- **Drag & Drop**: File uploads for PDFs and media
-- **Voice Recording**: Built-in audio recording for tutor sessions
-- **Progress Tracking**: Visual progress indicators throughout app
+- **Real-time Feedback**: Live validation and instant UI updates
+- **File Upload Support**: Drag & drop functionality for PDF and media files
+- **Form Optimization**: Debounced inputs and auto-save functionality
+- **Visual Progress**: Step-by-step indicators for multi-stage processes
 
 ## ⚙️ Configuration
 
@@ -292,54 +281,50 @@ VITE_ENVIRONMENT=development    # Force development mode
 ## 🔍 Debugging & Development
 
 ### **Development Tools**
-- **React DevTools** - Component inspection and profiling
-- **Redux DevTools** - State management debugging
-- **Network Tab** - API request monitoring
-- **Application Tab** - Service worker and storage inspection
+- **React DevTools** - Component inspection, profiling, and state management
+- **Vite DevTools** - Build analysis and dependency inspection
+- **Network Tab** - API request monitoring and performance analysis
+- **Console Debugging** - Enhanced error logging and development warnings
 
-### **Debug Components**
-- **LocalStorageInspector** - View cached offline data
-- **SyncDebugger** - Monitor data synchronization
-- **VisualGenerationDiagnostics** - Debug visual content generation
-
-### **Error Boundaries**
-- **Route-level Error Handling** - Graceful error recovery
-- **Component Error Boundaries** - Isolated error containment
-- **Network Error Handling** - Offline-aware error messages
+### **Debug Utilities**
+- **Error Boundaries** - Component-level error isolation and recovery
+- **Network Error Handling** - Graceful API failure management
+- **Form Validation** - Real-time input validation with user feedback
+- **Route Guards** - Authentication state debugging for protected routes
 
 ## 🚀 Performance Optimization
 
 ### **Build Optimizations**
-- **Tree Shaking** - Unused code elimination
-- **Code Splitting** - Route-based bundle splitting
-- **Asset Optimization** - Image compression and lazy loading
-- **CSS Purging** - Unused CSS removal
+- **Vite Bundling** - Optimized production builds with tree shaking
+- **Code Splitting** - Route-based lazy loading for faster initial loads
+- **Asset Optimization** - Image compression and format optimization
+- **CSS Optimization** - PurgeCSS integration with TailwindCSS
 
 ### **Runtime Performance**
-- **Memoization** - React.memo and useMemo for expensive operations
-- **Virtual Scrolling** - Efficient large list rendering
-- **Debounced Inputs** - Optimized search and form interactions
-- **Prefetching** - Strategic resource preloading
+- **React Optimization** - Memoization with React.memo and useMemo
+- **Efficient Re-renders** - Optimized state management and prop drilling prevention
+- **Debounced Interactions** - Smart input handling for search and forms
+- **Conditional Loading** - Feature-based component loading
 
 ### **Caching Strategy**
-- **Static Assets** - Long-term caching with versioning
-- **API Responses** - Smart caching with invalidation
-- **User Data** - Persistent storage for offline access
-- **Media Files** - CDN optimization with Cloudinary
+- **Browser Caching** - Static asset caching with proper cache headers
+- **API Response Caching** - Smart client-side data caching
+- **Component State** - Persistent state management across route changes
+- **CDN Integration** - Optimized asset delivery through Vercel Edge Network
 
-## 📊 Analytics & Monitoring
+## 📊 User Analytics & Monitoring
 
-### **User Analytics**
-- **Learning Progress** - Quiz scores, completion rates
-- **Tool Usage** - Feature adoption and usage patterns
-- **Session Tracking** - Time spent, interaction patterns
-- **Error Tracking** - Client-side error reporting
+### **Learning Analytics**
+- **Quiz Performance** - Score tracking, completion rates, and progress over time
+- **Tool Usage Patterns** - Feature adoption and user engagement metrics
+- **Learning Progress** - Roadmap completion and milestone achievements
+- **Session Tracking** - Time spent per tool and interaction patterns
 
-### **Performance Metrics**
-- **Core Web Vitals** - LCP, FID, CLS measurements
-- **Bundle Analysis** - JavaScript chunk sizes and dependencies
-- **Network Performance** - API response times and failures
-- **PWA Metrics** - Install rates, offline usage
+### **Technical Performance**
+- **Core Web Vitals** - LCP, FID, and CLS measurements for user experience
+- **Bundle Analysis** - JavaScript chunk sizes and dependency optimization
+- **API Performance** - Response times, error rates, and endpoint usage
+- **User Flow Analytics** - Navigation patterns and conversion funnel analysis
 
 ## 🔐 Security
 
@@ -369,8 +354,8 @@ VITE_ENVIRONMENT=development    # Force development mode
 - Use TypeScript for new utilities and configurations
 - Follow React best practices (hooks, functional components)
 - Write responsive CSS with TailwindCSS
-- Test PWA features in offline mode
-- Ensure accessibility compliance
+- Test across different screen sizes and devices
+- Ensure accessibility compliance (WCAG 2.1)
 
 ## 🆘 Troubleshooting
 
@@ -391,8 +376,36 @@ VITE_ENVIRONMENT=development    # Force development mode
 - Check upload preset exists and is unsigned
 - Ensure Cloudinary account limits not exceeded
 
-**"PWA not installing"**
-- Verify `manifest.json` is correctly configured
+### **Debug Mode**
+Enable enhanced debugging during development:
+```bash
+# Development server with detailed logging
+npm run dev
+
+# Build analysis
+npm run build -- --mode development
+
+# Preview production build locally
+npm run preview
+```
+
+**"Vite build failed"**
+- Check for TypeScript errors in `vite.config.ts`
+- Verify all imports use correct file extensions
+- Ensure TailwindCSS configuration is valid
+- Clear node_modules and reinstall dependencies
+
+**"React Router navigation broken"**
+- Verify React Router DOM v7 configuration
+- Check for conflicting route definitions
+- Ensure proper component imports in route definitions
+- Validate nested route structure
+
+**"TailwindCSS styles not applying"**
+- Verify `tailwind.config.js` includes all source paths
+- Check PostCSS configuration in `postcss.config.js`
+- Ensure `@tailwind` directives are in `index.css`
+- Clear browser cache and restart development server
 - Check service worker registration
 - Ensure HTTPS is enabled (production requirement)
 

@@ -15,12 +15,13 @@ Works seamlessly across all hosting platforms without configuration:
 - ✅ **Local Development**
 
 ### **AI-Powered Learning Tools**
-- 🤖 **Conversational Chatbot** - Doubt solving with context-aware responses
-- 📝 **Quiz Generation** - AI-generated quizzes with automatic scoring  
-- 🗺️ **Learning Roadmaps** - Personalized learning paths with milestones
-- 🎥 **Visual Content Generator** - Text/PDF/Audio to educational slideshows
-- 👨‍🏫 **AI Tutor** - Voice & text tutoring with subject expertise
-- 📄 **Resume Builder** - Resume analysis and job-fit scoring
+- 🤖 **Conversational Chatbot** - Context-aware doubt solving with chat history
+- 📝 **Quiz Generation** - AI-generated quizzes with automatic scoring & analytics
+- 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
+- 🎥 **Visual Content Generator** - Text/PDF to educational slideshows (Gemini + Veo 3)
+- 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support
+- 📄 **Resume Builder** - Professional resume analysis & job-fit scoring
+- 📊 **User Analytics** - Comprehensive learning progress & performance tracking
 
 ### **Robust Architecture**
 - 🔄 **Auto-Environment Detection** - Automatically adapts to deployment platform
@@ -89,28 +90,34 @@ The server auto-detects the environment and configures itself automatically.
 
 ```
 server/
-├── index.py                 # WSGI entry point
-├── requirements.txt         # Dependencies (Vercel optimized)
-├── vercel.json             # Vercel configuration
+├── index.py                 # WSGI entry point with serverless support
+├── requirements.txt         # Dependencies (Vercel optimized <250MB)
+├── vercel.json             # Vercel serverless configuration
 ├── .env.example            # Environment variables template
+├── .env                    # Local environment variables
+├── .gitignore              # Git ignore patterns
+├── README.md               # This documentation
 ├── app/
-│   ├── __init__.py         # Application factory
-│   ├── config.py           # Configuration management
-│   ├── routes/             # API endpoints
-│   │   ├── visual.py       # Visual content generation
-│   │   ├── chatbot.py      # Doubt solving chatbot
-│   │   ├── quizzes.py      # Quiz generation & scoring
-│   │   ├── tutor.py        # AI tutoring system
+│   ├── __init__.py         # Application factory with auto-detection
+│   ├── config.py           # Universal configuration management
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── visual.py       # Visual content generation (Veo 3 + Gemini)
+│   │   ├── chatbot.py      # AI doubt solving chatbot
+│   │   ├── quizzes.py      # Quiz generation & scoring system
+│   │   ├── tutor.py        # AI tutoring with voice support
 │   │   ├── roadmap.py      # Learning roadmap creation
-│   │   ├── resume.py       # Resume building & analysis
-│   │   └── user_stats.py   # User statistics & progress
-│   └── utils/              # Utility modules
-│       ├── ai_utils.py     # Gemini AI integration
-│       ├── visual_utils_serverless.py  # Video generation
-│       ├── cloudinary_utils.py         # File uploads
-│       ├── pdf_utils.py    # Document processing
-│       ├── mongo_utils.py  # Database utilities
-│       └── quizzes_utils.py # Quiz logic
+│   │   ├── resume.py       # Resume building & job analysis
+│   │   └── user_stats.py   # User statistics & progress tracking
+│   └── utils/
+│       ├── __init__.py
+│       ├── ai_utils.py     # Gemini AI integration & Veo 3
+│       ├── visual_utils_serverless.py  # Serverless video generation
+│       ├── cloudinary_utils.py         # File uploads & media
+│       ├── pdf_utils.py    # PDF text extraction
+│       ├── mongo_utils.py  # MongoDB utilities
+│       └── quizzes_utils.py # Quiz generation logic
+└── __pycache__/            # Python bytecode cache
 ```
 
 ## 🔧 API Endpoints
@@ -120,9 +127,11 @@ server/
 - `GET /api/runtime-features` - Feature availability status
 
 ### Visual Content Generation
-- `POST /api/visual/text-to-video` - Generate from text
-- `POST /api/visual/pdf-url-to-video` - Generate from PDF URL  
-- `POST /api/visual/audio-to-video` - Generate from audio URL
+- `POST /api/visual/text-to-video` - Generate educational slideshow from text input
+- `POST /api/visual/pdf-url-to-video` - Generate slideshow from PDF document URL
+- `POST /api/visual/audio-url-to-video` - Generate slideshow from audio URL with transcript
+
+**Features:** Powered by Gemini AI for script generation with Veo 3 integration for advanced video creation. Returns structured slideshow data with image slides optimized for educational content.
 
 ### Chatbot & Tutoring
 - `POST /api/chat` - Send chat message
@@ -153,48 +162,63 @@ server/
 
 #### Required
 ```env
-MONGODB_URI=mongodb+srv://...     # MongoDB connection
-GEMINI_API_KEY=AIza...            # Google Gemini API key
+MONGODB_URI=mongodb+srv://...     # MongoDB connection string
+MONGODB_DB_NAME=edvanta           # MongoDB database name
+GEMINI_API_KEY=AIza...            # Google Gemini API key for AI features
 ```
 
 #### Optional
 ```env
-CLOUDINARY_CLOUD_NAME=...         # File uploads
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
+# Flask Configuration
+FLASK_ENV=production              # Environment (development/production)
+SECRET_KEY=your-secret-key        # Flask secret for session security
 
-ALLOWED_ORIGINS=*                 # CORS origins
-SECRET_KEY=your-secret-key        # Flask secret
+# File Upload Service
+CLOUDINARY_CLOUD_NAME=...         # Cloudinary cloud name
+CLOUDINARY_API_KEY=...            # Cloudinary API key  
+CLOUDINARY_API_SECRET=...         # Cloudinary API secret
+
+# CORS & Security
+ALLOWED_ORIGINS=*                 # Comma-separated CORS origins
+
+# AI Model Configuration
+GEMINI_MODEL_NAME=gemini-2.5-flash # Gemini model version
+GEMINI_TEMPERATURE=0.7            # AI creativity level (0.0-1.0)
+GEMINI_TOP_P=0.9                  # AI nucleus sampling
+GEMINI_TOP_K=40                   # AI top-k sampling
 ```
 
 ### Auto-Detection Features
-The server automatically detects:
-- **Environment** (development/production)
-- **Platform** (Vercel, AWS, Heroku, etc.)
-- **Debug Mode** (disabled in production)
-- **Available Libraries** (graceful fallbacks)
+The server automatically detects and configures:
+- **Environment** - development/production based on platform indicators
+- **Platform** - Vercel, AWS Lambda, Heroku, Google Cloud, Netlify
+- **Serverless Mode** - Optimizes for serverless deployment automatically  
+- **Debug Mode** - Enabled only in local development
+- **Database Connectivity** - MongoDB connection with fallback modes
+- **API Dependencies** - Graceful degradation when services unavailable
+- **Logging Level** - Debug in development, Info in production
 
 ## 🛠️ Technology Stack
 
 ### Core Framework
-- **Flask 3.1.1** - Web framework
-- **Flask-CORS** - Cross-origin resource sharing
-- **Python-dotenv** - Environment management
+- **Flask 3.1.1** - Lightweight web framework with WSGI support
+- **Flask-CORS 5.0.0** - Universal cross-origin resource sharing
+- **Python-dotenv** - Environment variable management
 
 ### AI & Machine Learning
-- **Google Generative AI** - Gemini API integration
-- **Google Auth** - Authentication utilities
+- **Google Generative AI 0.8.0+** - Gemini AI integration with Veo 3
+- **Google Auth 2.22.0+** - Google authentication utilities
 
 ### Database & Storage  
-- **PyMongo 4.6.1** - MongoDB driver
-- **Cloudinary** - File/image hosting
-- **Requests** - HTTP client
+- **PyMongo 4.6.1** - MongoDB driver with BSON support
+- **Cloudinary 1.34.0+** - Cloud file/video/image hosting
+- **Requests 2.31.0+** - HTTP client for external APIs
 
 ### Document Processing
-- **PyPDF 4.0+** - PDF text extraction
-- **Python-docx** - Word document processing
-- **ReportLab** - PDF generation
-- **Pillow** - Image processing
+- **PyPDF 4.0+** - Modern PDF text extraction (replaces PyPDF2)
+- **Python-docx 1.0+** - Microsoft Word document processing
+- **ReportLab 4.2.0+** - Professional PDF generation
+- **Pillow 10.0+** - Lightweight image manipulation
 
 ## 🔍 Monitoring & Health Checks
 

@@ -5,23 +5,24 @@
 # Edvanta
 **AI-powered personalised learning & career acceleration platform**
 
-A comprehensive full-stack Progressive Web App (PWA) that revolutionizes education through artificial intelligence, offering personalized learning tools, offline capabilities, and seamless deployment across any platform.
+A comprehensive full-stack educational platform that revolutionizes learning through artificial intelligence, offering personalized learning tools, beautiful responsive design, and seamless deployment across any platform.
 
 ## 🌟 Key Features
 
 ### **AI-Powered Learning Ecosystem**
-- 🎥 **Visual Content Generator** - Convert text/PDF/audio into educational slideshows
+- 🎥 **Visual Content Generator** - Convert text/PDF to educational slideshows (text-only input)
 - 🤖 **Intelligent Chatbot** - Context-aware doubt solving with conversation history
 - 📝 **Smart Quiz System** - AI-generated personalized quizzes with automatic scoring
-- 👨‍🏫 **AI Tutor** - Voice & text-based conversational tutoring
+- 👨‍🏫 **AI Tutor** - Interactive conversational tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
 - 📄 **Resume Builder** - AI-powered resume analysis and job-fit optimization
 
-### **Progressive Web App (PWA)**
-- 📱 **Offline-First Design** - Real data caching for uninterrupted learning
-- 📲 **App-like Experience** - Installable with native app feel
-- 🔄 **Background Sync** - Automatic data synchronization when online
-- ⚡ **Lightning Fast** - Service worker caching and optimized loading
+### **Modern React Application**
+- 📱 **Responsive Design** - Mobile-first interface optimized for all devices
+- ⚡ **Lightning Fast** - Vite build system with optimized performance
+- 🎨 **Beautiful UI** - TailwindCSS with Radix UI components
+- 🔥 **Hot Reload** - Instant development feedback with Vite HMR
+- 🌙 **Screen Fatigue Prevention** - Smart break reminders with timer reset
 
 ### **Universal Deployment**
 - 🌐 **Platform Agnostic** - Works on Vercel, AWS, Heroku, Google Cloud, locally
@@ -33,11 +34,11 @@ A comprehensive full-stack Progressive Web App (PWA) that revolutionizes educati
 
 ```mermaid
 graph TB
-    subgraph "Frontend (React PWA)"
-        A[React App] --> B[Service Worker]
-        A --> C[Firebase Auth]
-        A --> D[Offline Storage]
-        B --> E[Background Sync]
+    subgraph "Frontend (React App)"
+        A[React App] --> B[Firebase Auth]
+        A --> C[TailwindCSS UI]
+        A --> D[Vite Build System]
+        C --> E[Radix UI Components]
     end
     
     subgraph "Backend (Flask API)"
@@ -56,41 +57,49 @@ graph TB
     end
     
     A -.-> F
-    E -.-> F
+    D -.-> F
 ```
 
-**Client (React PWA)** ↔ **REST API (Flask)** ↔ **AI Services (Gemini, Cloudinary, MongoDB)**
+**Client (React App)** ↔ **REST API (Flask)** ↔ **AI Services (Gemini, Cloudinary, MongoDB)**
 
 ## 📁 Project Structure
 
 ```
 Edvanta/
-├── client/                          # React + Vite PWA Frontend
+├── client/                          # React + Vite Frontend Application
 │   ├── src/
 │   │   ├── components/              # Reusable UI components
 │   │   │   ├── Layout/              # Navigation (Navbar, Sidebar)
 │   │   │   └── ui/                  # Design system components
+│   │   │       ├── HeroSpline.jsx   # 3D hero section
+│   │   │       ├── ScreenFatigueReminder.jsx # Break reminder system
+│   │   │       ├── PageTransition.jsx # Smooth transitions
+│   │   │       └── ScrollToTop.jsx  # Auto-scroll component
 │   │   ├── pages/                   # Route components
 │   │   │   ├── auth/                # Login, Signup
-│   │   │   └── tools/               # Learning tools
+│   │   │   └── tools/               # AI learning tools
 │   │   ├── hooks/                   # Custom React hooks
 │   │   │   ├── useAuth.js           # Firebase authentication
-│   │   │   ├── useOfflineStorage.js # PWA offline functionality
-│   │   │   └── usePWA.js            # Progressive Web App features
+│   │   │   ├── useResponsive.js     # Responsive utilities
+│   │   │   └── helper.js            # API base URL helper
 │   │   ├── lib/                     # Core utilities
 │   │   │   ├── api.js               # Centralized API client
 │   │   │   ├── firebase.js          # Firebase configuration
 │   │   │   └── utils.js             # Helper functions
 │   │   └── utils/                   # Development utilities
+│   │       └── test-visual.js       # Visual generator testing
 │   ├── public/
-│   │   ├── manifest.json            # PWA manifest
-│   │   └── sw.js                    # Service worker
+│   │   ├── manifest.json            # Web app manifest
+│   │   ├── edvanta-logo.png         # Brand logo
+│   │   └── default-avatar.svg       # Default user avatar
 │   ├── package.json                 # Dependencies & scripts
-│   └── vite.config.ts               # Vite configuration
+│   ├── vite.config.ts               # Vite configuration
+│   ├── tailwind.config.js           # TailwindCSS setup
+│   └── eslint.config.js             # ESLint configuration
 └── server/                          # Flask Backend API
     ├── app/
-    │   ├── __init__.py              # Application factory
-    │   ├── config.py                # Environment configuration
+    │   ├── __init__.py              # Application factory with auto-detection
+    │   ├── config.py                # Universal environment configuration
     │   ├── routes/                  # API endpoints (blueprints)
     │   │   ├── visual.py            # Visual generation endpoints
     │   │   ├── chatbot.py           # Chatbot & Q&A
@@ -101,12 +110,14 @@ Edvanta/
     │   │   └── user_stats.py        # Analytics & progress
     │   └── utils/                   # Service integrations
     │       ├── ai_utils.py          # Gemini AI integration
-    │       ├── visual_utils_serverless.py # Video generation
+    │       ├── visual_utils_serverless.py # Serverless video generation
     │       ├── cloudinary_utils.py  # File uploads
-    │       └── mongo_utils.py       # Database utilities
-    ├── requirements.txt             # Python dependencies
+    │       ├── pdf_utils.py         # PDF text extraction
+    │       ├── mongo_utils.py       # Database utilities
+    │       └── quizzes_utils.py     # Quiz generation logic
+    ├── requirements.txt             # Python dependencies (Vercel optimized)
     ├── vercel.json                  # Vercel deployment config
-    └── index.py                     # WSGI entry point
+    └── index.py                     # WSGI entry point with serverless support
 ```
 
 ## 🚀 Quick Start
@@ -227,10 +238,11 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
 
 ### Visual Content Generation
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/visual/text-to-video` | Generate slideshow from text |
-| `POST` | `/api/visual/pdf-url-to-video` | Generate slideshow from PDF |
-| `POST` | `/api/visual/audio-to-video` | Generate slideshow from audio |
+|--------|-----------|-----------|
+| `POST` | `/api/visual/text-to-video` | Generate slideshow from text input |
+| `POST` | `/api/visual/pdf-url-to-video` | Generate slideshow from PDF document |
+
+**Note**: Audio processing temporarily disabled - text and PDF input only.
 
 ### AI Learning Tools
 | Method | Endpoint | Description |
@@ -254,12 +266,14 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
 ## 🛠️ Technology Stack
 
 ### 🎨 Frontend Stack
-- **React 18.3.1** - Modern React with hooks and Suspense
-- **Vite 6.3.5** - Lightning-fast build tool and dev server
-- **TailwindCSS 4.1.12** - Utility-first CSS framework
-- **Radix UI** - Accessible component primitives
-- **Firebase 12.1.0** - Authentication and real-time features
-- **Service Workers** - PWA offline functionality
+- **React 18.3.1** - Modern React with hooks, Suspense, and concurrent features
+- **Vite 6.3.5** - Next-generation frontend build tool with HMR
+- **React Router DOM 7.8.0** - Declarative routing with nested route support
+- **TailwindCSS 4.1.12** - Utility-first CSS framework with JIT compiler
+- **Radix UI Components** - Accessible, unstyled component primitives
+- **Lucide React 0.539.0** - Beautiful, customizable icon library
+- **Firebase 12.1.0** - Authentication and Firestore database
+- **Axios 1.11.0** - Promise-based HTTP client for API communication
 
 ### ⚙️ Backend Stack
 - **Flask 3.1.1** - Lightweight web framework
@@ -275,25 +289,25 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
 - **Firebase** - Authentication and real-time database
 - **Vercel** - Serverless deployment platform
 
-## 📱 Progressive Web App Features
+## 🎨 Modern React Features
 
-### 🔄 Offline Capabilities
-- **Smart Caching** - Real data caching when online
-- **Offline Dashboard** - Dedicated offline experience
-- **Background Sync** - Auto-sync when connection restored
-- **Offline Indicators** - Visual feedback for connectivity status
+### 🚀 Performance & Development
+- **Vite Build System** - Lightning-fast development with HMR
+- **Code Splitting** - Route-based lazy loading for optimal performance
+- **Tree Shaking** - Optimized production builds with unused code elimination
+- **Modern Bundling** - Efficient JavaScript chunks and asset optimization
 
-### 📲 Native App Experience
-- **Installable** - Add to home screen on mobile/desktop
-- **App Shortcuts** - Quick access to key features
-- **Standalone Mode** - Full-screen app experience
-- **Push Notifications** - Learning progress updates
+### 📱 User Experience
+- **Responsive Design** - Mobile-first approach with TailwindCSS breakpoints
+- **Smooth Transitions** - Page transitions and loading states
+- **Screen Fatigue Prevention** - Smart break reminders with timer reset functionality
+- **Error Boundaries** - Graceful error handling with user-friendly messages
 
-### ⚡ Performance Optimizations
-- **Service Worker** - Aggressive caching strategy
-- **Code Splitting** - Route-based lazy loading
-- **Image Optimization** - Responsive and compressed images
-- **Bundle Analysis** - Optimized JavaScript chunks
+### ⚡ Interactive Features
+- **Real-time Feedback** - Live validation and instant UI updates
+- **File Upload Support** - Drag & drop functionality for PDF documents
+- **Form Optimization** - Debounced inputs and real-time validation
+- **Progressive Enhancement** - Core functionality works without JavaScript
 
 ## 🔐 Security Features
 
@@ -380,15 +394,28 @@ pip install -r requirements.txt  # Install dependencies
 - Confirm `GEMINI_API_KEY` is valid
 - Check API quota limits (free tier: 15 requests/min)
 
-**"PWA not installing"**
-- Ensure HTTPS in production
-- Verify `manifest.json` is properly configured
+**"Vite build failed"**
+- Check for TypeScript errors in `vite.config.ts`
+- Verify all imports use correct file extensions
+- Ensure TailwindCSS configuration is valid
+- Clear node_modules and reinstall dependencies
+
+**"React Router navigation broken"**
+- Verify React Router DOM v7 configuration  
+- Check for conflicting route definitions
+- Ensure proper component imports in route definitions
 
 ### Debug Mode
-Enable debug components for development:
-```jsx
-import { LocalStorageInspector } from './components/ui/LocalStorageInspector'
-import { SyncDebugger } from './components/ui/SyncDebugger'
+Enable enhanced debugging during development:
+```bash
+# Development with detailed logging
+npm run dev
+
+# Build analysis
+npm run build -- --mode development
+
+# Preview production build
+npm run preview
 ```
 
 ## Contributors
@@ -412,7 +439,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **🚀 Built for the Future of Education**
 
-Edvanta combines cutting-edge AI technology with modern web development practices to create a scalable, accessible, and powerful learning platform that works anywhere, anytime.
+Edvanta combines cutting-edge AI technology with modern React development practices to create a scalable, accessible, and powerful learning platform that delivers exceptional user experiences across all devices.
 
 ## Contributors
 
