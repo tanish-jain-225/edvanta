@@ -74,12 +74,48 @@ const UI_TEXT = {
   connectionError: "Connection error. Please try again.",
   microphoneBlocked: "Microphone access is blocked. Please enable it in your browser settings.",
   speechNotSupported: "Speech recognition is not supported in this browser.",
+  networkOffline: "You're currently offline. Please check your internet connection.",
+  sessionError: "Session error occurred. Please try starting a new session.",
+  generalError: "An error occurred. Please try again.",
 };
 
 // Constants for better error handling
 const NETWORK_CHECK_INTERVAL = 5000; // 5 seconds
 
 export function ConversationalTutor() {
+  // Global error boundary state
+  const [hasError, setHasError] = useState(false);
+  const [errorDetails, setErrorDetails] = useState(null);
+
+  // Error boundary effect
+  useEffect(() => {
+    const handleUnhandledError = (event) => {
+      console.error('Unhandled error in ConversationalTutor:', event.error);
+      setHasError(true);
+      setErrorDetails(event.error.message || 'An unexpected error occurred');
+      setLastError({
+        message: 'An unexpected error occurred. Please refresh the page.',
+        timestamp: Date.now()
+      });
+    };
+
+    const handleUnhandledPromiseRejection = (event) => {
+      console.error('Unhandled promise rejection in ConversationalTutor:', event.reason);
+      setLastError({
+        message: 'A network or processing error occurred. Please try again.',
+        timestamp: Date.now()
+      });
+    };
+
+    window.addEventListener('error', handleUnhandledError);
+    window.addEventListener('unhandledrejection', handleUnhandledPromiseRejection);
+
+    return () => {
+      window.removeEventListener('error', handleUnhandledError);
+      window.removeEventListener('unhandledrejection', handleUnhandledPromiseRejection);
+    };
+  }, []);
+
   // Microphone states enum
   const MicState = {
     INACTIVE: "inactive", // Mic is off and not recording
@@ -109,6 +145,13 @@ export function ConversationalTutor() {
   const [checkingForActiveSession, setCheckingForActiveSession] = useState(true);
   const [isStartButtonClicked, setIsStartButtonClicked] = useState(false);
   const [isEndButtonClicked, setIsEndButtonClicked] = useState(false);
+  
+  // Network connectivity state
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  // Speech recognition state tracking
+  const [isRecognitionRestarting, setIsRecognitionRestarting] = useState(false);
+  const restartTimeoutRef = useRef(null);
   
   // Enhanced error handling state
   const [lastError, setLastError] = useState(null);
@@ -169,7 +212,7 @@ export function ConversationalTutor() {
     try {
       const response = await axios.get(
         `${backEndURL}/api/tutor/voice/connection`,
-        { timeout: 10000 }
+        { timeout: 8000 } // Reduced timeout
       );
       
       const responseTime = Date.now() - startTime;
@@ -193,9 +236,14 @@ export function ConversationalTutor() {
         totalRequests: prev.totalRequests + 1,
       }));
       
-      const errorMessage = error.code === 'ECONNABORTED' 
-        ? 'Connection timeout. Please try again.'
-        : 'Could not connect to voice tutor services. Please try again later.';
+      let errorMessage;
+      if (error.code === 'ERR_BAD_RESPONSE' && error.response?.status >= 500) {
+        errorMessage = 'Voice tutor services are temporarily unavailable. Please try again later.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Connection timeout. Please try again.';
+      } else {
+        errorMessage = 'Could not connect to voice tutor services. Please check your connection.';
+      }
         
       setLastError({ message: errorMessage, timestamp: Date.now() });
       return false;
@@ -275,11 +323,15 @@ export function ConversationalTutor() {
   // Update mic state based on app state (speaking/loading)
   useEffect(() => {
     if (isSpeaking || isLoading) {
-      setMicState(MicState.DISABLED);
-    } else if (micState === MicState.DISABLED) {
+      // Only disable if not already disabled to prevent state loops
+      if (micState !== MicState.DISABLED) {
+        setMicState(MicState.DISABLED);
+      }
+    } else if (micState === MicState.DISABLED && isSessionActive) {
+      // Auto-restore to inactive when ready (user can manually start)
       setMicState(MicState.INACTIVE);
     }
-  }, [isSpeaking, isLoading, micState]);
+  }, [isSpeaking, isLoading, micState, isSessionActive]);
 
   // Scroll to bottom of messages - now controlled manually
   const scrollToBottom = () => {
@@ -411,8 +463,8 @@ export function ConversationalTutor() {
     try {
       // Priority 1: Get the active session as quickly as possible
       const response = await axios.get(
-        `${backEndURL}/api/tutor/session/active?userEmail=${user.email}`
-        // No timeout limit to ensure active sessions are always fetched
+        `${backEndURL}/api/tutor/session/active?userEmail=${user.email}`,
+        { timeout: 8000 } // Add timeout to prevent hanging on server errors
       );
 
       if (!response.data.success) {
@@ -519,17 +571,23 @@ export function ConversationalTutor() {
     } catch (error) {
       console.error("Error checking for active session:", error);
 
-      // Add retry logic for transient errors
+      // Handle different types of errors gracefully
+      if (error.code === 'ERR_BAD_RESPONSE' && error.response?.status === 500) {
+        // Server error - continue without session restoration
+        console.warn("Server error when checking for active sessions. Continuing without session restoration.");
+        
+        // Don't show error to user, just continue normally
+        setCheckingForActiveSession(false);
+        await enforceMinimumLoadingTime(startTime);
+        return;
+      }
+      
       if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
-        const timeoutMessage = {
-          id: generateMessageId('system'),
-          role: "system",
-          content:
-            "Connection timed out while checking for active sessions. Please try refreshing the page.",
-          timestamp: new Date().toISOString(),
-        };
-
-        setMessages((prev) => [...prev, timeoutMessage]);
+        // Timeout error - show user-friendly message but don't block the app
+        console.warn("Timeout when checking for active sessions. Continuing without session restoration.");
+      } else {
+        // Network or other errors - continue without showing error
+        console.warn("Error when checking for active sessions. Continuing without session restoration:", error.message);
       }
     } finally {
       // Ensure minimum loading time of 2 seconds before finishing
@@ -552,23 +610,42 @@ export function ConversationalTutor() {
     }
   }, [messages, isVoiceEnabled]);
 
-  // Initialize speech recognition - robust initialization
+  // Initialize speech recognition - simplified for reliability
   useEffect(() => {
-    // Only initialize recognition when we need it
-    if (micState === MicState.ACTIVE) {
-      initializeSpeechRecognition();
+    // Only initialize recognition when mic is active and session is active
+    if (micState === MicState.ACTIVE && isSessionActive) {
+      // Don't initialize if already exists and working
+      if (speechRecognitionRef.current) {
+        return;
+      }
+      
+      // Small delay to ensure clean state
+      const initTimer = setTimeout(() => {
+        if (micState === MicState.ACTIVE && isSessionActive) {
+          initializeSpeechRecognition();
+        }
+      }, 100);
+      
+      return () => clearTimeout(initTimer);
     }
 
-    // Always clean up on component unmount
-    return () => {
+    // Clean up when mic is not active
+    if (micState === MicState.INACTIVE && speechRecognitionRef.current) {
       cleanupSpeechRecognition();
-    };
-  }, [micState]);
+    }
+  }, [micState, isSessionActive]);
 
-  // Initialize speech recognition
+  // Initialize speech recognition - simplified version
   const initializeSpeechRecognition = () => {
-    // Clean up any existing instances
-    cleanupSpeechRecognition();
+    // Clean up any existing recognition first
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch (e) {
+        // Ignore errors
+      }
+      speechRecognitionRef.current = null;
+    }
 
     try {
       // Check if the browser supports SpeechRecognition
@@ -576,33 +653,43 @@ export function ConversationalTutor() {
         window.SpeechRecognition || window.webkitSpeechRecognition;
 
       if (!SpeechRecognition) {
-        console.error("Speech recognition not supported");
-        alert(
-          "Your browser doesn't support speech recognition. Try using Chrome, Edge, or Safari."
-        );
+        setLastError({
+          message: "Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.",
+          timestamp: Date.now()
+        });
         setMicState(MicState.INACTIVE);
         return;
       }
 
       const recognition = new SpeechRecognition();
-      recognition.continuous = true; // Allow for continuous recording
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
+
+      // Add flags for state tracking
+      recognition.manualStop = false;
+      recognition.messageSent = false;
 
       recognition.onstart = () => {
         setTranscript("");
+        setLastError(null); // Clear any previous errors
+        setIsRecognitionRestarting(false); // Mark restart as complete
       };
 
       recognition.onresult = (event) => {
+        if (!event.results) return;
+        
         let finalTranscript = "";
         let interimTranscript = "";
 
         // Process all results, separating final from interim
         for (let i = 0; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+            finalTranscript += transcript;
           } else {
-            interimTranscript += event.results[i][0].transcript;
+            interimTranscript += transcript;
           }
         }
 
@@ -611,32 +698,21 @@ export function ConversationalTutor() {
 
         // Set the complete transcript
         setTranscript(completeTranscript.trim());
-
-        // No auto-stop timeout needed as we want the mic to stay on until user manually stops it
       };
 
       recognition.onerror = (event) => {
-        // Only log non-routine errors
-        if (event.error !== "no-speech") {
-          console.error("Speech recognition error", event.error);
-        }
-
-        // Handle different types of speech recognition errors
+        console.log('Recognition error:', event.error);
+        
+        // Handle different types of speech recognition errors gracefully
         switch (event.error) {
           case "no-speech":
-            // This is normal - user might just be thinking, don't show error
-            // Automatically restart recognition if mic should still be active
-            if (micState === MicState.ACTIVE) {
-              setTimeout(() => {
-                if (micState === MicState.ACTIVE && speechRecognitionRef.current) {
-                  try {
-                    speechRecognitionRef.current.start();
-                  } catch (restartError) {
-                    console.warn("Could not restart recognition after no-speech:", restartError);
-                  }
-                }
-              }, 100); // Small delay to prevent rapid restart loops
-            }
+            // This is normal - user might just be thinking, keep mic active
+            console.log('No speech detected, mic remains active');
+            break;
+            
+          case "aborted":
+            // Speech recognition was aborted - usually during stop/start
+            console.log('Recognition aborted');
             break;
             
           case "not-allowed":
@@ -645,72 +721,62 @@ export function ConversationalTutor() {
               message: UI_TEXT.microphoneBlocked,
               timestamp: Date.now() 
             });
-            setMicState(MicState.DISABLED);
+            setMicState(MicState.INACTIVE);
             break;
             
           case "network":
+            // Don't disable on network errors, just show warning
             setLastError({ 
-              message: "Network error during speech recognition. Check your connection.",
+              message: "Network issue during speech recognition. Please try again.",
               timestamp: Date.now() 
             });
+            setMicState(MicState.INACTIVE);
             break;
             
           case "audio-capture":
             setLastError({ 
-              message: "Microphone not available. Check your device settings.",
+              message: "Microphone temporarily unavailable. Please try again.",
               timestamp: Date.now() 
             });
-            setMicState(MicState.DISABLED);
+            setMicState(MicState.INACTIVE);
+            break;
+            
+          case "language-not-supported":
+            setLastError({ 
+              message: "Speech recognition language not supported.",
+              timestamp: Date.now() 
+            });
+            setMicState(MicState.INACTIVE);
             break;
             
           default:
+            console.warn("Speech recognition error:", event.error);
             setLastError({ 
-              message: `Speech recognition error: ${event.error}. Try refreshing the page.`,
+              message: "Speech recognition error. Please try again.",
               timestamp: Date.now() 
             });
-        }
-        
-        // Auto-stop mic on certain errors to prevent continuous failures
-        if (event.error !== "no-speech") {
-          setMicState(MicState.INACTIVE);
+            setMicState(MicState.INACTIVE);
         }
       };
 
       recognition.onend = () => {
-        // Check if this was a manual stop and if there's transcript
+        console.log('Recognition ended');
+        
+        // Check if this was a manual stop and handle accordingly
         const wasManualStop = speechRecognitionRef.current?.manualStop === true;
         const messageSent = speechRecognitionRef.current?.messageSent === true;
         const hasTranscript = transcript.trim().length > 0;
-        const shouldStayActive = micState === MicState.ACTIVE && !wasManualStop;
 
-        // Clear the flags
-        if (speechRecognitionRef.current) {
-          speechRecognitionRef.current.manualStop = false;
-          speechRecognitionRef.current.messageSent = false;
-        }
-
-        // If this was a manual stop, transcript exists, and message wasn't already sent from stopMicrophone
+        // If this was a manual stop with transcript and message wasn't sent
         if (wasManualStop && hasTranscript && !messageSent && sessionId) {
           sendMessage(transcript.trim());
         }
 
-        // If mic should stay active (user didn't manually stop), restart recognition
-        if (shouldStayActive) {
-          setTimeout(() => {
-            // Double-check the mic state is still active before restarting
-            if (micState === MicState.ACTIVE) {
-              try {
-                // Create new recognition instance to avoid stale state
-                initializeSpeechRecognition();
-              } catch (restartError) {
-                console.warn("Could not restart recognition on end:", restartError);
-                // If restart fails, set mic to inactive
-                setMicState(MicState.INACTIVE);
-              }
-            }
-          }, 100); // Small delay to ensure clean restart
-        } else {
-          // Only set mic to inactive if it was manually stopped or should not stay active
+        // Clear the recognition reference
+        speechRecognitionRef.current = null;
+        
+        // Set mic to inactive - user must manually restart
+        if (!wasManualStop && micState === MicState.ACTIVE) {
           setMicState(MicState.INACTIVE);
         }
       };
@@ -718,33 +784,59 @@ export function ConversationalTutor() {
       speechRecognitionRef.current = recognition;
 
       // Start the recognition
-      recognition.start();
+      try {
+        recognition.start();
+        console.log('Speech recognition started successfully');
+      } catch (startError) {
+        console.error("Failed to start recognition:", startError);
+        speechRecognitionRef.current = null;
+        setMicState(MicState.INACTIVE);
+        setLastError({
+          message: "Could not start voice recognition. Please check microphone permissions.",
+          timestamp: Date.now()
+        });
+      }
     } catch (error) {
       console.error("Error initializing speech recognition:", error);
       setMicState(MicState.INACTIVE);
-
-      alert("Could not access your microphone. Please check your permissions.");
+      setLastError({
+        message: "Could not initialize speech recognition. Please check your browser compatibility.",
+        timestamp: Date.now()
+      });
     }
   };
 
-  // Clean up speech recognition
+  // Clean up speech recognition - simplified
   const cleanupSpeechRecognition = () => {
+    // Clear any timeouts
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current);
+      restartTimeoutRef.current = null;
+    }
+
     if (recognitionTimeoutRef.current) {
       clearTimeout(recognitionTimeoutRef.current);
       recognitionTimeoutRef.current = null;
     }
 
+    // Stop and clear recognition
     if (speechRecognitionRef.current) {
       try {
+        speechRecognitionRef.current.manualStop = true;
         speechRecognitionRef.current.stop();
       } catch (error) {
         // Ignore errors when stopping
       }
       speechRecognitionRef.current = null;
     }
+    
+    // Clear restart state
+    setIsRecognitionRestarting(false);
   };
 
-  // Microphone button click handler - completely revised for reliability
+  // Removed safeRestartRecognition to prevent automatic restart loops
+
+  // Microphone button click handler - voice only
   const handleMicrophoneClick = () => {
     if (micState === MicState.INACTIVE) {
       startMicrophone();
@@ -758,55 +850,31 @@ export function ConversationalTutor() {
     cleanupSpeechRecognition();
     setMicState(MicState.INACTIVE);
     setTranscript("");
-
-    // Check microphone permission and availability
-    checkMicrophoneAvailability();
   };
 
-  // Check if microphone is available and has permission
+  // Simplified microphone permission check - removed unnecessary getUserMedia call
   const checkMicrophoneAvailability = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Stop all tracks to release the microphone
-      stream.getTracks().forEach((track) => track.stop());
-
-      // If we're in an active session, set a system message to confirm mic is working
-      if (isSessionActive) {
-        const successMessage = {
-          id: generateMessageId('system'),
-          role: "system",
-          content: "Microphone is now connected and ready to use.",
-          timestamp: new Date().toISOString(),
-        };
-
-        setMessages((prev) => [...prev, successMessage]);
+      // Simple permission check without actually accessing the microphone
+      const permissions = await navigator.permissions.query({ name: 'microphone' });
+      
+      if (permissions.state === 'denied') {
+        const errorMessage = "Microphone access is blocked. Please allow microphone access in your browser settings and refresh the page.";
+        setLastError({ message: errorMessage, timestamp: Date.now() });
+        return false;
       }
+      
+      // Clear any previous errors
+      setLastError(null);
+      return true;
     } catch (error) {
-      console.error("❌ Microphone access error:", error);
-
-      // Add a helpful system message
-      if (isSessionActive) {
-        const errorMessage = {
-          id: generateMessageId('system'),
-          role: "system",
-          content:
-            "Could not access your microphone. Please check your browser permissions and try again.",
-          timestamp: new Date().toISOString(),
-        };
-
-        setMessages((prev) => [...prev, errorMessage]);
-      } else {
-        // Show error if not in a session yet
-        setLastError({ 
-          message: UI_TEXT.microphoneBlocked,
-          timestamp: Date.now() 
-        });
-      }
+      // Fallback for browsers that don't support permissions API
+      console.warn("Could not check microphone permissions:", error);
+      return true; // Assume permission is granted and let speech recognition handle it
     }
   };
 
-  // Start microphone function - ultra robust implementation
+  // Enhanced microphone control functions
   const startMicrophone = () => {
     if (!isSessionActive) {
       setLastError({ 
@@ -819,8 +887,15 @@ export function ConversationalTutor() {
     // Stop any ongoing speech, but do NOT auto-mic-on to avoid recursion
     stopSpeaking(false);
 
-    // Clear any previous transcript
+    // Clean up any existing recognition completely
+    cleanupSpeechRecognition();
+
+    // Clear any previous transcript and errors
     setTranscript("");
+    setLastError(null);
+
+    // Reset restart state when manually starting microphone
+    setIsRecognitionRestarting(false);
 
     // Set the mic state to active
     setMicState(MicState.ACTIVE);
@@ -907,9 +982,16 @@ export function ConversationalTutor() {
         utterance.onend = () => {
           setIsSpeaking(false);
           setCurrentSpeakingMessageId(null);
-          // Auto-on mic after AI voice ends, if session is active and mic is not already active
+          synthesisUtteranceRef.current = null;
+          
+          // Auto-restart mic after AI voice ends for continuous conversation
           if (isSessionActive && micState !== MicState.ACTIVE) {
-            startMicrophone();
+            setTimeout(() => {
+              // Double-check session is still active before restarting
+              if (isSessionActive && micState !== MicState.ACTIVE) {
+                setMicState(MicState.ACTIVE);
+              }
+            }, 500); // Slightly longer delay to ensure speech is completely finished
           }
         };
 
@@ -920,10 +1002,11 @@ export function ConversationalTutor() {
           }
           setIsSpeaking(false);
           setCurrentSpeakingMessageId(null);
+          synthesisUtteranceRef.current = null;
           // Only auto-restart mic for actual errors, not interruptions
           if (event.error !== "interrupted" && event.error !== "canceled" &&
               isSessionActive && micState !== MicState.ACTIVE) {
-            startMicrophone();
+            setTimeout(() => setMicState(MicState.ACTIVE), 200);
           }
         };
 
@@ -992,10 +1075,16 @@ export function ConversationalTutor() {
         // Mark that we're intentionally stopping to prevent error logs
         speechSynthesisRef.current.intentionalStop = true;
         speechSynthesisRef.current.cancel();
+        // Force cancel by pausing and resuming
+        speechSynthesisRef.current.pause();
+        speechSynthesisRef.current.resume();
+        speechSynthesisRef.current.cancel();
       }
 
       // Method 2: Clear the utterance reference to prevent conflicts
       if (synthesisUtteranceRef.current) {
+        synthesisUtteranceRef.current.onend = null;
+        synthesisUtteranceRef.current.onerror = null;
         synthesisUtteranceRef.current = null;
       }
     } catch (error) {
@@ -1009,10 +1098,12 @@ export function ConversationalTutor() {
 
     // Auto-on mic if requested, session is active, and mic is not already active
     if (autoMicOn && isSessionActive && micState !== MicState.ACTIVE) {
-      // Small delay to ensure speech is fully stopped
+      // Small delay to ensure speech is fully stopped, then start mic
       setTimeout(() => {
-        startMicrophone();
-      }, 100);
+        if (isSessionActive && micState !== MicState.ACTIVE) {
+          setMicState(MicState.ACTIVE);
+        }
+      }, 300);
     }
   };
 
@@ -1144,22 +1235,6 @@ export function ConversationalTutor() {
     // First check connection to backend services
     const connectionSuccessful = await checkBackendConnection();
     if (!connectionSuccessful) {
-      setIsStartingSession(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // Check microphone before starting
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Stop all tracks to release the microphone
-      stream.getTracks().forEach((track) => track.stop());
-    } catch (error) {
-      console.error("Microphone access error:", error);
-      setLastError({ 
-        message: UI_TEXT.microphoneBlocked, 
-        timestamp: Date.now() 
-      });
       setIsStartingSession(false);
       setIsLoading(false);
       return;
@@ -1380,33 +1455,36 @@ export function ConversationalTutor() {
     }
   };
 
-  // Send voice message to tutor with session validation
+  // Send voice message to tutor with session validation - BULLETPROOF VERSION
   const sendMessage = async (voiceText) => {
-    if (!voiceText.trim()) {
-      return;
-    }
-
-    const activeSessionId = currentSessionId || sessionId;
-    if (!activeSessionId) {
-      console.error("No active session, cannot send message");
-      setLastError({ 
-        message: "No active session. Please start a new session first.",
-        timestamp: Date.now() 
-      });
-      return;
-    }
-
-    // Validate session is still active
-    if (!isSessionActive) {
-      console.error("Session is no longer active");
-      setLastError({ 
-        message: "Session has ended. Please start a new session.",
-        timestamp: Date.now() 
-      });
-      return;
-    }
-
     try {
+      if (!voiceText || !voiceText.trim()) {
+        return;
+      }
+
+      const activeSessionId = currentSessionId || sessionId;
+      if (!activeSessionId) {
+        console.warn("No active session, cannot send message");
+        setLastError({ 
+          message: "No active session. Please start a new session first.",
+          timestamp: Date.now() 
+        });
+        return;
+      }
+
+      // Validate session is still active
+      if (!isSessionActive) {
+        console.warn("Session is no longer active");
+        setLastError({ 
+          message: "Session has ended. Please start a new session.",
+          timestamp: Date.now() 
+        });
+        return;
+      }
+
+      // Clear any previous errors
+      setLastError(null);
+
       // Get last 10 messages for context - ensure they're from current session
       const conversationHistory = messages
         .filter(msg => {
@@ -1427,7 +1505,7 @@ export function ConversationalTutor() {
       const userMessage = {
         id: generateMessageId('user'),
         role: "user",
-        content: voiceText,
+        content: voiceText.trim(),
         isVoiceInput: true,
         timestamp: new Date().toISOString(),
         hasContext: hasContext,
@@ -1891,11 +1969,12 @@ export function ConversationalTutor() {
                         : "default"
                   }
                   size="icon"
-                  className={`h-14 w-14 rounded-full shadow-md hover:shadow-lg ${micState === MicState.ACTIVE
-                    ? "animate-pulse shadow-red-200"
-                    : micState === MicState.DISABLED
-                      ? "opacity-60 cursor-not-allowed"
-                      : ""
+                  className={`h-14 w-14 rounded-full shadow-md hover:shadow-lg ${
+                    micState === MicState.ACTIVE
+                      ? "animate-pulse shadow-red-200"
+                      : micState === MicState.DISABLED
+                        ? "opacity-60 cursor-not-allowed"
+                        : ""
                     }`}
                   onClick={handleMicrophoneClick}
                   disabled={micState === MicState.DISABLED || isLoading}
@@ -2021,6 +2100,57 @@ export function ConversationalTutor() {
                 )}
               </Button>
             </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* Error Recovery Section */}
+      {lastError && (
+        <div className="fixed bottom-4 right-4 max-w-sm z-50">
+          <Card className="border-destructive bg-destructive/5">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-destructive mb-1">
+                    Error
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {lastError.message}
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLastError(null)}
+                      className="text-xs h-8"
+                    >
+                      Dismiss
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        // Full reset
+                        setLastError(null);
+                        setMicState(MicState.INACTIVE);
+                        cleanupSpeechRecognition();
+                        setTranscript("");
+                        setHasError(false);
+                        setErrorDetails(null);
+                        // Re-initialize if needed
+                        if (isSessionActive) {
+                          setTimeout(() => initializeSpeechRecognition(), 500);
+                        }
+                      }}
+                      className="text-xs h-8"
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </div>
       )}

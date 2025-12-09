@@ -3,7 +3,9 @@ import { Button } from "./button";
 import { X, Eye, Monitor, Clock, Zap } from "lucide-react";
 
 // Configuration: Reminder interval in minutes
-const REMINDER_INTERVAL_MINUTES = 10;
+const REMINDER_INTERVAL_MINUTES = 1;
+// Configuration: Auto tip change interval in seconds
+const AUTO_TIP_CHANGE_SECONDS = 10;
 
 const SCREEN_FATIGUE_TIPS = [
   {
@@ -86,7 +88,7 @@ export function ScreenFatigueReminder() {
         setCurrentTip((prev) => (prev + 1) % SCREEN_FATIGUE_TIPS.length);
         setIsTransitioning(false);
       }, 150); // Half of transition duration
-    }, 10000); // 10 seconds
+    }, AUTO_TIP_CHANGE_SECONDS * 1000); // Convert seconds to milliseconds
 
     return () => clearInterval(interval);
   }, [isVisible, tipCycleKey]); // Include tipCycleKey to restart timer when it changes

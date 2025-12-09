@@ -18,12 +18,12 @@ import Home from "./pages/Home";
 import { Login } from "./pages/auth/Login";
 import { Signup } from "./pages/auth/Signup";
 import { Dashboard } from "./pages/Dashboard";
-import VisualGenerator from "./pages/tools/VisualGenerator";
 import { DoubtSolving } from "./pages/tools/DoubtSolving";
 import { Quizzes } from "./pages/tools/Quizzes";
 import { ConversationalTutor } from "./pages/tools/ConversationalTutor";
 import { Roadmap } from "./pages/tools/Roadmap";
 import { ResumeBuilder } from "./pages/tools/ResumeBuilder";
+import VisualContent from "./pages/tools/VisualContent";
 
 // Preload logo image instantly on app start
 const LOGO_SRC = "/edvanta-logo.png";
@@ -139,16 +139,6 @@ function AppRoutes() {
             }
           />
           <Route
-            path="/tools/visual-generator"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <VisualGenerator />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/tools/doubt-solving"
             element={
               <ProtectedRoute>
@@ -194,6 +184,16 @@ function AppRoutes() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <ResumeBuilder />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tools/visual-content"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <VisualContent />
                 </DashboardLayout>
               </ProtectedRoute>
             }

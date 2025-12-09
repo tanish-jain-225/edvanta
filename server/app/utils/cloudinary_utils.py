@@ -7,7 +7,7 @@ from app.config import Config
 
 
 CLOUDINARY_UPLOAD_URL = f"https://api.cloudinary.com/v1_1/dnihe4ihi/video/upload"
-UPLOAD_PRESET = "podcast-visualizer"
+UPLOAD_PRESET = "edvanta-uploads"
 
 cloudinary.config(
   cloud_name = Config.CLOUDINARY_CLOUD_NAME,

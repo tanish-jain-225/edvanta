@@ -1,6 +1,6 @@
 # Edvanta Backend Server
 
-A Flask-based REST API backend powering the Edvanta educational platform. Features AI-powered learning tools including chatbots, quiz generation, roadmap creation, visual content generation, and more.
+A Flask-based REST API backend powering the Edvanta educational platform. Features AI-powered learning tools including chatbots, quiz generation, roadmap creation, and more.
 
 ## 🌟 Key Features
 
@@ -18,10 +18,10 @@ Works seamlessly across all hosting platforms without configuration:
 - 🤖 **Conversational Chatbot** - Context-aware doubt solving with chat history
 - 📝 **Quiz Generation** - AI-generated quizzes with automatic scoring & analytics
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
-- 🎥 **Visual Content Generator** - Text/PDF to educational slideshows (Gemini + Veo 3)
 - 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support
 - 📄 **Resume Builder** - Professional resume analysis & job-fit scoring
 - 📊 **User Analytics** - Comprehensive learning progress & performance tracking
+- 🎬 **Visual Content Explorer** - Client-side YouTube API integration (no backend required)
 
 ### **Robust Architecture**
 - 🔄 **Auto-Environment Detection** - Automatically adapts to deployment platform
@@ -102,7 +102,6 @@ server/
 │   ├── config.py           # Universal configuration management
 │   ├── routes/
 │   │   ├── __init__.py
-│   │   ├── visual.py       # Visual content generation (Veo 3 + Gemini)
 │   │   ├── chatbot.py      # AI doubt solving chatbot
 │   │   ├── quizzes.py      # Quiz generation & scoring system
 │   │   ├── tutor.py        # AI tutoring with voice support
@@ -111,8 +110,7 @@ server/
 │   │   └── user_stats.py   # User statistics & progress tracking
 │   └── utils/
 │       ├── __init__.py
-│       ├── ai_utils.py     # Gemini AI integration & Veo 3
-│       ├── visual_utils_serverless.py  # Serverless video generation
+│       ├── ai_utils.py     # Gemini AI integration
 │       ├── cloudinary_utils.py         # File uploads & media
 │       ├── pdf_utils.py    # PDF text extraction
 │       ├── mongo_utils.py  # MongoDB utilities
@@ -125,13 +123,6 @@ server/
 ### Core Endpoints
 - `GET /` - Health check
 - `GET /api/runtime-features` - Feature availability status
-
-### Visual Content Generation
-- `POST /api/visual/text-to-video` - Generate educational slideshow from text input
-- `POST /api/visual/pdf-url-to-video` - Generate slideshow from PDF document URL
-- `POST /api/visual/audio-url-to-video` - Generate slideshow from audio URL with transcript
-
-**Features:** Powered by Gemini AI for script generation with Veo 3 integration for advanced video creation. Returns structured slideshow data with image slides optimized for educational content.
 
 ### Chatbot & Tutoring
 - `POST /api/chat` - Send chat message
@@ -206,12 +197,12 @@ The server automatically detects and configures:
 - **Python-dotenv** - Environment variable management
 
 ### AI & Machine Learning
-- **Google Generative AI 0.8.0+** - Gemini AI integration with Veo 3
+- **Google Generative AI 0.8.0+** - Gemini AI integration for learning tools
 - **Google Auth 2.22.0+** - Google authentication utilities
 
 ### Database & Storage  
 - **PyMongo 4.6.1** - MongoDB driver with BSON support
-- **Cloudinary 1.34.0+** - Cloud file/video/image hosting
+- **Cloudinary 1.34.0+** - Cloud file and image hosting
 - **Requests 2.31.0+** - HTTP client for external APIs
 
 ### Document Processing
@@ -235,7 +226,7 @@ Returns:
   "service": "edvanta-backend", 
   "environment": "production",
   "debug": false,
-  "registered_blueprints": ["visual", "chatbot", "quizzes", ...]
+  "registered_blueprints": ["chatbot", "quizzes", "tutor", "roadmap", "resume", "user_stats"]
 }
 ```
 
@@ -301,7 +292,6 @@ The server provides comprehensive user analytics:
 - **Quiz Performance** - Scores, completion rates, topic analysis
 - **Learning Progress** - Roadmap completion, skill development  
 - **Chat Activity** - Question patterns, response satisfaction
-- **Content Generation** - Visual content creation frequency
 - **Session Management** - Active tutoring sessions, duration tracking
 
 ## 🔐 Security

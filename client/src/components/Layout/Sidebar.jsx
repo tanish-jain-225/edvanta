@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import {
   LayoutDashboard,
-  Palette,
   MessageSquare,
   Brain,
   Mic,
@@ -11,17 +10,18 @@ import {
   FileText,
   Trophy,
   Settings,
-  Wifi
+  Wifi,
+  Video
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Visual Generator', href: '/tools/visual-generator', icon: Palette },
   { name: 'Doubt Solving', href: '/tools/doubt-solving', icon: MessageSquare },
   { name: 'Quizzes', href: '/tools/quizzes', icon: Brain },
   { name: 'Voice Tutor', href: '/tools/conversational-tutor', icon: Mic },
   { name: 'Roadmap', href: '/tools/roadmap', icon: MapPin },
   { name: 'Resume Builder', href: '/tools/resume-builder', icon: FileText },
+  { name: 'Visual Content', href: '/tools/visual-content', icon: Video },
 ]
 
 export function Sidebar({ className }) {

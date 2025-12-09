@@ -203,13 +203,6 @@ export function Navbar() {
                       </p>
                       <div className="space-y-2">
                         <Link
-                          to="/tools/visual-generator"
-                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
-                          onClick={closeMobileMenu}
-                        >
-                          Visual Generator
-                        </Link>
-                        <Link
                           to="/tools/doubt-solving"
                           className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
                           onClick={closeMobileMenu}
@@ -243,6 +236,13 @@ export function Navbar() {
                           onClick={closeMobileMenu}
                         >
                           Resume Builder
+                        </Link>
+                        <Link
+                          to="/tools/visual-content"
+                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                          onClick={closeMobileMenu}
+                        >
+                          Visual Content
                         </Link>
                       </div>
                     </div>

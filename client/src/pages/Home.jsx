@@ -12,7 +12,6 @@ import {
 import { Badge } from "../components/ui/badge";
 import { useResponsive } from "../hooks/useResponsive";
 import {
-  Palette,
   MessageSquare,
   Brain,
   Mic,
@@ -25,13 +24,6 @@ import {
 } from "lucide-react";
 
 const features = [
-  {
-    icon: Palette,
-    title: "Visual Generator",
-    description:
-      "Transform text and PDFs into engaging animated lessons with AI-generated visuals and optional video content.",
-    gradient: "from-pink-500 to-rose-500",
-  },
   {
     icon: MessageSquare,
     title: "Doubt Solving",
@@ -120,7 +112,6 @@ const testimonials = [
 
 const comparisons = [
   { feature: "AI-Powered Content Generation", edvanta: true, others: false },
-  { feature: "Animated Visual Lessons", edvanta: true, others: false },
   { feature: "Voice-Based Learning", edvanta: true, others: false },
   { feature: "Career Roadmap Planning", edvanta: true, others: false },
   { feature: "Resume Optimization", edvanta: true, others: false },

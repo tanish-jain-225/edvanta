@@ -5,10 +5,10 @@ Provides consistent AI integration for all features - NO FALLBACKS, MUST WORK!
 
 Features:
 - Google Gemini AI integration (REQUIRED)
-- Google Veo 3 integration (video generation)
+- Google Gemini AI integration for learning tools
 - Conversational AI for tutoring and chatbot
 - Content generation (summaries, quizzes, roadmaps, resumes)
-- Visual content script and video generation
+
 - Voice optimization
 - Session and chat management
 - MongoDB integration (REQUIRED)
@@ -48,11 +48,7 @@ DEFAULT_MODEL = 'gemini-2.5-flash'
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 8192
 
-# Video Generation Settings
-VEO_3_MODEL = 'veo-3'
-DEFAULT_VIDEO_DURATION = 30  # seconds
-DEFAULT_VIDEO_RESOLUTION = '720p'
-DEFAULT_VIDEO_ASPECT_RATIO = '16:9'
+
 
 # Prompts for different AI functions
 SYSTEM_PROMPTS = {
@@ -85,12 +81,7 @@ that helps improve career prospects. Focus on practical improvements and industr
     'quiz': """You are an educational content creator specializing in assessment design. Create fair, 
 challenging questions that test understanding rather than memorization. Ensure questions are clear and unambiguous.""",
 
-    'visual': """You are an educational content designer. Create engaging, clear scripts for visual learning 
-materials. Focus on breaking down complex concepts into digestible, visual segments.""",
-    
-    'video': """You are a video content creator specializing in educational videos. Create detailed video 
-prompts that describe scenes, visual elements, transitions, and educational content suitable for 
-automated video generation. Focus on clear, engaging visual storytelling."""
+
 }
 
 # NO FALLBACK RESPONSES - ALL FUNCTIONS MUST WORK
@@ -149,37 +140,7 @@ def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: 
         print(f"Error creating AI model: {e}")
         return None
 
-def get_veo3_model(duration: int = None, resolution: str = None, aspect_ratio: str = None):
-    """Get configured Veo 3 model for video generation."""
-    if not initialize_ai():
-        return None
-    
-    try:
-        # Veo 3 specific configuration
-        video_config = {
-            'duration': duration or DEFAULT_VIDEO_DURATION,
-            'resolution': resolution or DEFAULT_VIDEO_RESOLUTION,
-            'aspect_ratio': aspect_ratio or DEFAULT_VIDEO_ASPECT_RATIO,
-        }
-        
-        # For now, use Gemini to generate video prompts that would work with Veo 3
-        # In the future, this would be replaced with actual Veo 3 API calls
-        return genai.GenerativeModel(
-            model_name=Config.GEMINI_MODEL_NAME or DEFAULT_MODEL,
-            generation_config={
-                'temperature': 0.6,  # Slightly more creative for video descriptions
-                'max_output_tokens': 2048,
-            },
-            safety_settings={
-                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
-                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE", 
-                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
-                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"
-            }
-        ), video_config
-    except Exception as e:
-        print(f"Error creating Veo 3 model: {e}")
-        return None, {}
+
 
 # =============================================================================
 # DATABASE CONNECTION UTILITIES
@@ -279,13 +240,13 @@ def generate_ai_response(
                 finish_reason = candidate.finish_reason
                 # finish_reason: 0=UNSPECIFIED, 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION, 5=OTHER
                 if finish_reason == 3:  # SAFETY
-                    # For resume/roadmap/video, return empty response to trigger fallback
-                    if ai_type in ['resume', 'roadmap', 'video']:
+                    # For resume/roadmap, return empty response to trigger fallback
+                    if ai_type in ['resume', 'roadmap']:
                         print(f"Safety filter triggered for {ai_type}, using fallback structure")
                         return {'success': False, 'response': '', 'error': 'safety_filter'}
                     raise Exception(f"Content blocked by AI safety filters for {ai_type}. Please rephrase your request.")
                 elif finish_reason in [4, 5]:  # RECITATION or OTHER
-                    if ai_type in ['resume', 'roadmap', 'video']:
+                    if ai_type in ['resume', 'roadmap']:
                         print(f"AI generation blocked (reason: {finish_reason}) for {ai_type}, using fallback")
                         return {'success': False, 'response': '', 'error': 'generation_blocked'}
                     raise Exception(f"AI generation blocked (reason: {finish_reason}) for {ai_type}. Please try different input.")
@@ -301,13 +262,13 @@ def generate_ai_response(
                 candidate = response.candidates[0]
                 if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
                     print(f"MAX_TOKENS reached for {ai_type} - response truncated")
-                    if ai_type in ['resume', 'roadmap', 'video']:
+                    if ai_type in ['resume', 'roadmap']:
                         return {'success': False, 'response': '', 'error': 'max_tokens'}
             print(f"Error accessing response.text for {ai_type}: {e}")
         
         if not response or not response_text:
-            # For resume/roadmap/video, allow fallback handling
-            if ai_type in ['resume', 'roadmap', 'video']:
+            # For resume/roadmap, allow fallback handling
+            if ai_type in ['resume', 'roadmap']:
                 print(f"Empty response for {ai_type}, using fallback structure")
                 return {'success': False, 'response': '', 'error': 'empty_response'}
             raise Exception(f"Empty or invalid response from AI for {ai_type}")
@@ -582,280 +543,9 @@ Return only the JSON object."""
     
     raise Exception(f'AI resume analysis failed: {result.get("error", "Unknown error")}')
 
-def generate_visual_script(text: str, max_scenes: int = 8) -> List[Dict[str, str]]:
-    """Generate visual content script using AI."""
-    prompt = f"""Create a video script with {max_scenes} educational scenes from this text.
-Return ONLY valid JSON array:
-[{{"narration": "text", "visual_description": "description"}}]
-
-Rules:
-- {max_scenes} scenes max
-- 10-20 words per narration
-- JSON only, no markdown
-
-Text: {text}"""
-
-    result = generate_ai_response(
-        prompt=prompt,
-        system_prompt=SYSTEM_PROMPTS['visual'],
-        ai_type='visual',
-        model_config={'temperature': 0.5, 'max_tokens': 4096}
-    )
-    
-    if result['success']:
-        try:
-            # Clean response and parse JSON
-            clean_response = result['response'].replace('```json', '').replace('```', '').strip()
-            scenes = json.loads(clean_response)
-            return scenes if isinstance(scenes, list) else []
-        except json.JSONDecodeError:
-            pass
-    
-    # Fallback: create simple scenes from text
-    return create_fallback_visual_scenes(text, max_scenes)
-
-def create_fallback_visual_scenes(text: str, max_scenes: int = 8) -> List[Dict[str, str]]:
-    """Create fallback visual scenes when AI is unavailable."""
-    words = text.split()
-    chunk_size = max(len(words) // max_scenes, 10)
-    
-    # Color palette for slides
-    colors = ['#4ECDC4', '#FF6B6B', '#4D96FF', '#FFD93D', '#6BCF7F', '#A78BFA', '#F97316', '#EC4899']
-    
-    scenes = []
-    for i in range(0, min(len(words), chunk_size * max_scenes), chunk_size):
-        chunk = " ".join(words[i:i + chunk_size])
-        if len(chunk.strip()) > 0:
-            scenes.append({
-                "narration": chunk[:150] + "..." if len(chunk) > 150 else chunk,
-                "visual_description": f"Educational illustration for scene {len(scenes) + 1}",
-                "visual": f"Slide {len(scenes) + 1}: {chunk[:50]}...",
-                "color": colors[len(scenes) % len(colors)],
-                "duration": 5  # seconds per slide
-            })
-    
-    return scenes[:max_scenes]
-
 # =============================================================================
-# VIDEO GENERATION WITH VEO 3
+# CONVERSATION & SESSION MANAGEMENT
 # =============================================================================
-
-def generate_video_with_veo3(
-    text: str, 
-    duration: int = 30, 
-    resolution: str = '720p',
-    aspect_ratio: str = '16:9',
-    style: str = 'educational'
-) -> Dict[str, Any]:
-    """Generate video using Google Veo 3 model (or compatible video generation)."""
-    try:
-        model, video_config = get_veo3_model(duration, resolution, aspect_ratio)
-        
-        if not model:
-            return {
-                'success': False,
-                'error': 'Video generation model not available',
-                'fallback_scenes': create_fallback_visual_scenes(text)
-            }
-        
-        # Create concise video generation prompt for Veo 3
-        # Calculate scene count based on duration
-        scene_count = max(3, min(6, duration // 5))  # 3-6 scenes
-        
-        video_prompt = f"""Create an educational video specification in JSON format.
-
-Content: {text}
-
-Specs: {duration}s, {resolution}, {aspect_ratio}, {style} style
-
-Return ONLY this JSON structure with {scene_count} scenes:
-{{
-    "video_description": "Brief video overview",
-    "scenes": [
-        {{"start_time": 0, "duration": 5, "visual_prompt": "Visual elements", "narration": "Narration text", "transitions": "fade"}}
-    ],
-    "background_music": "Music style",
-    "visual_style": "Visual aesthetic"
-}}
-
-Keep descriptions concise. Return only valid JSON."""
-
-        result = generate_ai_response(
-            prompt=video_prompt,
-            system_prompt=SYSTEM_PROMPTS['video'],
-            ai_type='video',
-            model_config={'temperature': 0.6, 'max_tokens': 12288}  # Increased token limit for complex videos
-        )
-        
-        if result['success'] and result.get('response'):
-            try:
-                # Clean and parse the video generation response
-                response_text = result['response']
-                
-                # Check if response looks truncated (no closing brace)
-                if not response_text.strip().endswith('}'):
-                    print(f"Video response appears truncated (no closing brace)")
-                    raise json.JSONDecodeError("Truncated response", response_text, len(response_text))
-                
-                # Remove markdown code blocks
-                if '```json' in response_text:
-                    start = response_text.find('```json') + 7
-                    end = response_text.rfind('```')
-                    if end > start:
-                        response_text = response_text[start:end].strip()
-                elif '```' in response_text:
-                    start = response_text.find('```') + 3
-                    end = response_text.rfind('```')
-                    if end > start:
-                        response_text = response_text[start:end].strip()
-                
-                # Find JSON object boundaries
-                first_brace = response_text.find('{')
-                last_brace = response_text.rfind('}')
-                if first_brace != -1 and last_brace != -1:
-                    response_text = response_text[first_brace:last_brace+1]
-                
-                # Try to fix common JSON issues before parsing
-                response_text = fix_json_syntax(response_text)
-                
-                # Attempt to parse JSON with error recovery
-                try:
-                    video_spec = json.loads(response_text)
-                except json.JSONDecodeError as first_error:
-                    # Try one more aggressive cleanup
-                    print(f"First JSON parse attempt failed: {first_error}")
-                    # Extract just the object content more aggressively
-                    lines = response_text.split('\n')
-                    cleaned_lines = []
-                    for line in lines:
-                        line = line.strip()
-                        if line and not line.startswith('//'):  # Remove comments
-                            cleaned_lines.append(line)
-                    response_text = '\n'.join(cleaned_lines)
-                    video_spec = json.loads(response_text)  # Will throw if still invalid
-                
-                # In a real implementation, this would call the actual Veo 3 API
-                # For now, we return the structured video specification
-                return {
-                    'success': True,
-                    'video_spec': video_spec,
-                    'video_url': None,  # Would contain actual video URL from Veo 3
-                    'status': 'generated_specification',
-                    'duration': duration,
-                    'resolution': resolution,
-                    'aspect_ratio': aspect_ratio,
-                    'fallback_scenes': extract_scenes_from_spec(video_spec)
-                }
-            except json.JSONDecodeError as e:
-                print(f"JSON parse error in video generation: {str(e)}")
-                print(f"Problematic JSON (first 500 chars): {response_text[:500]}")
-                # Fallback to scene-based generation
-                scenes = generate_visual_script(text, max_scenes=duration//5)
-                return {
-                    'success': True,
-                    'video_spec': create_video_spec_from_scenes(scenes, duration, resolution, aspect_ratio),
-                    'video_url': None,
-                    'status': 'fallback_specification',
-                    'fallback_scenes': scenes
-                }
-        
-        # If AI response failed, use fallback
-        error_type = result.get('error', 'unknown')
-        if error_type in ['max_tokens', 'empty_response']:
-            print(f"AI video generation issue: {error_type} - using simple fallback scenes")
-        else:
-            print(f"AI video generation failed: {error_type} - using fallback scenes")
-        
-        scenes = generate_visual_script(text, max_scenes=max(3, duration//5))
-        return {
-            'success': True,
-            'video_spec': create_video_spec_from_scenes(scenes, duration, resolution, aspect_ratio),
-            'video_url': None,
-            'status': 'fallback_specification',
-            'fallback_scenes': scenes
-        }
-        
-    except Exception as e:
-        print(f"Video generation error: {e}")
-        return {
-            'success': False,
-            'error': str(e),
-            'fallback_scenes': create_fallback_visual_scenes(text)
-        }
-
-def fix_json_syntax(json_text: str) -> str:
-    """Attempt to fix common JSON syntax errors."""
-    try:
-        # Remove trailing commas before closing braces/brackets
-        json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
-        
-        # Fix missing commas between array elements (common AI mistake)
-        json_text = re.sub(r'}\s*{', r'},{', json_text)
-        
-        # Fix missing commas between object properties
-        json_text = re.sub(r'"\s*\n\s*"', r'",\n"', json_text)
-        
-        # Remove any control characters
-        json_text = ''.join(char for char in json_text if ord(char) >= 32 or char in '\n\r\t')
-        
-        return json_text
-    except Exception as e:
-        print(f"Error fixing JSON syntax: {e}")
-        return json_text
-
-def extract_scenes_from_spec(video_spec: Dict) -> List[Dict[str, str]]:
-    """Extract simple scenes from Veo 3 video specification for compatibility."""
-    scenes = []
-    if isinstance(video_spec, dict) and 'scenes' in video_spec:
-        for scene in video_spec['scenes']:
-            scenes.append({
-                "narration": scene.get('narration', ''),
-                "visual_description": scene.get('visual_prompt', '')
-            })
-    return scenes
-
-def create_video_spec_from_scenes(
-    scenes: List[Dict[str, str]], 
-    duration: int, 
-    resolution: str, 
-    aspect_ratio: str
-) -> Dict[str, Any]:
-    """Create video specification from simple scenes."""
-    scene_duration = max(3, duration // len(scenes)) if scenes else 5
-    
-    video_scenes = []
-    current_time = 0
-    
-    for i, scene in enumerate(scenes):
-        video_scenes.append({
-            "start_time": current_time,
-            "duration": scene_duration,
-            "visual_prompt": f"Educational visualization: {scene.get('visual_description', '')}. Professional educational style with clear typography and engaging graphics.",
-            "narration": scene.get('narration', ''),
-            "transitions": "fade" if i < len(scenes) - 1 else "none"
-        })
-        current_time += scene_duration
-    
-    return {
-        "video_description": f"Educational video in {resolution} resolution with {aspect_ratio} aspect ratio",
-        "scenes": video_scenes,
-        "background_music": "soft educational background music",
-        "visual_style": "clean, modern educational design with consistent branding"
-    }
-
-def generate_video_from_text(
-    text: str,
-    video_type: str = 'educational',
-    duration: int = 30,
-    resolution: str = '720p'
-) -> Dict[str, Any]:
-    """Main function for video generation - maintains compatibility with existing code."""
-    return generate_video_with_veo3(
-        text=text,
-        duration=duration,
-        resolution=resolution,
-        style=video_type
-    )
 
 # =============================================================================
 # CONVERSATION & SESSION MANAGEMENT

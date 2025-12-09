@@ -10,12 +10,12 @@ A comprehensive full-stack educational platform that revolutionizes learning thr
 ## 🌟 Key Features
 
 ### **AI-Powered Learning Ecosystem**
-- 🎥 **Visual Content Generator** - Convert text/PDF to educational slideshows (text-only input)
 - 🤖 **Intelligent Chatbot** - Context-aware doubt solving with conversation history
 - 📝 **Smart Quiz System** - AI-generated personalized quizzes with automatic scoring
 - 👨‍🏫 **AI Tutor** - Interactive conversational tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
 - 📄 **Resume Builder** - AI-powered resume analysis and job-fit optimization
+- 🎬 **Visual Content Explorer** - YouTube API integration for educational video discovery
 
 ### **Modern React Application**
 - 📱 **Responsive Design** - Mobile-first interface optimized for all devices
@@ -54,10 +54,12 @@ graph TB
         J --> M[AI Generation]
         K --> N[Data Persistence]
         L --> O[Media Hosting]
+        P[YouTube API] --> Q[Video Discovery]
     end
     
     A -.-> F
     D -.-> F
+    A -.-> P
 ```
 
 **Client (React App)** ↔ **REST API (Flask)** ↔ **AI Services (Gemini, Cloudinary, MongoDB)**
@@ -75,9 +77,14 @@ Edvanta/
 │   │   │       ├── ScreenFatigueReminder.jsx # Break reminder system
 │   │   │       ├── PageTransition.jsx # Smooth transitions
 │   │   │       └── ScrollToTop.jsx  # Auto-scroll component
-│   │   ├── pages/                   # Route components
 │   │   │   ├── auth/                # Login, Signup
 │   │   │   └── tools/               # AI learning tools
+│   │   │       ├── ConversationalTutor.jsx # AI tutoring system
+│   │   │       ├── DoubtSolving.jsx # AI chatbot for Q&A
+│   │   │       ├── Quizzes.jsx     # Quiz generation & scoring
+│   │   │       ├── ResumeBuilder.jsx # Resume analysis tool
+│   │   │       ├── Roadmap.jsx     # Learning path generator
+│   │   │       └── VisualContent.jsx # YouTube API video explorer
 │   │   ├── hooks/                   # Custom React hooks
 │   │   │   ├── useAuth.js           # Firebase authentication
 │   │   │   ├── useResponsive.js     # Responsive utilities
@@ -87,7 +94,6 @@ Edvanta/
 │   │   │   ├── firebase.js          # Firebase configuration
 │   │   │   └── utils.js             # Helper functions
 │   │   └── utils/                   # Development utilities
-│   │       └── test-visual.js       # Visual generator testing
 │   ├── public/
 │   │   ├── manifest.json            # Web app manifest
 │   │   ├── edvanta-logo.png         # Brand logo
@@ -101,7 +107,6 @@ Edvanta/
     │   ├── __init__.py              # Application factory with auto-detection
     │   ├── config.py                # Universal environment configuration
     │   ├── routes/                  # API endpoints (blueprints)
-    │   │   ├── visual.py            # Visual generation endpoints
     │   │   ├── chatbot.py           # Chatbot & Q&A
     │   │   ├── quizzes.py           # Quiz generation & scoring
     │   │   ├── tutor.py             # AI tutoring system
@@ -110,7 +115,6 @@ Edvanta/
     │   │   └── user_stats.py        # Analytics & progress
     │   └── utils/                   # Service integrations
     │       ├── ai_utils.py          # Gemini AI integration
-    │       ├── visual_utils_serverless.py # Serverless video generation
     │       ├── cloudinary_utils.py  # File uploads
     │       ├── pdf_utils.py         # PDF text extraction
     │       ├── mongo_utils.py       # Database utilities
@@ -129,6 +133,7 @@ Edvanta/
 - **Google Gemini API** key (AI features)
 - **Firebase** project (authentication)
 - **Cloudinary** account (media storage)
+- **YouTube Data API v3** key (visual content explorer)
 
 ### 🖥️ Local Development
 
@@ -160,20 +165,28 @@ Frontend runs at: `http://localhost:5173`
 
 ### 🌐 Production Deployment
 
-#### Vercel (Recommended)
-Both frontend and backend can be deployed on Vercel:
+#### Vercel (Recommended) - ✅ READY
+Both frontend and backend are **production-ready** for Vercel deployment:
 
 **Backend:**
 ```bash
 cd server
+# Ensure all environment variables are configured
 vercel --prod
 ```
 
 **Frontend:**
 ```bash
 cd client
+# Ensure all environment variables are configured
 vercel --prod
 ```
+
+**Deployment Requirements:**
+- ✅ Vercel configurations ready (`vercel.json`)
+- ✅ Environment variables properly structured
+- ✅ Dependencies optimized for serverless
+- ✅ Build scripts validated
 
 #### Other Platforms
 The application auto-detects deployment environment and works on:
@@ -226,6 +239,9 @@ VITE_FIREBASE_APP_ID=1:123456789012:web:abc123
 # Media Upload
 VITE_CLOUDINARY_CLOUD_NAME=your-cloud-name
 VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
+
+# YouTube API (Visual Content Explorer)
+VITE_YOUTUBE_API_KEY=your-youtube-api-key
 ```
 
 ## 🔧 API Endpoints
@@ -235,14 +251,6 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
 |--------|----------|-------------|
 | `GET` | `/` | Health check & environment info |
 | `GET` | `/api/runtime-features` | Feature availability status |
-
-### Visual Content Generation
-| Method | Endpoint | Description |
-|--------|-----------|-----------|
-| `POST` | `/api/visual/text-to-video` | Generate slideshow from text input |
-| `POST` | `/api/visual/pdf-url-to-video` | Generate slideshow from PDF document |
-
-**Note**: Audio processing temporarily disabled - text and PDF input only.
 
 ### AI Learning Tools
 | Method | Endpoint | Description |
@@ -262,6 +270,13 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
 | `POST` | `/api/resume/upload` | Upload resume for analysis |
 | `POST` | `/api/resume/analyze` | Analyze resume vs job description |
 | `GET` | `/api/user-stats` | Get user progress statistics |
+
+### Visual Content (Client-Side Only)
+| Feature | Implementation | Description |
+|---------|----------------|-------------|
+| **YouTube Search** | Client-side API | Search educational videos via YouTube Data API v3 |
+| **Video Preview** | Embedded iframe | Preview videos with modal overlay |
+| **External Links** | Direct navigation | Open videos in YouTube for full experience |
 
 ## 🛠️ Technology Stack
 
@@ -287,6 +302,7 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
 - **MongoDB Atlas** - Cloud database
 - **Cloudinary** - Media hosting and processing
 - **Firebase** - Authentication and real-time database
+- **YouTube Data API v3** - Educational video search and discovery
 - **Vercel** - Serverless deployment platform
 
 ## 🎨 Modern React Features
@@ -394,7 +410,13 @@ pip install -r requirements.txt  # Install dependencies
 - Confirm `GEMINI_API_KEY` is valid
 - Check API quota limits (free tier: 15 requests/min)
 
-**"Vite build failed"**
+**"YouTube API errors"**
+- Verify `VITE_YOUTUBE_API_KEY` is configured in client environment
+- Check YouTube Data API v3 is enabled in Google Cloud Console
+- Ensure API key is restricted to YouTube Data API v3
+- Verify API quota limits (free tier: 100 requests/day)
+
+**"Vite build failed"****
 - Check for TypeScript errors in `vite.config.ts`
 - Verify all imports use correct file extensions
 - Ensure TailwindCSS configuration is valid

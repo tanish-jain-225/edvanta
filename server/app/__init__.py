@@ -63,8 +63,6 @@ def create_app() -> Flask:
 
     # Import and register blueprints with error handling
     blueprints_to_register = [
-        ('visual', lambda: __import__(
-            'app.routes.visual', fromlist=['visual_bp']).visual_bp),
         ('chatbot', lambda: __import__(
             'app.routes.chatbot', fromlist=['chatbot_bp']).chatbot_bp),
         ('quizzes', lambda: __import__(

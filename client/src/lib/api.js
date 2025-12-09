@@ -299,36 +299,6 @@ export const edvantaAPI = {
     return api.get(`/api/roadmap/download/${roadmapId}`, { user_email: userEmail });
   },
 
-  // Visual generation
-  generateVisualFromText(text, style = 'educational', duration = 30, userEmail = null) {
-    return api.post('/api/visual/text-to-video', { 
-      text, 
-      style, 
-      duration,
-      user_email: userEmail,
-      label: text.slice(0, 40)
-    });
-  },
-
-  generateVisualFromPDF(pdfUrl, style = 'educational', duration = 60, userEmail = null, label = 'PDF Upload') {
-    return api.post('/api/visual/pdf-url-to-video', { 
-      pdf_url: pdfUrl, 
-      style, 
-      duration,
-      user_email: userEmail,
-      label
-    });
-  },
-
-  generateVisualFromAudio(audioUrl, style = 'educational', userEmail = null, label = 'Audio Upload') {
-    return api.post('/api/visual/audio-to-video', { 
-      audio_url: audioUrl, 
-      style,
-      user_email: userEmail,
-      label
-    });
-  },
-
   // Chatbot
   sendChatMessage(message, userEmail, conversationId = null) {
     return api.post('/api/chat', { message, user_email: userEmail, conversation_id: conversationId });

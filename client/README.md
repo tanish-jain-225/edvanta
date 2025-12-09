@@ -12,12 +12,12 @@ A modern React-based educational platform built with cutting-edge technologies f
 - 📦 **Component-Based** - Modular, reusable UI components
 
 ### **AI-Powered Learning Tools**
-- 🎥 **Visual Content Generator** - Convert text/PDF to educational slideshows
 - 🤖 **Doubt Solving Chatbot** - AI-powered Q&A with conversation history
 - 📝 **Quiz Generator** - AI-generated personalized quizzes with scoring
 - 👨‍🏫 **Conversational Tutor** - Interactive AI tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestones
 - 📄 **Resume Builder** - Resume analysis and job-fit optimization
+- 🎬 **Visual Content Explorer** - YouTube API integration for educational videos
 
 ### **Enhanced User Experience**
 - 🔐 **Firebase Authentication** - Secure user accounts with profile management
@@ -150,14 +150,13 @@ client/
 │   │   │   ├── Login.jsx  # User login with Firebase
 │   │   │   └── Signup.jsx # User registration
 │   │   └── tools/         # AI-powered learning tools
-│   │       ├── VisualGenerator.jsx # Text/PDF to slideshow
 │   │       ├── DoubtSolving.jsx    # AI chatbot for Q&A
 │   │       ├── Quizzes.jsx         # Quiz generation & scoring
 │   │       ├── ConversationalTutor.jsx # AI tutoring system
 │   │       ├── Roadmap.jsx         # Learning path generator
-│   │       └── ResumeBuilder.jsx   # Resume analysis tool
+│   │       ├── ResumeBuilder.jsx   # Resume analysis tool
+│   │       └── VisualContent.jsx   # YouTube API video explorer
 │   └── utils/             # Testing and development utilities
-│       └── test-visual.js # Visual generator testing
 ```
 
 ## 🛠️ Technology Stack
@@ -206,7 +205,6 @@ npm run lint     # Run ESLint code checking
 The client communicates with the Edvanta backend through a centralized API client (`lib/api.js`):
 
 ### **Endpoints**
-### **Visual Generation**: `/api/visual/text-to-video`, `/api/visual/pdf-url-to-video`
 - **Chatbot**: `/api/chat`, `/api/chat/history/{user_email}`
 - **Quizzes**: `/api/quizzes/generate`, `/api/quizzes/score`
 - **Tutoring**: `/api/tutor/ask`, `/api/tutor/voice`
@@ -259,6 +257,8 @@ VITE_PRODUCTION_API_URL=        # Production backend URL
 
 VITE_CLOUDINARY_CLOUD_NAME=     # Cloudinary media storage
 VITE_CLOUDINARY_UPLOAD_PRESET=  # Cloudinary upload configuration
+
+VITE_YOUTUBE_API_KEY=           # YouTube API for Visual Content Explorer
 ```
 
 #### **Optional**
@@ -277,6 +277,14 @@ VITE_ENVIRONMENT=development    # Force development mode
 2. Get Cloud Name from dashboard
 3. Create unsigned upload preset
 4. Configure upload settings
+
+### **YouTube API Setup**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create new project or select existing one
+3. Enable YouTube Data API v3
+4. Create API key in Credentials section
+5. Restrict API key to YouTube Data API v3
+6. Add key to environment variables
 
 ## 🔍 Debugging & Development
 
