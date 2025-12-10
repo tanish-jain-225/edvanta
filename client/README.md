@@ -44,24 +44,11 @@ A modern React-based educational platform built with cutting-edge technologies f
    ```
 
 2. **Configure Environment**
-   Edit `.env` file with your credentials:
-   ```env
-   # Backend API
-   VITE_API_BASE_URL=http://localhost:5000
-   VITE_PRODUCTION_API_URL=https://your-backend-url.vercel.app
-   
-   # Firebase Authentication
-   VITE_FIREBASE_API_KEY=your_firebase_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your-project-id
-   VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=123456789012
-   VITE_FIREBASE_APP_ID=1:123456789012:web:abcdef1234567890
-   
-   # Cloudinary Media Storage
-   VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
-   VITE_CLOUDINARY_UPLOAD_PRESET=your_upload_preset
-   ```
+   Edit `.env` file with your credentials. See `.env.example` for detailed setup instructions and required values for:
+   - Backend API URLs
+   - Firebase Authentication (6 variables)
+   - Cloudinary Media Storage (2 variables)
+   - YouTube API Key
 
 3. **Start Development Server**
    ```bash
@@ -72,7 +59,7 @@ A modern React-based educational platform built with cutting-edge technologies f
 4. **Start Backend** (in separate terminal)
    ```bash
    cd ../server
-   python index.py
+   python app.py
    ```
 
 ### Production Deployment
@@ -97,66 +84,66 @@ After deployment:
 ```
 client/
 ├── index.html              # Entry point with React root
-├── package.json            # Dependencies & scripts (Vite-based)
+├── package.json            # Dependencies & scripts
 ├── vite.config.ts          # Vite configuration with React plugin
 ├── tailwind.config.js      # TailwindCSS v4.1.12 setup
 ├── postcss.config.js       # PostCSS with Autoprefixer
 ├── eslint.config.js        # ESLint v9 configuration
 ├── vercel.json             # Vercel deployment configuration
 ├── .env.example            # Environment variables template
+├── .env                    # Local environment variables (git-ignored)
 ├── .gitignore              # Git ignore patterns
+├── README.md               # This documentation
 ├── public/
 │   ├── manifest.json       # Web app manifest
 │   ├── edvanta-logo.png    # Brand logo asset
 │   └── default-avatar.svg  # Default user avatar
-├── src/
-│   ├── App.jsx            # Root component with React Router setup
-│   ├── main.jsx           # React 18 entry point with StrictMode
-│   ├── App.css            # Global application styles
-│   ├── index.css          # TailwindCSS imports and base styles
-│   ├── assets/            # Static assets and images
-│   ├── components/
-│   │   ├── Layout/        # Navigation & layout components
-│   │   │   ├── Navbar.jsx # Main navigation header
-│   │   │   └── Sidebar.jsx # Mobile sidebar navigation
-│   │   └── ui/            # Reusable UI component library
-│   │       ├── badge.jsx  # Status and category badges
-│   │       ├── button.jsx # Button variants with CVA
-│   │       ├── card.jsx   # Content cards with header/footer
-│   │       ├── input.jsx  # Form input components
-│   │       ├── progress.jsx # Progress bars and indicators
-│   │       ├── tabs.jsx   # Tab navigation components
-│   │       ├── HeroSpline.jsx # 3D hero section with animations
-│   │       ├── PageTransition.jsx # Smooth page transitions
-│   │       ├── ScreenFatigueReminder.jsx # Break reminder system
-│   │       ├── ScrollToTop.jsx # Auto-scroll component
-│   │       ├── UserInterestForm.jsx # User preference form
-│   │       └── custom-css/ # Custom CSS modules
-│   │           ├── LoadingIndicator.css
-│   │           └── PageTransition.css
-│   ├── contexts/          # React Context providers (empty)
-│   ├── hooks/             # Custom React hooks
-│   │   ├── helper.js      # API base URL helper
-│   │   ├── useAuth.js     # Firebase authentication hook
-│   │   └── useResponsive.js # Responsive design utilities
-│   ├── lib/               # Core utilities and configuration
-│   │   ├── api.js         # Axios API client & endpoints
-│   │   ├── firebase.js    # Firebase v12 configuration
-│   │   └── utils.js       # Utility functions and helpers
-│   ├── pages/             # Route-based page components
-│   │   ├── Home.jsx       # Landing page with hero section
-│   │   ├── Dashboard.jsx  # User dashboard and analytics
-│   │   ├── auth/          # Authentication pages
-│   │   │   ├── Login.jsx  # User login with Firebase
-│   │   │   └── Signup.jsx # User registration
-│   │   └── tools/         # AI-powered learning tools
-│   │       ├── DoubtSolving.jsx    # AI chatbot for Q&A
-│   │       ├── Quizzes.jsx         # Quiz generation & scoring
-│   │       ├── ConversationalTutor.jsx # AI tutoring system
-│   │       ├── Roadmap.jsx         # Learning path generator
-│   │       ├── ResumeBuilder.jsx   # Resume analysis tool
-│   │       └── VisualContent.jsx   # YouTube API video explorer
-│   └── utils/             # Testing and development utilities
+└── src/
+    ├── App.jsx            # Root component with React Router setup
+    ├── main.jsx           # React 18 entry point with StrictMode
+    ├── App.css            # Global application styles
+    ├── index.css          # TailwindCSS imports and base styles
+    ├── assets/            # Static assets and images
+    ├── components/
+    │   ├── Layout/        # Navigation & layout components
+    │   │   ├── Navbar.jsx # Main navigation header
+    │   │   └── Sidebar.jsx # Mobile sidebar navigation
+    │   └── ui/            # Reusable UI component library
+    │       ├── badge.jsx  # Status and category badges
+    │       ├── button.jsx # Button variants with CVA
+    │       ├── card.jsx   # Content cards with header/footer
+    │       ├── input.jsx  # Form input components
+    │       ├── progress.jsx # Progress bars and indicators
+    │       ├── tabs.jsx   # Tab navigation components
+    │       ├── HeroSpline.jsx # 3D hero section with animations
+    │       ├── PageTransition.jsx # Smooth page transitions
+    │       ├── ScreenFatigueReminder.jsx # Break reminder system
+    │       ├── ScrollToTop.jsx # Auto-scroll component
+    │       ├── UserInterestForm.jsx # User preference form
+    │       └── custom-css/ # Custom CSS modules
+    │           ├── LoadingIndicator.css
+    │           └── PageTransition.css
+    ├── hooks/             # Custom React hooks
+    │   ├── helper.js      # API base URL helper
+    │   ├── useAuth.js     # Firebase authentication hook
+    │   └── useResponsive.js # Responsive design utilities
+    ├── lib/               # Core utilities and configuration
+    │   ├── api.js         # Axios API client & endpoints
+    │   ├── firebase.js    # Firebase v12 configuration
+    │   └── utils.js       # Utility functions and helpers
+    └── pages/             # Route-based page components
+        ├── Home.jsx       # Landing page with hero section
+        ├── Dashboard.jsx  # User dashboard and analytics
+        ├── auth/          # Authentication pages
+        │   ├── Login.jsx  # User login with Firebase
+        │   └── Signup.jsx # User registration
+        └── tools/         # AI-powered learning tools
+            ├── DoubtSolving.jsx    # AI chatbot for Q&A
+            ├── Quizzes.jsx         # Quiz generation & scoring
+            ├── ConversationalTutor.jsx # AI tutoring system
+            ├── Roadmap.jsx         # Learning path generator
+            ├── ResumeBuilder.jsx   # Resume analysis tool
+            └── VisualContent.jsx   # YouTube API video explorer
 ```
 
 ## 🛠️ Technology Stack
@@ -241,50 +228,19 @@ The app automatically detects environment and switches API URLs:
 ## ⚙️ Configuration
 
 ### **Environment Variables**
-All configuration is handled through environment variables for security:
+All environment variables are documented in `.env.example` with detailed setup instructions.
 
-#### **Required**
-```env
-VITE_FIREBASE_API_KEY=          # Firebase authentication
-VITE_FIREBASE_AUTH_DOMAIN=      # Firebase project domain
-VITE_FIREBASE_PROJECT_ID=       # Firebase project identifier
-VITE_FIREBASE_STORAGE_BUCKET=   # Firebase storage bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=  # Firebase messaging
-VITE_FIREBASE_APP_ID=           # Firebase app identifier
+#### **Required Variables**
+- **Firebase Authentication** (6 variables) - User authentication and data storage
+- **Backend API URLs** (2 variables) - Development and production API endpoints
+- **Cloudinary** (2 variables) - Media upload and storage
+- **YouTube API** (1 variable) - Visual Content Explorer
 
-VITE_API_BASE_URL=              # Development backend URL
-VITE_PRODUCTION_API_URL=        # Production backend URL
-
-VITE_CLOUDINARY_CLOUD_NAME=     # Cloudinary media storage
-VITE_CLOUDINARY_UPLOAD_PRESET=  # Cloudinary upload configuration
-
-VITE_YOUTUBE_API_KEY=           # YouTube API for Visual Content Explorer
-```
-
-#### **Optional**
-```env
-VITE_ENVIRONMENT=development    # Force development mode
-```
-
-### **Firebase Setup**
-1. Create project at [Firebase Console](https://console.firebase.google.com/)
-2. Enable Authentication (Email/Password provider)
-3. Create Firestore database
-4. Copy configuration from Project Settings
-
-### **Cloudinary Setup**
-1. Create account at [Cloudinary](https://cloudinary.com/)
-2. Get Cloud Name from dashboard
-3. Create unsigned upload preset
-4. Configure upload settings
-
-### **YouTube API Setup**
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create new project or select existing one
-3. Enable YouTube Data API v3
-4. Create API key in Credentials section
-5. Restrict API key to YouTube Data API v3
-6. Add key to environment variables
+See `.env.example` for complete setup guides including:
+- Step-by-step Firebase configuration
+- Cloudinary account setup
+- YouTube API key generation
+- Local development vs production modes
 
 ## 🔍 Debugging & Development
 
@@ -384,19 +340,6 @@ VITE_ENVIRONMENT=development    # Force development mode
 - Check upload preset exists and is unsigned
 - Ensure Cloudinary account limits not exceeded
 
-### **Debug Mode**
-Enable enhanced debugging during development:
-```bash
-# Development server with detailed logging
-npm run dev
-
-# Build analysis
-npm run build -- --mode development
-
-# Preview production build locally
-npm run preview
-```
-
 **"Vite build failed"**
 - Check for TypeScript errors in `vite.config.ts`
 - Verify all imports use correct file extensions
@@ -414,16 +357,16 @@ npm run preview
 - Check PostCSS configuration in `postcss.config.js`
 - Ensure `@tailwind` directives are in `index.css`
 - Clear browser cache and restart development server
-- Check service worker registration
-- Ensure HTTPS is enabled (production requirement)
 
 ### **Debug Mode**
-Enable debug features by adding components:
-```jsx
-import { LocalStorageInspector } from './components/ui/LocalStorageInspector'
-import { SyncDebugger } from './components/ui/SyncDebugger'
+Enable enhanced debugging during development:
+```bash
+# Development server with detailed logging
+npm run dev
 
-// Add to any page for debugging
-<LocalStorageInspector />
-<SyncDebugger />
+# Build analysis
+npm run build -- --mode development
+
+# Preview production build locally
+npm run preview
 ```

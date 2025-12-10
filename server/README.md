@@ -61,7 +61,7 @@ Works seamlessly across all hosting platforms without configuration:
 
 3. **Run Server**
    ```bash
-   python index.py
+   python app.py
    ```
    Server starts at `http://localhost:5000`
 
@@ -90,32 +90,34 @@ The server auto-detects the environment and configures itself automatically.
 
 ```
 server/
-├── index.py                 # WSGI entry point with serverless support
+├── app.py                   # Local development entry point
 ├── requirements.txt         # Dependencies (Vercel optimized <250MB)
+├── runtime.txt             # Python version specification
 ├── vercel.json             # Vercel serverless configuration
 ├── .env.example            # Environment variables template
-├── .env                    # Local environment variables
+├── .env                    # Local environment variables (git-ignored)
 ├── .gitignore              # Git ignore patterns
 ├── README.md               # This documentation
-├── app/
-│   ├── __init__.py         # Application factory with auto-detection
-│   ├── config.py           # Universal configuration management
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── chatbot.py      # AI doubt solving chatbot
-│   │   ├── quizzes.py      # Quiz generation & scoring system
-│   │   ├── tutor.py        # AI tutoring with voice support
-│   │   ├── roadmap.py      # Learning roadmap creation
-│   │   ├── resume.py       # Resume building & job analysis
-│   │   └── user_stats.py   # User statistics & progress tracking
-│   └── utils/
-│       ├── __init__.py
-│       ├── ai_utils.py     # Gemini AI integration
-│       ├── cloudinary_utils.py         # File uploads & media
-│       ├── pdf_utils.py    # PDF text extraction
-│       ├── mongo_utils.py  # MongoDB utilities
-│       └── quizzes_utils.py # Quiz generation logic
-└── __pycache__/            # Python bytecode cache
+├── api/
+│   └── index.py            # Vercel WSGI entry point
+└── app/
+    ├── __init__.py         # Application factory with auto-detection
+    ├── config.py           # Universal configuration management
+    ├── routes/
+    │   ├── __init__.py
+    │   ├── chatbot.py      # AI doubt solving chatbot
+    │   ├── quizzes.py      # Quiz generation & scoring system
+    │   ├── tutor.py        # AI tutoring with voice support
+    │   ├── roadmap.py      # Learning roadmap creation
+    │   ├── resume.py       # Resume building & job analysis
+    │   └── user_stats.py   # User statistics & progress tracking
+    └── utils/
+        ├── __init__.py
+        ├── ai_utils.py     # Gemini AI integration
+        ├── cloudinary_utils.py # File uploads & media
+        ├── pdf_utils.py    # PDF text extraction
+        ├── mongo_utils.py  # MongoDB utilities
+        └── quizzes_utils.py # Quiz generation logic
 ```
 
 ## 🔧 API Endpoints
@@ -151,43 +153,29 @@ server/
 
 ### Environment Variables
 
-#### Required
-```env
-MONGODB_URI=mongodb+srv://...     # MongoDB connection string
-MONGODB_DB_NAME=edvanta           # MongoDB database name
-GEMINI_API_KEY=AIza...            # Google Gemini API key for AI features
-```
+All environment variables are documented in `.env.example` with detailed setup instructions.
 
-#### Optional
-```env
-# Flask Configuration
-FLASK_ENV=production              # Environment (development/production)
-SECRET_KEY=your-secret-key        # Flask secret for session security
+#### Required for Core Features
+- `MONGODB_URI` - MongoDB connection string (Atlas recommended)
+- `MONGODB_DB_NAME` - Database name (default: edvanta)
+- `GEMINI_API_KEY` - Google Gemini API key for AI features
 
-# File Upload Service
-CLOUDINARY_CLOUD_NAME=...         # Cloudinary cloud name
-CLOUDINARY_API_KEY=...            # Cloudinary API key  
-CLOUDINARY_API_SECRET=...         # Cloudinary API secret
+#### Optional for Enhanced Features
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` - File uploads
+- `SECRET_KEY` - Flask session security (auto-generated if not set)
+- `ALLOWED_ORIGINS` - CORS configuration (default: *)
+- `GEMINI_MODEL_NAME` - AI model version (default: gemini-2.5-flash)
+- `GEMINI_TEMPERATURE`, `GEMINI_TOP_P`, `GEMINI_TOP_K` - AI tuning parameters
 
-# CORS & Security
-ALLOWED_ORIGINS=*                 # Comma-separated CORS origins
-
-# AI Model Configuration
-GEMINI_MODEL_NAME=gemini-2.5-flash # Gemini model version
-GEMINI_TEMPERATURE=0.7            # AI creativity level (0.0-1.0)
-GEMINI_TOP_P=0.9                  # AI nucleus sampling
-GEMINI_TOP_K=40                   # AI top-k sampling
-```
+See `.env.example` for complete documentation and setup guides.
 
 ### Auto-Detection Features
-The server automatically detects and configures:
-- **Environment** - development/production based on platform indicators
-- **Platform** - Vercel, AWS Lambda, Heroku, Google Cloud, Netlify
-- **Serverless Mode** - Optimizes for serverless deployment automatically  
-- **Debug Mode** - Enabled only in local development
-- **Database Connectivity** - MongoDB connection with fallback modes
-- **API Dependencies** - Graceful degradation when services unavailable
-- **Logging Level** - Debug in development, Info in production
+The server automatically detects and configures based on the deployment platform:
+- Environment mode (development/production)
+- Serverless optimization for Vercel, AWS Lambda, etc.
+- Debug mode (enabled only locally)
+- Database connectivity with fallback handling
+- Graceful degradation when optional services are unavailable
 
 ## 🛠️ Technology Stack
 
@@ -219,16 +207,7 @@ The server automatically detects and configures:
 ```bash
 GET /
 ```
-Returns:
-```json
-{
-  "status": "ok",
-  "service": "edvanta-backend", 
-  "environment": "production",
-  "debug": false,
-  "registered_blueprints": ["chatbot", "quizzes", "tutor", "roadmap", "resume", "user_stats"]
-}
-```
+Returns service status, environment info, and registered API blueprints.
 
 **Feature Status Check**
 ```bash

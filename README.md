@@ -67,16 +67,22 @@ graph TB
 ## 📁 Project Structure
 
 ```
-Edvanta/
+edvanta/
 ├── client/                          # React + Vite Frontend Application
 │   ├── src/
 │   │   ├── components/              # Reusable UI components
 │   │   │   ├── Layout/              # Navigation (Navbar, Sidebar)
 │   │   │   └── ui/                  # Design system components
+│   │   │       ├── badge.jsx, button.jsx, card.jsx, input.jsx
+│   │   │       ├── progress.jsx, tabs.jsx
 │   │   │       ├── HeroSpline.jsx   # 3D hero section
 │   │   │       ├── ScreenFatigueReminder.jsx # Break reminder system
 │   │   │       ├── PageTransition.jsx # Smooth transitions
-│   │   │       └── ScrollToTop.jsx  # Auto-scroll component
+│   │   │       ├── ScrollToTop.jsx  # Auto-scroll component
+│   │   │       ├── UserInterestForm.jsx # User preference form
+│   │   │       └── custom-css/      # Custom CSS modules
+│   │   ├── pages/                   # Route-based page components
+│   │   │   ├── Home.jsx, Dashboard.jsx
 │   │   │   ├── auth/                # Login, Signup
 │   │   │   └── tools/               # AI learning tools
 │   │   │       ├── ConversationalTutor.jsx # AI tutoring system
@@ -86,42 +92,31 @@ Edvanta/
 │   │   │       ├── Roadmap.jsx     # Learning path generator
 │   │   │       └── VisualContent.jsx # YouTube API video explorer
 │   │   ├── hooks/                   # Custom React hooks
-│   │   │   ├── useAuth.js           # Firebase authentication
-│   │   │   ├── useResponsive.js     # Responsive utilities
-│   │   │   └── helper.js            # API base URL helper
-│   │   ├── lib/                     # Core utilities
-│   │   │   ├── api.js               # Centralized API client
-│   │   │   ├── firebase.js          # Firebase configuration
-│   │   │   └── utils.js             # Helper functions
-│   │   └── utils/                   # Development utilities
-│   ├── public/
-│   │   ├── manifest.json            # Web app manifest
-│   │   ├── edvanta-logo.png         # Brand logo
-│   │   └── default-avatar.svg       # Default user avatar
-│   ├── package.json                 # Dependencies & scripts
-│   ├── vite.config.ts               # Vite configuration
-│   ├── tailwind.config.js           # TailwindCSS setup
-│   └── eslint.config.js             # ESLint configuration
+│   │   │   ├── useAuth.js, useResponsive.js, helper.js
+│   │   └── lib/                     # Core utilities
+│   │       ├── api.js               # Centralized API client
+│   │       ├── firebase.js          # Firebase configuration
+│   │       └── utils.js             # Helper functions
+│   ├── public/                      # Static assets
+│   │   ├── manifest.json, edvanta-logo.png, default-avatar.svg
+│   ├── package.json, vite.config.ts, tailwind.config.js
+│   └── .env.example                 # Environment template with full docs
 └── server/                          # Flask Backend API
+    ├── api/
+    │   └── index.py                 # Vercel WSGI entry point
     ├── app/
-    │   ├── __init__.py              # Application factory with auto-detection
-    │   ├── config.py                # Universal environment configuration
+    │   ├── __init__.py              # Application factory
+    │   ├── config.py                # Environment configuration
     │   ├── routes/                  # API endpoints (blueprints)
-    │   │   ├── chatbot.py           # Chatbot & Q&A
-    │   │   ├── quizzes.py           # Quiz generation & scoring
-    │   │   ├── tutor.py             # AI tutoring system
-    │   │   ├── roadmap.py           # Learning path creation
-    │   │   ├── resume.py            # Resume tools
-    │   │   └── user_stats.py        # Analytics & progress
+    │   │   ├── chatbot.py, quizzes.py, tutor.py
+    │   │   ├── roadmap.py, resume.py, user_stats.py
     │   └── utils/                   # Service integrations
     │       ├── ai_utils.py          # Gemini AI integration
-    │       ├── cloudinary_utils.py  # File uploads
-    │       ├── pdf_utils.py         # PDF text extraction
-    │       ├── mongo_utils.py       # Database utilities
-    │       └── quizzes_utils.py     # Quiz generation logic
-    ├── requirements.txt             # Python dependencies (Vercel optimized)
-    ├── vercel.json                  # Vercel deployment config
-    └── index.py                     # WSGI entry point with serverless support
+    │       ├── cloudinary_utils.py, pdf_utils.py
+    │       ├── mongo_utils.py, quizzes_utils.py
+    ├── app.py                       # Local development entry point
+    ├── requirements.txt, runtime.txt, vercel.json
+    └── .env.example                 # Environment template with full docs
 ```
 
 ## 🚀 Quick Start
@@ -148,8 +143,8 @@ cd edvanta
 cd server
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your credentials (see Backend Configuration)
-python index.py
+# Edit .env with your credentials (see server/.env.example for detailed setup)
+python app.py
 ```
 Backend runs at: `http://localhost:5000`
 
@@ -194,55 +189,29 @@ The application auto-detects deployment environment and works on:
 
 ## ⚙️ Configuration
 
+All environment variables are fully documented in `.env.example` files with setup guides.
+
 ### 🔧 Backend Configuration (`server/.env`)
 
-#### Required Variables
-```env
-# Database
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+**Required:** MongoDB URI, Gemini API Key  
+**Optional:** Cloudinary (file uploads), Secret Key, CORS settings
 
-# AI Services
-GEMINI_API_KEY=AIza...your-gemini-key...
-
-# Security
-SECRET_KEY=your-secure-random-key
-```
-
-#### Optional Variables
-```env
-# Media Storage
-CLOUDINARY_CLOUD_NAME=your-cloud-name
-CLOUDINARY_API_KEY=your-api-key
-CLOUDINARY_API_SECRET=your-api-secret
-
-# API Configuration
-ALLOWED_ORIGINS=*
-GEMINI_TEMPERATURE=0.7
-```
+See `server/.env.example` for:
+- Detailed setup instructions for each service
+- Multiple naming convention support
+- Troubleshooting guides
+- Platform-specific deployment notes
 
 ### 🎨 Frontend Configuration (`client/.env`)
 
-#### Required Variables
-```env
-# Backend API
-VITE_API_BASE_URL=http://localhost:5000
-VITE_PRODUCTION_API_URL=https://your-backend.vercel.app
+**Required:** Firebase (6 vars), Backend URLs (2 vars), Cloudinary (2 vars), YouTube API  
+**Optional:** Environment override
 
-# Firebase Authentication
-VITE_FIREBASE_API_KEY=your-firebase-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789012
-VITE_FIREBASE_APP_ID=1:123456789012:web:abc123
-
-# Media Upload
-VITE_CLOUDINARY_CLOUD_NAME=your-cloud-name
-VITE_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
-
-# YouTube API (Visual Content Explorer)
-VITE_YOUTUBE_API_KEY=your-youtube-api-key
-```
+See `client/.env.example` for:
+- Step-by-step Firebase setup
+- Cloudinary configuration
+- YouTube API key generation
+- Development vs production mode
 
 ## 🔧 API Endpoints
 
@@ -390,7 +359,7 @@ npm run lint      # Run ESLint
 
 ### Backend (`server/`)
 ```bash
-python index.py   # Start development server
+python app.py                    # Start local development server
 pip install -r requirements.txt  # Install dependencies
 ```
 
@@ -398,46 +367,27 @@ pip install -r requirements.txt  # Install dependencies
 
 ### Common Issues
 
-**"Firebase configuration invalid"**
-- Verify all `VITE_FIREBASE_*` variables are correct
-- Ensure Firebase project has Authentication enabled
+**Backend Issues:**
+- **MongoDB connection failed** - Check `MONGODB_URI`, verify network access in Atlas
+- **Gemini API errors** - Confirm valid `GEMINI_API_KEY`, check quota (15 req/min free tier)
+- **Cloudinary upload failed** - Verify credentials, check free tier limits
 
-**"API connection failed"**
-- Check backend server is running
-- Verify `VITE_API_BASE_URL` points to correct backend
+**Frontend Issues:**
+- **Firebase configuration invalid** - Verify all 6 `VITE_FIREBASE_*` variables
+- **API connection failed** - Ensure backend is running, check `VITE_API_BASE_URL`
+- **YouTube API errors** - Verify `VITE_YOUTUBE_API_KEY`, check quota (100 req/day)
+- **Vite build failed** - Check TypeScript errors, verify TailwindCSS config
 
-**"Gemini API errors"**
-- Confirm `GEMINI_API_KEY` is valid
-- Check API quota limits (free tier: 15 requests/min)
+**Detailed Troubleshooting:** See `server/.env.example` and `client/.env.example` for comprehensive troubleshooting guides.
 
-**"YouTube API errors"**
-- Verify `VITE_YOUTUBE_API_KEY` is configured in client environment
-- Check YouTube Data API v3 is enabled in Google Cloud Console
-- Ensure API key is restricted to YouTube Data API v3
-- Verify API quota limits (free tier: 100 requests/day)
-
-**"Vite build failed"****
-- Check for TypeScript errors in `vite.config.ts`
-- Verify all imports use correct file extensions
-- Ensure TailwindCSS configuration is valid
-- Clear node_modules and reinstall dependencies
-
-**"React Router navigation broken"**
-- Verify React Router DOM v7 configuration  
-- Check for conflicting route definitions
-- Ensure proper component imports in route definitions
-
-### Debug Mode
-Enable enhanced debugging during development:
+### Health Checks
 ```bash
-# Development with detailed logging
-npm run dev
+# Backend health
+curl http://localhost:5000/
+curl http://localhost:5000/api/runtime-features
 
-# Build analysis
-npm run build -- --mode development
-
-# Preview production build
-npm run preview
+# Frontend development server
+npm run dev -- --debug
 ```
 
 ## Contributors
@@ -462,20 +412,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **🚀 Built for the Future of Education**
 
 Edvanta combines cutting-edge AI technology with modern React development practices to create a scalable, accessible, and powerful learning platform that delivers exceptional user experiences across all devices.
-
-## Contributors
-
-| [![](https://github.com/parthnarkar.png?size=100)](https://github.com/parthnarkar) | [![](https://github.com/tanish-jain-225.png?size=100)](https://github.com/tanish-jain-225) | [![](https://github.com/pankaj0695.png?size=100)](https://github.com/pankaj0695) | [![](https://github.com/Chief-Ayush.png?size=100)](https://github.com/Chief-Ayush) |
-| :--------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------: |
-|                 [**Parth Narkar**](https://github.com/parthnarkar)                 |                  [**Tanish Sanghvi**](https://github.com/tanish-jain-225)                  |                [**Pankaj Gupta**](https://github.com/pankaj0695)                 |                [**Ayush Attarde**](https://github.com/Chief-Ayush)                 |
-
-## Contributing
-
-1. Create a feature branch: `feat/<short-feature-name>`
-2. Commit small, descriptive changes.
-3. Open PR; include a short summary & screenshots (if UI).
-4. Avoid committing real secrets (.env is ignored).
-
-## Security & Secrets
-
-Never commit actual API keys. Use `.env` locally and (later) a secret manager in deployment (e.g., GCP Secret Manager or GitHub Actions secrets). Rotate keys periodically.
