@@ -150,10 +150,10 @@ export function ScreenFatigueReminder() {
   const IconComponent = tip.icon;
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[10001] p-4">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto relative z-[10002]">
         {/* Header */}
-        <div className="bg-blue-600 p-4 text-white sticky top-0 z-[50] rounded-t-lg">
+        <div className="bg-blue-600 p-4 text-white sticky top-0 z-[10003] rounded-t-lg">
           <Button
             variant="ghost"
             size="sm"
@@ -196,7 +196,7 @@ export function ScreenFatigueReminder() {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t bg-blue-100 rounded-b-lg sticky bottom-0 z-[50]">
+        <div className="p-4 border-t bg-blue-100 rounded-b-lg sticky bottom-0 z-[10003]">
           {/* Action buttons */}
           <div className="space-y-4 py-1">
             <div className="grid grid-cols-2 gap-3">

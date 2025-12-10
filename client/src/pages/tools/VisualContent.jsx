@@ -7,6 +7,7 @@ const VisualContent = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // YouTube API configuration
   const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
@@ -15,16 +16,19 @@ const VisualContent = () => {
   const searchVideos = useCallback(async () => {
     if (!searchQuery.trim()) {
       setError('Please enter a search query');
+      setHasSearched(true);
       return;
     }
 
     if (!YOUTUBE_API_KEY) {
       setError('YouTube API key not configured. Please add VITE_YOUTUBE_API_KEY to your .env file');
+      setHasSearched(true);
       return;
     }
 
     setLoading(true);
     setError('');
+    setHasSearched(true);
 
     try {
       const response = await fetch(
@@ -92,6 +96,25 @@ const VisualContent = () => {
     }
   };
 
+  // Clear error and reset search state when search query changes
+  const handleSearchQueryChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    
+    // Clear error and reset search state when user starts typing
+    if (error && value.trim()) {
+      setError('');
+      setHasSearched(false);
+    }
+    
+    // If search query becomes empty, clear videos and reset to original state
+    if (!value.trim()) {
+      setVideos([]);
+      setError('');
+      setHasSearched(false);
+    }
+  };
+
   const openVideoInNewTab = (videoId) => {
     window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
   };
@@ -112,7 +135,7 @@ const VisualContent = () => {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearchQueryChange}
                   onKeyPress={handleKeyPress}
                   placeholder="Search for educational videos, tutorials, lectures..."
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm sm:text-base"
@@ -205,7 +228,7 @@ const VisualContent = () => {
           )}
 
           {/* Empty State */}
-          {!loading && videos.length === 0 && !error && (
+          {!loading && videos.length === 0 && (!error || !hasSearched) && (
             <div className="bg-white rounded-lg shadow-lg p-12 text-center">
               <div className="text-gray-400 mb-4">
                 <svg
@@ -235,16 +258,16 @@ const VisualContent = () => {
 
         {/* Video Modal */}
         {selectedVideo && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-xl font-bold text-gray-800 flex-1 mr-4">
+          <div className="fixed inset-0 bg-black/70 bg-opacity-75 flex items-center justify-center z-[100] p-4">
+            <div className="bg-white max-w-4xl w-full max-h-[90vh] overflow-y-auto relative z-[100] rounded-2xl">
+              <div>
+                <div className="flex justify-between sticky top-0 bg-white z-[100] p-4 items-center gap-1">
+                  <h2 className="text-md font-bold text-gray-800 flex">
                     {selectedVideo.snippet.title}
                   </h2>
                   <button
                     onClick={() => setSelectedVideo(null)}
-                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                    className="text-gray-500 hover:text-gray-700 text-2xl relative z-[10001]"
                   >
                     ×
                   </button>
@@ -255,13 +278,13 @@ const VisualContent = () => {
                   <iframe
                     src={`https://www.youtube.com/embed/${selectedVideo.id.videoId}`}
                     title={selectedVideo.snippet.title}
-                    className="w-full h-full rounded-lg"
+                    className="w-full h-full"
                     allowFullScreen
                   ></iframe>
                 </div>
                 
                 {/* Video Info */}
-                <div className="space-y-3">
+                <div className="space-y-2 p-2">
                   <div>
                     <span className="font-semibold text-gray-700">Channel: </span>
                     <span className="text-gray-600">{selectedVideo.snippet.channelTitle}</span>
