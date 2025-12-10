@@ -3,7 +3,7 @@ import { Button } from "./button";
 import { X, Eye, Monitor, Clock, Zap } from "lucide-react";
 
 // Configuration: Reminder interval in minutes
-const REMINDER_INTERVAL_MINUTES = 1;
+const REMINDER_INTERVAL_MINUTES = 20;
 // Configuration: Auto tip change interval in seconds
 const AUTO_TIP_CHANGE_SECONDS = 10;
 
