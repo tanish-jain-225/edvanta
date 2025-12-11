@@ -1,11 +1,14 @@
 <div align="center">
 	<img src="client/public/edvanta-logo.png" alt="Edvanta" height="90" />
 </div>
-  
+
 # Edvanta
 **AI-powered personalised learning & career acceleration platform**
 
 A comprehensive full-stack educational platform that revolutionizes learning through artificial intelligence, offering personalized learning tools, beautiful responsive design, and seamless deployment across any platform.
+
+<!-- Project badges -->
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.0.0-blue.svg)](client/package.json) [![Deploy](https://img.shields.io/badge/deploy-vercel-brightgreen.svg)](https://vercel.com)
 
 ## 🌟 Key Features
 
@@ -66,6 +69,16 @@ graph TB
 
 **Client (React App)** ↔ **REST API (Flask)** ↔ **AI Services (Gemini, Cloudinary, MongoDB)**
 
+## 🎯 Feature showcase
+
+Below are a few of the core features showcased visually — add screenshots or GIFs into `client/public/screenshots/` and reference them here for a polished demo.
+
+- Intelligent Chatbot (context-aware doubt solving)
+- AI Tutor (conversational tutoring)
+- Smart Quiz System (personalized quizzes with auto-scoring)
+- Resume Builder (analysis & job-fit suggestions)
+
+
 ## 📁 Project Structure
 
 ```
@@ -122,6 +135,20 @@ edvanta/
 ```
 
 ## 🚀 Quick Start
+
+### Quick start (under 5 minutes)
+If you want to get the app running locally quickly, this 2–5 minute flow will get both client and server started:
+
+```bash
+git clone https://github.com/tanish-jain-225/edvanta.git
+cd edvanta
+# start backend (in one terminal)
+cd server && pip install -r requirements.txt && cp .env.example .env && python app.py
+# start frontend (in another terminal)
+cd client && npm install && cp .env.example .env && npm run dev
+```
+
+The detailed step-by-step Quick Start is below this short guide.
 
 ### Prerequisites
 - **Node.js 18.0+** (for frontend)
@@ -189,6 +216,7 @@ vercel --prod
 The application auto-detects deployment environment and works on:
 - **AWS Lambda** / **Netlify** / **Google Cloud** / **Heroku** / **Railway**
 
+
 ## ⚙️ Configuration
 
 All environment variables are fully documented in `.env.example` files with setup guides.
@@ -250,6 +278,10 @@ See `client/.env.example` for:
 | **External Links** | Direct navigation | Open videos in YouTube for full experience |
 
 ## 🛠️ Technology Stack
+
+<!-- Tech badges (replace versions/links as appropriate) -->
+[![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react&logoColor=white)](https://reactjs.org) [![Vite](https://img.shields.io/badge/Vite-6.3.5-646cff?logo=vite&logoColor=white)](https://vitejs.dev) [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4.1.12-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com) [![Flask](https://img.shields.io/badge/Flask-3.1.1-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com) [![Python](https://img.shields.io/badge/Python-3.10-blue?logo=python&logoColor=white)](https://python.org) [![MongoDB](https://img.shields.io/badge/MongoDB-atlas-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
+
 
 ### 🎨 Frontend Stack
 - **React 18.3.1** - Modern React with hooks, Suspense, and concurrent features
@@ -333,6 +365,8 @@ See `client/.env.example` for:
 
 ## 🤝 Contributing
 
+**Contribution guidelines:** See `CONTRIBUTING.md` for detailed guidelines, testing rules, and PR process.
+
 ### Development Workflow
 1. **Fork** the repository
 2. **Create** feature branch (`git checkout -b feature/amazing-feature`)
@@ -398,6 +432,20 @@ curl http://localhost:5000/api/runtime-features
 # Frontend development server
 npm run dev -- --debug
 ```
+
+## 🛣️ Roadmap & Future Improvements
+
+Planned items and improvements we plan to add (short-term and long-term):
+
+- Improve conversational context with long-term memory and user profiling
+- Add more fine-grained role-based access and admin dashboards
+- Multi-language support and localization (i18n)
+- CI/CD pipelines for automated tests and deployments (GitHub Actions)
+- End-to-end tests and UX benchmarking
+- Mobile app wrappers (Expo/React Native) and desktop builds
+- More integrations: LinkedIn resume parsing, ATS scoring
+
+Contributions and suggestions welcome — please open an issue or a PR.
 
 ## Contributors
 
