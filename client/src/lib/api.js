@@ -72,9 +72,16 @@ export class APIClient {
 
   // Enhanced fetch with retry logic and proper error handling
   async fetchWithRetry(url, options = {}, attempts = this.retryAttempts) {
+    // Immediate offline check - fail fast without retry
+    if (!navigator.onLine) {
+      const offlineError = new Error('Device is offline');
+      offlineError.name = 'OfflineError';
+      throw offlineError;
+    }
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Reduced to 10s timeout
 
       const response = await fetch(url, {
         ...options,
@@ -89,6 +96,13 @@ export class APIClient {
 
       return response;
     } catch (error) {
+      // Don't retry if offline
+      if (!navigator.onLine || error.name === 'OfflineError') {
+        error.name = 'OfflineError';
+        throw error;
+      }
+
+      // Retry only for specific errors and if attempts remaining
       if (attempts > 1 && (error.name === 'TypeError' || error.name === 'AbortError')) {
         console.warn(`Retrying request to ${url}. Attempts left: ${attempts - 1}`);
         await new Promise(resolve => setTimeout(resolve, this.retryDelay));
@@ -151,6 +165,16 @@ export class APIClient {
   async call(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     
+    // Immediate offline check - fail fast
+    if (!navigator.onLine) {
+      console.warn(`🔌 Offline: Cannot call ${endpoint}`);
+      return APIResponse.error(
+        'You are currently offline. Please check your internet connection.',
+        null,
+        ErrorTypes.NETWORK_ERROR
+      );
+    }
+    
     try {
       console.log(`🔗 API Call: ${options.method || 'GET'} ${endpoint}`);
       
@@ -168,12 +192,18 @@ export class APIClient {
       console.error(`💥 Network Error: ${endpoint}`, error);
       
       let errorType = ErrorTypes.NETWORK_ERROR;
-      if (error.name === 'AbortError') {
+      let errorMessage = 'Network request failed. Please check your connection.';
+      
+      // Handle different error types with immediate response
+      if (error.name === 'OfflineError' || !navigator.onLine) {
+        errorMessage = 'You are currently offline. Please check your internet connection.';
+      } else if (error.name === 'AbortError') {
         errorType = ErrorTypes.TIMEOUT;
+        errorMessage = 'Request timed out. Please try again.';
       }
       
       return APIResponse.error(
-        error.message || 'Network request failed',
+        errorMessage,
         null,
         errorType
       );

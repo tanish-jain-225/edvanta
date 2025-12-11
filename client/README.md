@@ -10,6 +10,7 @@ A modern React-based educational platform built with cutting-edge technologies f
 - 🎨 **Beautiful UI** - Modern design with smooth animations
 - 🔥 **Hot Reload** - Instant development feedback with Vite HMR
 - 📦 **Component-Based** - Modular, reusable UI components
+- 🌐 **Progressive Web App** - Installable with offline support and caching
 
 ### **AI-Powered Learning Tools**
 - 🤖 **Doubt Solving Chatbot** - AI-powered Q&A with conversation history
@@ -25,6 +26,8 @@ A modern React-based educational platform built with cutting-edge technologies f
 - 🎨 **TailwindCSS Design** - Beautiful UI with Radix UI components
 - 🌙 **Screen Fatigue Prevention** - Built-in break reminders with timer reset
 - 📱 **Fully Responsive** - Seamless experience across all devices
+- 🔌 **Offline-First Architecture** - Works without internet for cached content
+- 🌐 **PWA Support** - Service worker caching with offline capabilities
 
 ## 🚀 Quick Start
 
@@ -33,6 +36,7 @@ A modern React-based educational platform built with cutting-edge technologies f
 - A Vercel account (for deployment)
 - Firebase project (for authentication)
 - Cloudinary account (for media storage)
+- Modern browser with service worker support
 
 ### Local Development
 
@@ -187,7 +191,29 @@ npm run preview  # Preview production build locally
 npm run lint     # Run ESLint code checking
 ```
 
-## 🌐 API Integration
+## 🌐 Progressive Web App (PWA) Features
+
+### **Basic Offline Support**
+The application includes simple offline functionality:
+
+- **Service Worker Caching** - Automatic caching of visited pages and assets
+- **Floating Offline Indicator** - Shows connection status at bottom-right corner
+- **All Pages Accessible** - Navigate to any page while offline
+- **Cache-First Strategy** - Fast loading from cache with network updates
+
+### **How Offline Works**
+- Service worker caches pages as you visit them
+- All routes remain accessible when offline
+- Floating indicator shows "Offline Mode" or "Online Mode"
+- Network requests fail gracefully with user-friendly messages
+
+### **Testing Offline Mode**
+```bash
+# Open DevTools (F12) → Network tab → Check "Offline"
+# Navigate between pages - everything still works!
+```
+
+## 🔧 API Integration
 
 The client communicates with the Edvanta backend through a centralized API client (`lib/api.js`):
 
@@ -334,6 +360,13 @@ See `.env.example` for complete setup guides including:
 - Verify backend server is running (development)
 - Check `VITE_API_BASE_URL` or `VITE_PRODUCTION_API_URL` is correct
 - Ensure CORS is configured properly on backend
+- Check if you're offline - app shows offline indicator
+
+**"Service worker not registering"**
+- Ensure browser supports service workers (Chrome, Firefox, Safari, Edge)
+- Check console for service worker errors
+- Verify `sw.js` is accessible at `/sw.js`
+- Service workers only work over HTTPS (or localhost)
 
 **"Cloudinary upload failed"**
 - Verify `VITE_CLOUDINARY_*` variables are set

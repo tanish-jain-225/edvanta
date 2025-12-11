@@ -1,7 +1,7 @@
 {
   "name": "Edvanta - AI-Powered Learning Platform",
   "short_name": "Edvanta",
-  "description": "AI-powered learning platform for personalized learning, quizzes, roadmaps, and career tools",
+  "description": "AI-powered learning platform for personalized learning, quizzes, roadmaps, and career tools. Works offline!",
   "start_url": "/",
   "display": "browser",
   "background_color": "#ffffff",

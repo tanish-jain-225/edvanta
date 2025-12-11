@@ -12,6 +12,7 @@ import { useAuth } from "./hooks/useAuth";
 import { PageTransition } from "./components/ui/PageTransition";
 import { ScreenFatigueReminder } from "./components/ui/ScreenFatigueReminder";
 import ScrollToTop from "./components/ui/ScrollToTop";
+import OfflineIndicator from "./components/ui/OfflineIndicator";
 
 // Pages
 import Home from "./pages/Home";
@@ -210,6 +211,7 @@ function App() {
   return (
     <Router>
       <ScrollToTop />
+      <OfflineIndicator />
       <AppRoutes />
       <ScreenFatigueReminder />
     </Router>
