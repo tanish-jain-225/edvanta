@@ -93,18 +93,10 @@ export function ConversationalTutor() {
       console.error('Unhandled error in ConversationalTutor:', event.error);
       setHasError(true);
       setErrorDetails(event.error.message || 'An unexpected error occurred');
-      setLastError({
-        message: 'An unexpected error occurred. Please refresh the page.',
-        timestamp: Date.now()
-      });
     };
 
     const handleUnhandledPromiseRejection = (event) => {
       console.error('Unhandled promise rejection in ConversationalTutor:', event.reason);
-      setLastError({
-        message: 'A network or processing error occurred. Please try again.',
-        timestamp: Date.now()
-      });
     };
 
     window.addEventListener('error', handleUnhandledError);
@@ -153,9 +145,6 @@ export function ConversationalTutor() {
   const [isRecognitionRestarting, setIsRecognitionRestarting] = useState(false);
   const restartTimeoutRef = useRef(null);
   
-  // Enhanced error handling state
-  const [lastError, setLastError] = useState(null);
-  
   // Counter for unique message IDs to prevent duplicates
   const messageIdCounter = useRef(0);
   
@@ -202,7 +191,7 @@ export function ConversationalTutor() {
   // Enhanced backend connection check with retry mechanism
   const checkBackendConnection = useCallback(async () => {
     if (!isOnline) {
-      setLastError({ message: UI_TEXT.networkOffline, timestamp: Date.now() });
+      // setLastError({ message: UI_TEXT.networkOffline, timestamp: Date.now() });
       return false;
     }
     
@@ -245,7 +234,7 @@ export function ConversationalTutor() {
         errorMessage = 'Could not connect to voice tutor services. Please check your connection.';
       }
         
-      setLastError({ message: errorMessage, timestamp: Date.now() });
+      // setLastError({ message: errorMessage, timestamp: Date.now() });
       return false;
     } finally {
       setIsLoading(false);
@@ -256,10 +245,10 @@ export function ConversationalTutor() {
   useEffect(() => {
     // Check browser support
     if (!window.speechSynthesis) {
-      setLastError({ 
-        message: UI_TEXT.speechNotSupported, 
-        timestamp: Date.now() 
-      });
+      // setLastError({ 
+      //   message: UI_TEXT.speechNotSupported, 
+      //   timestamp: Date.now() 
+      // });
       return;
     }
 
@@ -653,10 +642,10 @@ export function ConversationalTutor() {
         window.SpeechRecognition || window.webkitSpeechRecognition;
 
       if (!SpeechRecognition) {
-        setLastError({
-          message: "Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.",
-          timestamp: Date.now()
-        });
+        // setLastError({
+        //   message: "Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.",
+        //   timestamp: Date.now()
+        // });
         setMicState(MicState.INACTIVE);
         return;
       }
@@ -673,7 +662,7 @@ export function ConversationalTutor() {
 
       recognition.onstart = () => {
         setTranscript("");
-        setLastError(null); // Clear any previous errors
+        // setLastError(null); // Clear any previous errors
         setIsRecognitionRestarting(false); // Mark restart as complete
       };
 
@@ -717,44 +706,44 @@ export function ConversationalTutor() {
             
           case "not-allowed":
           case "service-not-allowed":
-            setLastError({ 
-              message: UI_TEXT.microphoneBlocked,
-              timestamp: Date.now() 
-            });
+            // setLastError({ 
+            //   message: UI_TEXT.microphoneBlocked,
+            //   timestamp: Date.now() 
+            // });
             setMicState(MicState.INACTIVE);
             break;
             
           case "network":
             // Don't disable on network errors, just show warning
-            setLastError({ 
-              message: "Network issue during speech recognition. Please try again.",
-              timestamp: Date.now() 
-            });
+            // setLastError({ 
+            //   message: "Network issue during speech recognition. Please try again.",
+            //   timestamp: Date.now() 
+            // });
             setMicState(MicState.INACTIVE);
             break;
             
           case "audio-capture":
-            setLastError({ 
-              message: "Microphone temporarily unavailable. Please try again.",
-              timestamp: Date.now() 
-            });
+            // setLastError({ 
+            //   message: "Microphone temporarily unavailable. Please try again.",
+            //   timestamp: Date.now() 
+            // });
             setMicState(MicState.INACTIVE);
             break;
             
           case "language-not-supported":
-            setLastError({ 
-              message: "Speech recognition language not supported.",
-              timestamp: Date.now() 
-            });
+            // setLastError({ 
+            //   message: "Speech recognition language not supported.",
+            //   timestamp: Date.now() 
+            // });
             setMicState(MicState.INACTIVE);
             break;
             
           default:
             console.warn("Speech recognition error:", event.error);
-            setLastError({ 
-              message: "Speech recognition error. Please try again.",
-              timestamp: Date.now() 
-            });
+            // setLastError({ 
+            //   message: "Speech recognition error. Please try again.",
+            //   timestamp: Date.now() 
+            // });
             setMicState(MicState.INACTIVE);
         }
       };
@@ -791,18 +780,18 @@ export function ConversationalTutor() {
         console.error("Failed to start recognition:", startError);
         speechRecognitionRef.current = null;
         setMicState(MicState.INACTIVE);
-        setLastError({
-          message: "Could not start voice recognition. Please check microphone permissions.",
-          timestamp: Date.now()
-        });
+        // setLastError({
+        //   message: "Could not start voice recognition. Please check microphone permissions.",
+        //   timestamp: Date.now()
+        // });
       }
     } catch (error) {
       console.error("Error initializing speech recognition:", error);
       setMicState(MicState.INACTIVE);
-      setLastError({
-        message: "Could not initialize speech recognition. Please check your browser compatibility.",
-        timestamp: Date.now()
-      });
+      // setLastError({
+      //   message: "Could not initialize speech recognition. Please check your browser compatibility.",
+      //   timestamp: Date.now()
+      // });
     }
   };
 
@@ -860,12 +849,12 @@ export function ConversationalTutor() {
       
       if (permissions.state === 'denied') {
         const errorMessage = "Microphone access is blocked. Please allow microphone access in your browser settings and refresh the page.";
-        setLastError({ message: errorMessage, timestamp: Date.now() });
+        // setLastError({ message: errorMessage, timestamp: Date.now() });
         return false;
       }
       
       // Clear any previous errors
-      setLastError(null);
+      // setLastError(null);
       return true;
     } catch (error) {
       // Fallback for browsers that don't support permissions API
@@ -877,10 +866,10 @@ export function ConversationalTutor() {
   // Enhanced microphone control functions
   const startMicrophone = () => {
     if (!isSessionActive) {
-      setLastError({ 
-        message: "Please start a session first by selecting a mode and subject.",
-        timestamp: Date.now() 
-      });
+      // setLastError({ 
+      //   message: "Please start a session first by selecting a mode and subject.",
+      //   timestamp: Date.now() 
+      // });
       return;
     }
 
@@ -892,7 +881,7 @@ export function ConversationalTutor() {
 
     // Clear any previous transcript and errors
     setTranscript("");
-    setLastError(null);
+    // setLastError(null);
 
     // Reset restart state when manually starting microphone
     setIsRecognitionRestarting(false);
@@ -1196,19 +1185,19 @@ export function ConversationalTutor() {
   const startSession = async () => {
     if (!user) {
       setIsStartButtonClicked(true);
-      setLastError({ 
-        message: "Please log in to start a tutoring session.",
-        timestamp: Date.now() 
-      });
+      // setLastError({ 
+      //   message: "Please log in to start a tutoring session.",
+      //   timestamp: Date.now() 
+      // });
       navigate("/auth/login");
       return;
     }
 
     if (!selectedSubject.trim()) {
-      setLastError({ 
-        message: "Please enter a subject to focus on.",
-        timestamp: Date.now() 
-      });
+      // setLastError({ 
+      //   message: "Please enter a subject to focus on.",
+      //   timestamp: Date.now() 
+      // });
       return;
     }
 
@@ -1290,10 +1279,10 @@ export function ConversationalTutor() {
           setMessages([welcomeMessage]);
         }
       } else {
-        setLastError({ 
-          message: response.data.error || "Failed to start session. Please try again.",
-          timestamp: Date.now() 
-        });
+        // setLastError({ 
+        //   message: response.data.error || "Failed to start session. Please try again.",
+        //   timestamp: Date.now() 
+        // });
       }
     } catch (error) {
       console.error("Error starting session:", error);
@@ -1302,7 +1291,7 @@ export function ConversationalTutor() {
         ? "Session start timeout. Please check your connection and try again."
         : "Failed to start a session. Please check your internet connection.";
         
-      setLastError({ message: errorMessage, timestamp: Date.now() });
+      // setLastError({ message: errorMessage, timestamp: Date.now() });
     } finally {
       // Ensure minimum loading time of 2 seconds
       await enforceMinimumLoadingTime(startTime);
@@ -1399,17 +1388,17 @@ export function ConversationalTutor() {
         setCurrentSpeakingMessageId(null);
         setTranscript("");
         setConnectionStatus(null);
-        setLastError(null);
+        // setLastError(null);
         
       } else {
         console.error(
           "Server returned unsuccessful end session response:",
           response.data
         );
-        setLastError({ 
-          message: response.data.error || "Failed to end session properly.",
-          timestamp: Date.now() 
-        });
+        // setLastError({ 
+        //   message: response.data.error || "Failed to end session properly.",
+        //   timestamp: Date.now() 
+        // });
 
         // Force reset session state even on error to prevent hanging sessions
         setSessionId(null);
@@ -1433,10 +1422,10 @@ export function ConversationalTutor() {
         console.error("Request setup error:", error.message);
       }
 
-      setLastError({
-        message: "Failed to end session properly due to connection issues. Session has been reset locally.",
-        timestamp: Date.now()
-      });
+      // setLastError({
+      //   message: "Failed to end session properly due to connection issues. Session has been reset locally.",
+      //   timestamp: Date.now()
+      // });
 
       // Force reset session state on any error to prevent hanging sessions
       setSessionId(null);
@@ -1465,25 +1454,25 @@ export function ConversationalTutor() {
       const activeSessionId = currentSessionId || sessionId;
       if (!activeSessionId) {
         console.warn("No active session, cannot send message");
-        setLastError({ 
-          message: "No active session. Please start a new session first.",
-          timestamp: Date.now() 
-        });
+        // setLastError({ 
+        //   message: "No active session. Please start a new session first.",
+        //   timestamp: Date.now() 
+        // });
         return;
       }
 
       // Validate session is still active
       if (!isSessionActive) {
         console.warn("Session is no longer active");
-        setLastError({ 
-          message: "Session has ended. Please start a new session.",
-          timestamp: Date.now() 
-        });
+        // setLastError({ 
+        //   message: "Session has ended. Please start a new session.",
+        //   timestamp: Date.now() 
+        // });
         return;
       }
 
       // Clear any previous errors
-      setLastError(null);
+      // setLastError(null);
 
       // Get last 10 messages for context - ensure they're from current session
       const conversationHistory = messages
@@ -2104,56 +2093,7 @@ export function ConversationalTutor() {
         </div>
       )}
 
-      {/* Error Recovery Section */}
-      {lastError && (
-        <div className="fixed bottom-4 right-4 max-w-sm z-50">
-          <Card className="border-destructive bg-destructive/5">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-destructive mb-1">
-                    Error
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {lastError.message}
-                  </p>
-                  <div className="flex gap-2 mt-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setLastError(null)}
-                      className="text-xs h-8"
-                    >
-                      Dismiss
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        // Full reset
-                        setLastError(null);
-                        setMicState(MicState.INACTIVE);
-                        cleanupSpeechRecognition();
-                        setTranscript("");
-                        setHasError(false);
-                        setErrorDetails(null);
-                        // Re-initialize if needed
-                        if (isSessionActive) {
-                          setTimeout(() => initializeSpeechRecognition(), 500);
-                        }
-                      }}
-                      className="text-xs h-8"
-                    >
-                      Reset
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+
     </div>
   );
 }
