@@ -154,27 +154,6 @@ client/
             └── VisualContent.jsx   # YouTube API video explorer
 ```
 
-## Component architecture
-
-High-level component architecture (replace with diagram in `client/docs/` if you maintain visuals):
-
-```mermaid
-graph TD
-   App --> Layout
-   Layout --> Navbar
-   Layout --> Sidebar
-   App --> Pages
-   Pages --> Home
-   Pages --> Dashboard
-   Pages --> Tools
-   Tools --> DoubtSolving
-   Tools --> Quizzes
-   Tools --> ResumeBuilder
-   Tools --> Roadmap
-   Components --> UI[UI primitives (badge, button, card, input)]
-```
-
-This app follows a route-based page structure and a small design-system approach (components in `src/components/ui/`).
 
 ## Environment variables (detailed)
 

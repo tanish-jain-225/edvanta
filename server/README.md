@@ -35,21 +35,6 @@ Works seamlessly across all hosting platforms without configuration:
 - 🌐 **Universal CORS** - Cross-platform compatibility built-in
 - 📊 **Real-time Monitoring** - Health checks and feature reporting
 
-## Backend architecture diagram
-
-Below is a high-level architecture diagram showing the main backend components and integrations. Replace or expand with a PNG/SVG if you maintain visuals in `server/docs/`.
-
-```mermaid
-graph TD
-   Client[Client App (React)] -->|HTTP/REST| API[Flask REST API]
-   API --> Auth[Auth (Firebase / JWT)]
-   API --> DB[(MongoDB Atlas)]
-   API --> AI[Google Gemini]
-   API --> Cloudinary[Cloudinary]
-   API --> Jobs[Background Jobs (optional)]
-   API --> Logs[Logging / Sentry / Monitoring]
-   style API fill:#f9f,stroke:#333,stroke-width:2px
-```
 
 ## 🚀 Quick Start
 
