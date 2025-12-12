@@ -2,6 +2,10 @@
 
 A modern React-based educational platform built with cutting-edge technologies for optimal performance and accessibility. Features AI-powered learning tools with a beautiful, responsive interface.
 
+<!-- Badges: update badge URLs to point to your CI / coverage / deploy if available -->
+[![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react&logoColor=white)](https://reactjs.org) [![Vite](https://img.shields.io/badge/Vite-6.3.5-646cff?logo=vite&logoColor=white)](https://vitejs.dev) [![License](https://img.shields.io/badge/License-MIT-green.svg)](../LICENSE)
+
+
 ## 🌟 Key Features
 
 ### **Modern React Application**
@@ -149,6 +153,159 @@ client/
             ├── ResumeBuilder.jsx   # Resume analysis tool
             └── VisualContent.jsx   # YouTube API video explorer
 ```
+
+## Component architecture
+
+High-level component architecture (replace with diagram in `client/docs/` if you maintain visuals):
+
+```mermaid
+graph TD
+   App --> Layout
+   Layout --> Navbar
+   Layout --> Sidebar
+   App --> Pages
+   Pages --> Home
+   Pages --> Dashboard
+   Pages --> Tools
+   Tools --> DoubtSolving
+   Tools --> Quizzes
+   Tools --> ResumeBuilder
+   Tools --> Roadmap
+   Components --> UI[UI primitives (badge, button, card, input)]
+```
+
+This app follows a route-based page structure and a small design-system approach (components in `src/components/ui/`).
+
+## Environment variables (detailed)
+
+Copy values from `.env.example` into `.env` for local development. Key variables used by the client:
+
+```env
+# API endpoints
+VITE_API_BASE_URL="http://localhost:5000"
+VITE_PRODUCTION_API_URL="https://api.yourdomain.com"
+
+# Firebase (example keys; use your project values)
+VITE_FIREBASE_API_KEY="AIza..."
+VITE_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
+VITE_FIREBASE_PROJECT_ID="your-project-id"
+VITE_FIREBASE_STORAGE_BUCKET="your-project.appspot.com"
+VITE_FIREBASE_MESSAGING_SENDER_ID="123456789"
+VITE_FIREBASE_APP_ID="1:123:web:abcdef"
+
+# Cloudinary
+VITE_CLOUDINARY_CLOUD_NAME="your-cloud"
+VITE_CLOUDINARY_UPLOAD_PRESET="unsigned-preset"
+
+# YouTube
+VITE_YOUTUBE_API_KEY="AIza..."
+```
+
+Never commit secrets to git. Use environment configuration in Vercel/Netlify for production.
+
+## Available scripts & their purpose
+
+The `package.json` scripts are small but important — here's what each does and when to use them:
+
+- `npm run dev` — Starts Vite dev server with HMR for local development (use this most of the time).
+- `npm run build` — Produces production-ready static assets in `dist/` (run before deploy).
+- `npm run preview` — Serves the production build locally for smoke testing.
+- `npm run lint` — Runs ESLint across the project; fix issues before committing.
+
+Add `format` or `test` scripts if you introduce Prettier or test runners.
+
+## Routing (how routes are organized)
+
+Routing is defined in `src/App.jsx` using React Router v7. Typical structure:
+
+- Top-level routes: `/` (Home), `/dashboard`, `/tools/*` (nested tool routes)
+- Auth routes: `/login`, `/signup`
+- Tools are nested under `/tools` with subroutes for each tool (e.g., `/tools/quizzes`, `/tools/doubt`)
+
+Protected routes use a `RequireAuth` wrapper (see `src/hooks/useAuth.js`) which checks Firebase auth state and redirects to `/login` if unauthenticated.
+
+## State management
+
+The app uses a lightweight approach:
+
+- Firebase handles authentication and user identity.
+- Local component state and custom hooks (`src/hooks/*.js`) manage UI state.
+- Global cross-cutting state (if needed) is handled via React Contexts or simple module-level singletons; heavy state libraries (Redux) are intentionally avoided to keep complexity low.
+- `src/lib/api.js` centralizes HTTP calls and handles token injection.
+
+If you add larger features, consider introducing Zustand or Redux Toolkit with slices and typed selectors.
+
+## PWA notes (install & caching)
+
+- The app ships with a service worker (`public/sw.js`) for caching static assets and basic offline support. 
+- To test installability: open in Chrome → App menu → Install (or check the install prompt in the address bar).
+- Update the `manifest.json` in `public/` to customize name, icons, and theme color for better install UX.
+
+## Build & deployment guide
+
+Vercel (recommended):
+
+1. Push to GitHub and import the repo in Vercel.
+2. Set environment variables in Vercel dashboard (use the same keys from `.env.example`).
+3. Vercel will detect the Vite app and run `npm run build` automatically.
+
+Docker (optional):
+
+```dockerfile
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json .
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:stable-alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+Use the Docker image in any container platform or serve via CDN for best performance.
+
+## Browser compatibility
+
+Supported browsers (targeted):
+- Chrome (latest 2 versions)
+- Firefox (latest 2 versions)
+- Safari (latest 2 versions)
+- Edge (latest 2 versions)
+
+We use modern JS features; Vite + browserslist handle transpilation. Add specific polyfills if you must support older browsers.
+
+## Performance optimization tips
+
+- Use `React.lazy` and route-based code-splitting for large tools.
+- Compress images and prefer WebP/AVIF for production assets.
+- Use `vite build --profile` and analyze bundles with `rollup-plugin-visualizer`.
+- Avoid heavy computations on the main thread; move to web workers if necessary.
+- Keep component renders minimal with `useMemo`/`useCallback` where appropriate.
+
+## Testing
+
+Recommended test stack for frontend:
+- Unit & component tests: `vitest` + `@testing-library/react`
+- End-to-end tests: `cypress` or `playwright`
+
+Quick start for tests:
+
+```bash
+npm install -D vitest @testing-library/react cypress
+npm run test:unit   # add this script if you scaffold tests
+```
+
+Add CI integration (GitHub Actions) to run tests on PRs.
+
+## Coding style & linting
+
+- ESLint is included (`eslint.config.js`). Run `npm run lint` before committing.
+- Use Prettier for consistent formatting (add `prettier` and a `format` script if desired).
+- Add Husky + lint-staged to run linters and tests on pre-commit for higher code quality.
+
 
 ## 🛠️ Technology Stack
 
