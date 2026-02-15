@@ -9,7 +9,6 @@ export const registerServiceWorker = () => {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
-          console.log('[PWA] Service Worker registered');
 
           // Check for updates periodically
           setInterval(() => {

@@ -48,13 +48,5 @@ export function getUserProfileImage(user, userProfile) {
     (!isGoogleAuthImage ? user?.photoURL : null) || 
     DEFAULT_AVATAR;
   
-  // Remove logging that's causing console spam
-  // console.log("Profile image selection:", {
-  //   userProfileImage: userProfile?.profileImageUrl,
-  //   userPhotoURL: user?.photoURL,
-  //   fallbackImage: DEFAULT_AVATAR,
-  //   selectedImage: profileImage
-  // });
-  
   return profileImage;
 }

@@ -98,7 +98,6 @@ def initialize_ai() -> bool:
     try:
         api_key = Config.GEMINI_API_KEY
         if not api_key:
-            print("Warning: GEMINI_API_KEY not configured")
             return False
         
         genai.configure(api_key=api_key)
