@@ -17,7 +17,6 @@ A comprehensive full-stack educational platform that revolutionizes learning thr
 - 📝 **Smart Quiz System** - AI-generated personalized quizzes with automatic scoring
 - 👨‍🏫 **AI Tutor** - Interactive conversational tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
-- 📄 **Resume Builder** - AI-powered resume analysis and job-fit optimization
 - 🎬 **Visual Content Explorer** - YouTube API integration for educational video discovery
 
 ### **Modern React Application**
@@ -49,16 +48,9 @@ graph TB
     subgraph "Backend (Flask API)"
         F[Flask Server] --> G[AI Services]
         F --> H[Database]
-        F --> I[File Storage]
+        I[External APIs]
         G --> J[Google Gemini]
         H --> K[MongoDB]
-        I --> L[Cloudinary]
-    end
-    
-    subgraph "External Services"
-        J --> M[AI Generation]
-        K --> N[Data Persistence]
-        L --> O[Media Hosting]
         P[YouTube API] --> Q[Video Discovery]
     end
     
@@ -67,7 +59,7 @@ graph TB
     A -.-> P
 ```
 
-**Client (React App)** ↔ **REST API (Flask)** ↔ **AI Services (Gemini, Cloudinary, MongoDB)**
+**Client (React App)** ↔ **REST API (Flask)** ↔ **AI Services (Gemini, MongoDB)**
 
 ## 🎯 Feature showcase
 
@@ -76,7 +68,6 @@ Below are a few of the core features showcased visually — add screenshots or G
 - Intelligent Chatbot (context-aware doubt solving)
 - AI Tutor (conversational tutoring)
 - Smart Quiz System (personalized quizzes with auto-scoring)
-- Resume Builder (analysis & job-fit suggestions)
 
 
 ## 📁 Project Structure
@@ -103,7 +94,6 @@ edvanta/
 │   │   │       ├── ConversationalTutor.jsx # AI tutoring system
 │   │   │       ├── DoubtSolving.jsx # AI chatbot for Q&A
 │   │   │       ├── Quizzes.jsx     # Quiz generation & scoring
-│   │   │       ├── ResumeBuilder.jsx # Resume analysis tool
 │   │   │       ├── Roadmap.jsx     # Learning path generator
 │   │   │       └── VisualContent.jsx # YouTube API video explorer
 │   │   ├── hooks/                   # Custom React hooks
@@ -124,10 +114,9 @@ edvanta/
     │   ├── config.py                # Environment configuration
     │   ├── routes/                  # API endpoints (blueprints)
     │   │   ├── chatbot.py, quizzes.py, tutor.py
-    │   │   ├── roadmap.py, resume.py, user_stats.py
+    │   │   ├── roadmap.py, user_stats.py
     │   └── utils/                   # Service integrations
     │       ├── ai_utils.py          # Gemini AI integration
-    │       ├── cloudinary_utils.py, pdf_utils.py
     │       ├── mongo_utils.py, quizzes_utils.py
     ├── app.py                       # Local development entry point
     ├── requirements.txt, runtime.txt, vercel.json
@@ -156,7 +145,6 @@ The detailed step-by-step Quick Start is below this short guide.
 - **MongoDB Atlas** account (database)
 - **Google Gemini API** key (AI features)
 - **Firebase** project (authentication)
-- **Cloudinary** account (media storage)
 - **YouTube Data API v3** key (visual content explorer)
 
 ### 🖥️ Local Development
@@ -224,7 +212,7 @@ All environment variables are fully documented in `.env.example` files with setu
 ### 🔧 Backend Configuration (`server/.env`)
 
 **Required:** MongoDB URI, Gemini API Key  
-**Optional:** Cloudinary (file uploads), Secret Key, CORS settings
+**Optional:** Secret Key, CORS settings
 
 See `server/.env.example` for:
 - Detailed setup instructions for each service
@@ -234,12 +222,11 @@ See `server/.env.example` for:
 
 ### 🎨 Frontend Configuration (`client/.env`)
 
-**Required:** Firebase (6 vars), Backend URLs (2 vars), Cloudinary (2 vars), YouTube API  
+**Required:** Firebase (6 vars), Backend URLs (2 vars), YouTube API  
 **Optional:** Environment override
 
 See `client/.env.example` for:
 - Step-by-step Firebase setup
-- Cloudinary configuration
 - YouTube API key generation
 - Development vs production mode
 
@@ -266,8 +253,6 @@ See `client/.env.example` for:
 |--------|----------|-------------|
 | `POST` | `/api/roadmap/generate` | Generate learning roadmap |
 | `GET` | `/api/roadmap/user/{user_email}` | Get user roadmaps |
-| `POST` | `/api/resume/upload` | Upload resume for analysis |
-| `POST` | `/api/resume/analyze` | Analyze resume vs job description |
 | `GET` | `/api/user-stats` | Get user progress statistics |
 
 ### Visual Content (Client-Side Only)
@@ -297,13 +282,10 @@ See `client/.env.example` for:
 - **Flask 3.1.1** - Lightweight web framework
 - **Google Generative AI** - Gemini API integration
 - **PyMongo 4.6.1** - MongoDB driver
-- **Cloudinary** - Media storage and processing
-- **PyPDF / ReportLab** - Document processing
 
 ### 🗄️ External Services
 - **Google Gemini** - AI content generation
 - **MongoDB Atlas** - Cloud database
-- **Cloudinary** - Media hosting and processing
 - **Firebase** - Authentication and real-time database
 - **YouTube Data API v3** - Educational video search and discovery
 - **Vercel** - Serverless deployment platform
@@ -331,7 +313,6 @@ See `client/.env.example` for:
 
 ### ⚡ Interactive Features
 - **Real-time Feedback** - Live validation and instant UI updates
-- **File Upload Support** - Drag & drop functionality for PDF documents
 - **Form Optimization** - Debounced inputs and real-time validation
 - **Progressive Enhancement** - Core functionality works without JavaScript
 
@@ -413,7 +394,6 @@ pip install -r requirements.txt  # Install dependencies
 **Backend Issues:**
 - **MongoDB connection failed** - Check `MONGODB_URI`, verify network access in Atlas
 - **Gemini API errors** - Confirm valid `GEMINI_API_KEY`, check quota (15 req/min free tier)
-- **Cloudinary upload failed** - Verify credentials, check free tier limits
 
 **Frontend Issues:**
 - **Firebase configuration invalid** - Verify all 6 `VITE_FIREBASE_*` variables
@@ -443,7 +423,6 @@ Planned items and improvements we plan to add (short-term and long-term):
 - CI/CD pipelines for automated tests and deployments (GitHub Actions)
 - End-to-end tests and UX benchmarking
 - Mobile app wrappers (Expo/React Native) and desktop builds
-- More integrations: LinkedIn resume parsing, ATS scoring
 
 Contributions and suggestions welcome — please open an issue or a PR.
 

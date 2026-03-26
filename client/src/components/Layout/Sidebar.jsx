@@ -7,7 +7,6 @@ import {
   Brain,
   Mic,
   MapPin,
-  FileText,
   Trophy,
   Settings,
   Wifi,
@@ -20,7 +19,6 @@ const navigation = [
   { name: 'Quizzes', href: '/tools/quizzes', icon: Brain },
   { name: 'Voice Tutor', href: '/tools/conversational-tutor', icon: Mic },
   { name: 'Roadmap', href: '/tools/roadmap', icon: MapPin },
-  { name: 'Resume Builder', href: '/tools/resume-builder', icon: FileText },
   { name: 'Visual Content', href: '/tools/visual-content', icon: Video },
 ]
 

@@ -24,7 +24,6 @@ Works seamlessly across all hosting platforms without configuration:
 - 📝 **Quiz Generation** - AI-generated quizzes with automatic scoring & analytics
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
 - 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support
-- 📄 **Resume Builder** - Professional resume analysis & job-fit scoring
 - 📊 **User Analytics** - Comprehensive learning progress & performance tracking
 - 🎬 **Visual Content Explorer** - Client-side YouTube API integration (no backend required)
 
@@ -60,9 +59,6 @@ Works seamlessly across all hosting platforms without configuration:
    GEMINI_API_KEY=AIza...your-key...
    
    # Optional
-   CLOUDINARY_CLOUD_NAME=your-cloud-name
-   CLOUDINARY_API_KEY=your-api-key
-   CLOUDINARY_API_SECRET=your-secret
    ```
 
 3. **Run Server**
@@ -115,15 +111,11 @@ server/
     │   ├── quizzes.py      # Quiz generation & scoring system
     │   ├── tutor.py        # AI tutoring with voice support
     │   ├── roadmap.py      # Learning roadmap creation
-    │   ├── resume.py       # Resume building & job analysis
     │   └── user_stats.py   # User statistics & progress tracking
     └── utils/
         ├── __init__.py
         ├── ai_utils.py     # Gemini AI integration
-        ├── cloudinary_utils.py # File uploads & media
-        ├── pdf_utils.py    # PDF text extraction
-        ├── mongo_utils.py  # MongoDB utilities
-        └── quizzes_utils.py # Quiz generation logic
+        │       ├── mongo_utils.py, quizzes_utils.py
 ```
 
 ## 🔧 API Endpoints
@@ -207,27 +199,6 @@ curl -X POST https://api.example.com/api/quizzes/score \
 }
 ```
 
-### 4) Resume Analyze
-- Endpoint: `POST /api/resume/analyze`
-- Description: Submit a resume and job description for AI job-fit scoring.
-- Request: multipart/form-data with `file` (PDF/DOCX) and `job_description` (string)
-
-```bash
-curl -X POST https://api.example.com/api/resume/analyze \
-   -H "Authorization: Bearer <token>" \
-   -F "file=@./resume.pdf" \
-   -F "job_description=Senior Backend Engineer"
-```
-
-- Response (200):
-
-```json
-{
-   "status":"ok",
-   "score": 72,
-   "highlights": ["Strong experience in Python","Needs more cloud infra examples"]
-}
-```
 
 For a complete OpenAPI/Swagger spec: consider adding `openapi.yaml` and serving it via `/api/docs` using `flasgger` or `connexion`.
 
@@ -248,9 +219,6 @@ For a complete OpenAPI/Swagger spec: consider adding `openapi.yaml` and serving 
 - `GET /api/roadmap/user/{user_email}` - Get user roadmaps
 - `GET /api/roadmap/download/{roadmap_id}` - Download roadmap PDF
 
-### Resume Tools
-- `POST /api/resume/upload` - Upload resume for analysis
-- `POST /api/resume/analyze` - Analyze resume vs job description
 
 ### User Analytics
 - `GET /api/user-stats` - Get user progress statistics
@@ -286,7 +254,6 @@ All environment variables are documented in `.env.example` with detailed setup i
 - `GEMINI_API_KEY` - Google Gemini API key for AI features
 
 #### Optional for Enhanced Features
-- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` - File uploads
 - `SECRET_KEY` - Flask session security (auto-generated if not set)
 - `ALLOWED_ORIGINS` - CORS configuration (default: *)
 - `GEMINI_MODEL_NAME` - AI model version (default: gemini-2.5-flash)
@@ -315,14 +282,8 @@ The server automatically detects and configures based on the deployment platform
 
 ### Database & Storage  
 - **PyMongo 4.6.1** - MongoDB driver with BSON support
-- **Cloudinary 1.34.0+** - Cloud file and image hosting
 - **Requests 2.31.0+** - HTTP client for external APIs
 
-### Document Processing
-- **PyPDF 4.0+** - Modern PDF text extraction (replaces PyPDF2)
-- **Python-docx 1.0+** - Microsoft Word document processing
-- **ReportLab 4.2.0+** - Professional PDF generation
-- **Pillow 10.0+** - Lightweight image manipulation
 
 ## 🔍 Monitoring & Health Checks
 
@@ -367,10 +328,6 @@ Returns detailed status of:
 - Check network access in MongoDB Atlas
 - Confirm database user credentials
 
-**"Cloudinary upload failed"**
-- Verify Cloudinary credentials are set
-- Check free tier limits
-- File uploads disable gracefully if not configured
 
 ### Performance Optimization
 
@@ -435,9 +392,6 @@ MONGODB_DB_NAME="edvanta"
 GEMINI_API_KEY="AIza...your-gemini-key..."
 
 # Optional / recommended
-CLOUDINARY_CLOUD_NAME="my-cloud"
-CLOUDINARY_API_KEY="123456789"
-CLOUDINARY_API_SECRET="abcdefg"
 SECRET_KEY="replace-with-random-secret"
 ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"
 GEMINI_MODEL_NAME="gemini-2.5-flash"
@@ -485,7 +439,7 @@ Heroku: set config vars with `heroku config:set MONGODB_URI=... GEMINI_API_KEY=.
 ## Error-handling strategy
 
 - Centralize error handling using Flask error handlers (return consistent JSON payloads: `{status, error, code, details?}`).
-- Translate external API errors (Gemini, Cloudinary) into user-safe messages and include telemetry IDs for debugging.
+- Translate external API errors (Gemini) into user-safe messages and include telemetry IDs for debugging.
 - Use retries with exponential backoff for idempotent external calls and circuit-breaker patterns for flaky services.
 - Return appropriate HTTP status codes (400 for bad requests, 401/403 for auth, 429 for rate limit, 500 for server errors).
 
@@ -503,7 +457,6 @@ Example error response:
 ## Rate limiting & security
 
 - Implement IP / user rate-limiting (e.g., `Flask-Limiter`) to protect AI and third-party API quotas.
-- Protect upload endpoints (resume upload) with file size/type checks and virus scanning if required.
 - Validate and sanitize all inputs to prevent injection attacks; enforce strict JSON schemas with `marshmallow` or `pydantic`.
 - Use HTTPS in production and HSTS headers. Store secrets in secret stores.
 - Consider WAF rules for public endpoints.
@@ -530,7 +483,7 @@ pytest -q
 ```
 
 Tips:
-- Mock external services (Gemini, Cloudinary, MongoDB) using `responses`, `httpretty`, or `mongomock` for unit tests.
+- Mock external services (Gemini, MongoDB) using `responses`, `httpretty`, or `mongomock` for unit tests.
 - Provide a `tests/` folder with unit tests for `ai_utils`, `mongo_utils`, and route tests using the Flask test client.
 
 ## Dependency overview
@@ -540,7 +493,6 @@ Tips:
    - Flask (web framework)
    - PyMongo (MongoDB driver)
    - google-generative-ai / google-auth (Gemini integration)
-   - cloudinary (media uploads)
 
 Consider using Dependabot or Renovate to keep dependencies up to date and monitor for vulnerabilities.
 
@@ -569,7 +521,6 @@ The server provides comprehensive user analytics:
 ### Data Protection
 - Environment variable isolation
 - MongoDB connection encryption
-- Cloudinary secure uploads
 - No sensitive data in logs
 
 ### CORS Policy

@@ -5,20 +5,19 @@ from datetime import datetime
 
 user_stats_bp = Blueprint('user_stats', __name__)
 
+from app.utils.mongo_utils import connect_to_mongodb
+
+user_stats_bp = Blueprint('user_stats', __name__)
+
 # MongoDB connection - GRACEFUL ERROR HANDLING
 try:
-    mongo_uri = Config.MONGODB_URI
-    db_name = Config.MONGODB_DB_NAME
-    quiz_history_collection_name = Config.MONGODB_QUIZ_HISTORY_COLLECTION
-    roadmaps_collection_name = Config.MONGODB_ROADMAP_COLLECTION
-
-    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-    # Test connection
-    client.server_info()
-    db = client[db_name]
-    quiz_history_collection = db[quiz_history_collection_name]
-    roadmaps_collection = db[roadmaps_collection_name]
-    print(f"MongoDB connected successfully to {db_name}")
+    client, db, _ = connect_to_mongodb()
+    if db is not None:
+        quiz_history_collection = db[Config.MONGODB_QUIZ_HISTORY_COLLECTION]
+        roadmaps_collection = db[Config.MONGODB_ROADMAP_COLLECTION]
+        print(f"MongoDB connected successfully to {Config.MONGODB_DB_NAME}")
+    else:
+        raise Exception("Database connection failed")
 except Exception as e:
     print(f"MongoDB connection failed: {str(e)}")
     # Set to None to handle gracefully in routes

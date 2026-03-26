@@ -52,13 +52,6 @@ const features = [
       "Get personalized learning paths with milestones, resources, and progress tracking for your goals.",
     gradient: "from-orange-500 to-amber-500",
   },
-  {
-    icon: FileText,
-    title: "Resume Builder",
-    description:
-      "Optimize your resume with ATS scoring, skill gap analysis, and professional improvement suggestions.",
-    gradient: "from-indigo-500 to-purple-500",
-  },
 ];
 
 const steps = [
@@ -114,7 +107,6 @@ const comparisons = [
   { feature: "AI-Powered Content Generation", edvanta: true, others: false },
   { feature: "Voice-Based Learning", edvanta: true, others: false },
   { feature: "Career Roadmap Planning", edvanta: true, others: false },
-  { feature: "Resume Optimization", edvanta: true, others: false },
   { feature: "Progress Analytics", edvanta: true, others: true },
   { feature: "Quiz Generation", edvanta: true, others: true },
 ];

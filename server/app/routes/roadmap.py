@@ -8,41 +8,13 @@ import os
 import json
 import uuid
 from datetime import datetime
-from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-from ..config import Config
 from app.utils.ai_utils import generate_roadmap_content
+from app.utils.mongo_utils import connect_to_mongodb
 
 roadmap_bp = Blueprint("roadmap", __name__)
 
-# Function to establish MongoDB connection
-
-
-def connect_to_mongodb():
-    try:
-        connection_string = Config.MONGODB_URI
-        db_name = Config.MONGODB_DB_NAME
-        # Provide default collection name if not configured to avoid None indexing
-        dynamic_collection = Config.MONGODB_ROADMAP_COLLECTION or "roadmaps"
-
-        if not connection_string or not db_name:
-            return None, None, None
-
-        # Attempt to connect with a timeout
-        client = MongoClient(connection_string)
-        # Test the connection
-        client.admin.command('ping')
-
-        db = client[db_name]
-        collection_name = dynamic_collection
-
-        return client, db, collection_name
-    except Exception:
-        return None, None, None
-
-
-# MongoDB setup
-client, db, collection_name = connect_to_mongodb()
+# MongoDB setup - Centralized
+client, db, collection_name = connect_to_mongodb('MONGODB_ROADMAP_COLLECTION')
 
 # In-memory fallback store for roadmaps when MongoDB is not configured
 _in_memory_roadmaps = {}

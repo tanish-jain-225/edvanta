@@ -231,13 +231,6 @@ export function Navbar() {
                           Career Roadmap
                         </Link>
                         <Link
-                          to="/tools/resume-builder"
-                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
-                          onClick={closeMobileMenu}
-                        >
-                          Resume Builder
-                        </Link>
-                        <Link
                           to="/tools/visual-content"
                           className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
                           onClick={closeMobileMenu}

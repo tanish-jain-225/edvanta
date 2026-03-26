@@ -21,7 +21,6 @@ A modern React-based educational platform built with cutting-edge technologies f
 - 📝 **Quiz Generator** - AI-generated personalized quizzes with scoring
 - 👨‍🏫 **Conversational Tutor** - Interactive AI tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestones
-- 📄 **Resume Builder** - Resume analysis and job-fit optimization
 - 🎬 **Visual Content Explorer** - YouTube API integration for educational videos
 
 ### **Enhanced User Experience**
@@ -39,7 +38,6 @@ A modern React-based educational platform built with cutting-edge technologies f
 - Node.js 18.0+ (includes npm)
 - A Vercel account (for deployment)
 - Firebase project (for authentication)
-- Cloudinary account (for media storage)
 - Modern browser with service worker support
 
 ### Local Development
@@ -55,7 +53,6 @@ A modern React-based educational platform built with cutting-edge technologies f
    Edit `.env` file with your credentials. See `.env.example` for detailed setup instructions and required values for:
    - Backend API URLs
    - Firebase Authentication (6 variables)
-   - Cloudinary Media Storage (2 variables)
    - YouTube API Key
 
 3. **Start Development Server**
@@ -150,7 +147,6 @@ client/
             ├── Quizzes.jsx         # Quiz generation & scoring
             ├── ConversationalTutor.jsx # AI tutoring system
             ├── Roadmap.jsx         # Learning path generator
-            ├── ResumeBuilder.jsx   # Resume analysis tool
             └── VisualContent.jsx   # YouTube API video explorer
 ```
 
@@ -171,10 +167,6 @@ VITE_FIREBASE_PROJECT_ID="your-project-id"
 VITE_FIREBASE_STORAGE_BUCKET="your-project.appspot.com"
 VITE_FIREBASE_MESSAGING_SENDER_ID="123456789"
 VITE_FIREBASE_APP_ID="1:123:web:abcdef"
-
-# Cloudinary
-VITE_CLOUDINARY_CLOUD_NAME="your-cloud"
-VITE_CLOUDINARY_UPLOAD_PRESET="unsigned-preset"
 
 # YouTube
 VITE_YOUTUBE_API_KEY="AIza..."
@@ -358,7 +350,6 @@ The client communicates with the Edvanta backend through a centralized API clien
 - **Quizzes**: `/api/quizzes/generate`, `/api/quizzes/score`
 - **Tutoring**: `/api/tutor/ask`, `/api/tutor/voice`
 - **Roadmaps**: `/api/roadmap/generate`, `/api/roadmap/user/{user_email}`
-- **Resume Tools**: `/api/resume/upload`, `/api/resume/analyze`
 - **Analytics**: `/api/user-stats`
 
 ### **Environment Detection**
@@ -383,7 +374,6 @@ The app automatically detects environment and switches API URLs:
 
 ### **Interactive Features**
 - **Real-time Feedback**: Live validation and instant UI updates
-- **File Upload Support**: Drag & drop functionality for PDF and media files
 - **Form Optimization**: Debounced inputs and auto-save functionality
 - **Visual Progress**: Step-by-step indicators for multi-stage processes
 
@@ -395,12 +385,10 @@ All environment variables are documented in `.env.example` with detailed setup i
 #### **Required Variables**
 - **Firebase Authentication** (6 variables) - User authentication and data storage
 - **Backend API URLs** (2 variables) - Development and production API endpoints
-- **Cloudinary** (2 variables) - Media upload and storage
 - **YouTube API** (1 variable) - Visual Content Explorer
 
 See `.env.example` for complete setup guides including:
 - Step-by-step Firebase configuration
-- Cloudinary account setup
 - YouTube API key generation
 - Local development vs production modes
 
@@ -504,10 +492,6 @@ See `.env.example` for complete setup guides including:
 - Verify `sw.js` is accessible at `/sw.js`
 - Service workers only work over HTTPS (or localhost)
 
-**"Cloudinary upload failed"**
-- Verify `VITE_CLOUDINARY_*` variables are set
-- Check upload preset exists and is unsigned
-- Ensure Cloudinary account limits not exceeded
 
 **"Vite build failed"**
 - Check for TypeScript errors in `vite.config.ts`

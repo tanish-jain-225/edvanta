@@ -7,7 +7,7 @@ Features:
 - Google Gemini AI integration (REQUIRED)
 - Google Gemini AI integration for learning tools
 - Conversational AI for tutoring and chatbot
-- Content generation (summaries, quizzes, roadmaps, resumes)
+- Content generation (summaries, quizzes, roadmaps)
 
 - Voice optimization
 - Session and chat management
@@ -36,18 +36,16 @@ from bson import ObjectId
 
 # Internal imports
 from app.config import Config
+from app.utils.mongo_utils import get_db_connection, connect_to_mongodb
 
 # =============================================================================
 # CONFIGURATION & CONSTANTS
 # =============================================================================
 
-# MongoDB REQUIRED - NO in-memory fallbacks
-
-# AI Model Settings
-DEFAULT_MODEL = 'gemini-2.5-flash'
-DEFAULT_TEMPERATURE = 0.7
-DEFAULT_MAX_TOKENS = 8192
-
+# AI Model Defaults (from Config)
+DEFAULT_MODEL = Config.GEMINI_MODEL_NAME
+DEFAULT_TEMPERATURE = Config.GEMINI_TEMPERATURE
+DEFAULT_MAX_TOKENS = Config.GEMINI_MAX_OUTPUT_TOKENS
 
 
 # Prompts for different AI functions
@@ -75,8 +73,6 @@ Keep responses concise but comprehensive, and always encourage further learning.
     'roadmap': """You are an expert learning path designer. Create comprehensive, practical learning roadmaps 
 that are achievable and well-structured. Include realistic timeframes, key milestones, and relevant resources.""",
 
-    'resume': """You are an expert career coach and resume analyst. Provide constructive, actionable feedback 
-that helps improve career prospects. Focus on practical improvements and industry best practices.""",
 
     'quiz': """You are an educational content creator specializing in assessment design. Create fair, 
 challenging questions that test understanding rather than memorization. Ensure questions are clear and unambiguous.""",
@@ -112,11 +108,11 @@ def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: 
         return None
     
     try:
-        model_name = model_name or Config.GEMINI_MODEL_NAME or DEFAULT_MODEL
+        model_name = model_name or Config.GEMINI_MODEL_NAME
         
         generation_config = {
-            'temperature': temperature or Config.GEMINI_TEMPERATURE or DEFAULT_TEMPERATURE,
-            'max_output_tokens': max_tokens or Config.GEMINI_MAX_OUTPUT_TOKENS or DEFAULT_MAX_TOKENS,
+            'temperature': temperature or Config.GEMINI_TEMPERATURE,
+            'max_output_tokens': max_tokens or Config.GEMINI_MAX_OUTPUT_TOKENS,
         }
         
         # Remove artificial safety restrictions for better performance
@@ -142,33 +138,15 @@ def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: 
 
 
 # =============================================================================
-# DATABASE CONNECTION UTILITIES
+# DATABASE CONNECTION UTILITIES (Centred in mongo_utils)
 # =============================================================================
 
-def get_db_connection():
-    """Get MongoDB connection and return the database object."""
-    try:
-        connection_string = Config.MONGODB_URI
-        if not connection_string or not Config.MONGODB_DB_NAME:
-            return None
-            
-        client = MongoClient(Config.MONGODB_URI)
-        client.server_info()  # Force connection test
-        
-        return client[Config.MONGODB_DB_NAME]
-    except Exception as e:
-        print(f"MongoDB connection failed: {e}")
-        return None
-
-def get_collection(collection_name: str):
-    """Get MongoDB collection with fallback."""
-    try:
-        db = get_db_connection()
-        if db is None:
-            return None
+def get_collection(collection_config_attr: str):
+    """Get MongoDB collection using centralized config attribute name."""
+    _, db, collection_name = connect_to_mongodb(collection_config_attr)
+    if db is not None and collection_name:
         return db[collection_name]
-    except Exception:
-        return None
+    return None
 
 # =============================================================================
 # CORE AI RESPONSE GENERATION
@@ -239,13 +217,13 @@ def generate_ai_response(
                 finish_reason = candidate.finish_reason
                 # finish_reason: 0=UNSPECIFIED, 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION, 5=OTHER
                 if finish_reason == 3:  # SAFETY
-                    # For resume/roadmap, return empty response to trigger fallback
-                    if ai_type in ['resume', 'roadmap']:
+                    # For roadmap, return empty response to trigger fallback
+                    if ai_type == 'roadmap':
                         print(f"Safety filter triggered for {ai_type}, using fallback structure")
                         return {'success': False, 'response': '', 'error': 'safety_filter'}
                     raise Exception(f"Content blocked by AI safety filters for {ai_type}. Please rephrase your request.")
                 elif finish_reason in [4, 5]:  # RECITATION or OTHER
-                    if ai_type in ['resume', 'roadmap']:
+                    if ai_type == 'roadmap':
                         print(f"AI generation blocked (reason: {finish_reason}) for {ai_type}, using fallback")
                         return {'success': False, 'response': '', 'error': 'generation_blocked'}
                     raise Exception(f"AI generation blocked (reason: {finish_reason}) for {ai_type}. Please try different input.")
@@ -261,13 +239,13 @@ def generate_ai_response(
                 candidate = response.candidates[0]
                 if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
                     print(f"MAX_TOKENS reached for {ai_type} - response truncated")
-                    if ai_type in ['resume', 'roadmap']:
+                    if ai_type == 'roadmap':
                         return {'success': False, 'response': '', 'error': 'max_tokens'}
             print(f"Error accessing response.text for {ai_type}: {e}")
         
         if not response or not response_text:
-            # For resume/roadmap, allow fallback handling
-            if ai_type in ['resume', 'roadmap']:
+            # For roadmap, allow fallback handling
+            if ai_type == 'roadmap':
                 print(f"Empty response for {ai_type}, using fallback structure")
                 return {'success': False, 'response': '', 'error': 'empty_response'}
             raise Exception(f"Empty or invalid response from AI for {ai_type}")
@@ -458,89 +436,6 @@ Return ONLY this JSON structure:
     
     return result
 
-def analyze_resume(resume_text: str, job_description: str = "") -> Dict[str, Any]:
-    """Analyze resume against job description using AI."""
-    # Use full text - no artificial truncation
-    resume_truncated = resume_text
-    job_truncated = job_description
-    
-    prompt = f"""Analyze resume vs job description. Return ONLY JSON, no markdown.
-
-JSON format:
-{{"strengths": ["point1", "point2"], "improvements": ["tip1", "tip2"], "match_score": 75, "summary": "Brief analysis"}}
-
-Resume: {resume_truncated}
-
-Job: {job_truncated}
-
-Return only the JSON object."""
-
-    result = generate_ai_response(
-        prompt=prompt,
-        system_prompt="You are a resume analysis expert. Return ONLY valid JSON, no markdown.",
-        ai_type='resume',
-        model_config={'temperature': 0.3, 'max_tokens': 6144}
-    )
-    
-    # Handle safety filter or empty response
-    if not result.get('success') or result.get('error') in ['safety_filter', 'generation_blocked', 'empty_response']:
-        print(f"AI issue detected: {result.get('error', 'unknown')}, using simple analysis")
-        simple_analysis = {
-            "strengths": ["Resume includes relevant experience", "Clear structure and formatting"],
-            "improvements": ["Consider adding more quantifiable achievements", "Include specific technical skills relevant to the role"],
-            "match_score": 65,
-            "summary": "Resume shows potential match with the role. Focus on highlighting specific achievements and relevant technical expertise.",
-        }
-        return {'success': True, 'analysis': simple_analysis, 'error': None}
-    
-    if result['success']:
-        try:
-            # Clean the response to extract JSON
-            response_text = result['response'].strip()
-            
-            # Remove markdown code blocks
-            if '```json' in response_text:
-                start = response_text.find('```json') + 7
-                end = response_text.rfind('```')
-                if end > start:
-                    response_text = response_text[start:end].strip()
-            elif '```' in response_text:
-                start = response_text.find('```') + 3
-                end = response_text.rfind('```')
-                if end > start:
-                    response_text = response_text[start:end].strip()
-            
-            # Find JSON object boundaries
-            first_brace = response_text.find('{')
-            last_brace = response_text.rfind('}')
-            if first_brace != -1 and last_brace != -1:
-                response_text = response_text[first_brace:last_brace+1]
-            
-            analysis = json.loads(response_text)
-            
-            # Ensure required fields exist
-            if 'strengths' not in analysis:
-                analysis['strengths'] = []
-            if 'improvements' not in analysis:
-                analysis['improvements'] = []
-            if 'match_score' not in analysis:
-                analysis['match_score'] = 50
-            if 'summary' not in analysis:
-                analysis['summary'] = "Analysis completed"
-            
-            return {'success': True, 'analysis': analysis, 'error': None}
-        except json.JSONDecodeError as e:
-            # Create simple fallback analysis on parse error
-            print(f"JSON parse error: {e}. Creating simple analysis.")
-            simple_analysis = {
-                "strengths": ["Resume reviewed"],
-                "improvements": ["Consider adding more specific skills and achievements"],
-                "match_score": 60,
-                "summary": "Resume analysis completed with basic evaluation."
-            }
-            return {'success': True, 'analysis': simple_analysis, 'error': None}
-    
-    raise Exception(f'AI resume analysis failed: {result.get("error", "Unknown error")}')
 
 # =============================================================================
 # CONVERSATION & SESSION MANAGEMENT
@@ -553,7 +448,7 @@ Return only the JSON object."""
 def save_chat_message(user_email: str, message: str, response: str, conversation_id: str = None) -> str:
     """Save chat message to database - saves user and AI messages separately for proper persistence."""
     try:
-        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
+        collection = get_collection('MONGODB_CHAT_COLLECTION')
         
         if collection is None:
             raise Exception("MongoDB connection required for chat storage - no fallbacks available")
@@ -593,7 +488,7 @@ def save_chat_message(user_email: str, message: str, response: str, conversation
 def get_chat_history(user_email: str, limit: int = 20, session_id: str = None) -> List[Dict]:
     """Get chat history from database - MongoDB required."""
     try:
-        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
+        collection = get_collection('MONGODB_CHAT_COLLECTION')
         
         if collection is None:
             raise Exception("MongoDB connection required for chat history - no fallbacks available")
@@ -624,7 +519,7 @@ def get_chat_history(user_email: str, limit: int = 20, session_id: str = None) -
 def clear_chat_history(user_email: str, session_id: str = None) -> bool:
     """Clear chat history for user - MongoDB required."""
     try:
-        collection = get_collection(Config.MONGODB_CHAT_COLLECTION or 'chat_sessions')
+        collection = get_collection('MONGODB_CHAT_COLLECTION')
         
         if collection is None:
             raise Exception("MongoDB connection required for chat operations - no fallbacks available")
@@ -645,7 +540,7 @@ def clear_chat_history(user_email: str, session_id: str = None) -> bool:
 def save_active_session(user_email: str, session_data: Dict) -> bool:
     """Save active voice session - MongoDB required."""
     try:
-        collection = get_collection(Config.MONGODB_ACTIVE_SESSIONS_COLLECTION or 'active_sessions')
+        collection = get_collection('MONGODB_ACTIVE_SESSIONS_COLLECTION')
         
         session_data.update({
             'user_email': user_email,
@@ -669,7 +564,7 @@ def save_active_session(user_email: str, session_data: Dict) -> bool:
 def get_active_session(user_email: str) -> Dict:
     """Get active voice session - MongoDB required."""
     try:
-        collection = get_collection(Config.MONGODB_ACTIVE_SESSIONS_COLLECTION or 'active_sessions')
+        collection = get_collection('MONGODB_ACTIVE_SESSIONS_COLLECTION')
         
         if collection is None:
             raise Exception("MongoDB connection required for session retrieval - no fallbacks available")
@@ -689,7 +584,7 @@ def get_active_session(user_email: str) -> Dict:
 def end_active_session(user_email: str) -> bool:
     """End active voice session - MongoDB required."""
     try:
-        collection = get_collection(Config.MONGODB_ACTIVE_SESSIONS_COLLECTION or 'active_sessions')
+        collection = get_collection('MONGODB_ACTIVE_SESSIONS_COLLECTION')
         
         if collection is None:
             raise Exception("MongoDB connection required for session operations - no fallbacks available")
@@ -738,7 +633,6 @@ def _get_fallback_response(prompt: str, context: Dict = None) -> str:
         'math': "For mathematical problems, I'd suggest breaking down the problem step by step and consulting your textbook or a math tutor.",
         'science': "For science questions, consider reviewing the relevant concepts in your course materials or consulting educational websites.",
         'programming': "For coding questions, try checking the documentation, looking at example code, or using online programming resources.",
-        'resume': "For resume feedback, consider having it reviewed by a career counselor or using online resume analysis tools."
     }
     
     template = fallback_templates.get(subject, fallback_templates['general'])

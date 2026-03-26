@@ -17,16 +17,19 @@ from app.utils.ai_utils import (
     clear_chat_history
 )
 
+from app.utils.mongo_utils import connect_to_mongodb
+
 chatbot_bp = Blueprint("chatbot", __name__)
 
 # MongoDB connection - REQUIRED
 try:
-    mongo_uri = Config.MONGODB_URI
-    db_name = Config.MONGODB_DB_NAME
-    collection_name = Config.MONGODB_CHAT_COLLECTION
-    client = MongoClient(mongo_uri)
-    db = client[db_name]
-    chat_sessions_col = db[collection_name]
+    _, _, collection_name = connect_to_mongodb('MONGODB_CHAT_COLLECTION')
+    # Get the collection using the centralized helper
+    # We still need the collection object for the route logic
+    from app.utils.mongo_utils import get_mongo_client
+    client = get_mongo_client()
+    db = client[Config.MONGODB_DB_NAME]
+    chat_sessions_col = db[Config.MONGODB_CHAT_COLLECTION]
 except Exception as e:
     raise Exception(f"MongoDB connection required for chatbot - no fallbacks: {str(e)}")
 

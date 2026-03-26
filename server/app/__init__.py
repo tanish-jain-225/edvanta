@@ -71,8 +71,6 @@ def create_app() -> Flask:
             'app.routes.tutor', fromlist=['tutor_bp']).tutor_bp),
         ('roadmap', lambda: __import__(
             'app.routes.roadmap', fromlist=['roadmap_bp']).roadmap_bp),
-        ('resume', lambda: __import__(
-            'app.routes.resume', fromlist=['resume_bp']).resume_bp),
         ('user_stats', lambda: __import__('app.routes.user_stats',
          fromlist=['user_stats_bp']).user_stats_bp),
     ]
@@ -137,8 +135,6 @@ def create_app() -> Flask:
                 "gtts",
                 "PIL",
                 "whisper",
-                "pypdf",
-                "cloudinary",
                 "pymongo"
             ]
             for lib in optional_libs:
@@ -151,7 +147,6 @@ def create_app() -> Flask:
             config_status = {
                 "gemini_api_configured": bool(config.GEMINI_API_KEY),
                 "mongodb_configured": bool(config.MONGODB_URI and config.MONGODB_URI != "mongodb://localhost:27017/"),
-                "cloudinary_configured": bool(config.CLOUDINARY_CLOUD_NAME),
                 "environment": config.ENV,
                 "debug_mode": config.DEBUG
             }

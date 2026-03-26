@@ -343,19 +343,6 @@ export const edvantaAPI = {
     return api.post('/api/tutor/session', { message, user_email: userEmail, mode });
   },
 
-  // Resume
-  analyzeResume(resumeData) {
-    return api.post('/api/resume/analyze', resumeData);
-  },
-
-  uploadResume(file) {
-    return api.uploadFile('/api/resume/upload', file);
-  },
-
-  buildResume(resumeData) {
-    return api.post('/api/resume/builder', resumeData);
-  },
-
   // Health checks
   getHealth() {
     return api.get('/api/health');

@@ -12,22 +12,19 @@ from bson import ObjectId
 from ..utils.quizzes_utils import create_quiz
 from ..config import Config
 
+from app.utils.mongo_utils import connect_to_mongodb
+
 quizzes_bp = Blueprint("quizzes", __name__)
 
 # MongoDB connection - GRACEFUL ERROR HANDLING
 try:
-    mongo_uri = Config.MONGODB_URI
-    db_name = Config.MONGODB_DB_NAME
-    mongo_collection_name_1 = Config.MONGODB_QUIZ_COLLECTION
-    mongo_collection_name_2 = Config.MONGODB_QUIZ_HISTORY_COLLECTION
-
-    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-    # Test connection
-    client.server_info()
-    db = client[db_name]
-    quizzes_collection = db[mongo_collection_name_1]
-    quiz_history_collection = db[mongo_collection_name_2]
-    print(f"Quiz MongoDB connected successfully to {db_name}")
+    client, db, collection_name = connect_to_mongodb('MONGODB_QUIZ_COLLECTION')
+    if db is not None:
+        quizzes_collection = db[collection_name]
+        quiz_history_collection = db[Config.MONGODB_QUIZ_HISTORY_COLLECTION]
+        print(f"Quiz MongoDB connected successfully to {Config.MONGODB_DB_NAME}")
+    else:
+        raise Exception("Database connection failed")
 except Exception as e:
     print(f"Quiz MongoDB connection failed: {str(e)}")
     # Set to None to handle gracefully in routes

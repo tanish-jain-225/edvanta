@@ -33,34 +33,12 @@ pymongo==4.6.1                  # MongoDB driver with BSON support
                                 # Used in: chatbot, quizzes, roadmap, user_stats, ai_utils
 
 # ------------------------------------------------------------------------------
-# CLOUD SERVICES - CLOUDINARY
-# ------------------------------------------------------------------------------
-cloudinary>=1.34.0              # File uploads to Cloudinary (resumes, videos)
-                                # Used in: cloudinary_utils, resume routes
-
-# ------------------------------------------------------------------------------
 # GOOGLE GEMINI AI (PRIMARY AI PROVIDER)
 # ------------------------------------------------------------------------------
 google-generativeai>=0.8.0      # Google Gemini API client for AI features
 google-auth>=2.22.0             # Google authentication utilities
                                 # Used in: ai_utils for tutoring, chatbot, quizzes,
-                                # roadmap generation, and resume analysis
-
-# ------------------------------------------------------------------------------
-# PDF & DOCUMENT PROCESSING
-# ------------------------------------------------------------------------------
-pypdf>=4.0.0                    # PDF reading and text extraction (modernized PyPDF2)
-                                # Used in: pdf_utils for resume text extraction
-python-docx>=1.0.0              # Microsoft Word document processing (.docx files)
-                                # Used in: pdf_utils for resume text extraction
-reportlab>=4.2.0                # PDF generation library (resumes, roadmaps)
-                                # Used in: pdf_utils for resume PDF rendering
-
-# ------------------------------------------------------------------------------
-# IMAGE PROCESSING
-# ------------------------------------------------------------------------------
-Pillow>=10.0.0                  # Image manipulation (PIL fork)
-                                # Used for image processing capabilities
+                                # roadmap generation
 
 # ==============================================================================
 # DEPLOYMENT NOTES
@@ -69,7 +47,6 @@ Pillow>=10.0.0                  # Image manipulation (PIL fork)
 # - No optional dependencies - all features are production-ready
 # - MongoDB connection is required (no in-memory fallbacks)
 # - Google Gemini AI is required for all AI-powered features
-# - Cloudinary is required for file upload features
 # ==============================================================================
 
 # ==============================================================================
@@ -79,7 +56,6 @@ Pillow>=10.0.0                  # Image manipulation (PIL fork)
 # ✓ Doubt Solving Chatbot (chatbot.py + ai_utils.py)
 # ✓ Quiz Generation & Management (quizzes.py + quizzes_utils.py + ai_utils.py)
 # ✓ Learning Roadmap Creation (roadmap.py + ai_utils.py)
-# ✓ Resume Upload & Analysis (resume.py + cloudinary_utils.py + pdf_utils.py + ai_utils.py)
 # ✓ User Statistics & Progress Tracking (user_stats.py)
 # ✓ MongoDB Integration (mongo_utils.py)
 # ✓ Session Management & Chat History

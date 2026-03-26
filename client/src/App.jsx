@@ -23,7 +23,6 @@ import { DoubtSolving } from "./pages/tools/DoubtSolving";
 import { Quizzes } from "./pages/tools/Quizzes";
 import { ConversationalTutor } from "./pages/tools/ConversationalTutor";
 import { Roadmap } from "./pages/tools/Roadmap";
-import { ResumeBuilder } from "./pages/tools/ResumeBuilder";
 import VisualContent from "./pages/tools/VisualContent";
 
 // Preload logo image instantly on app start
@@ -175,16 +174,6 @@ function AppRoutes() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <Roadmap />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tools/resume-builder"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <ResumeBuilder />
                 </DashboardLayout>
               </ProtectedRoute>
             }
