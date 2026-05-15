@@ -242,18 +242,15 @@ def quiz_history_endpoint():
     
     if request.method == "GET":
         try:
-            # Get user email from query parameters (required for user-specific data)
-            user_email = request.args.get('user_email')
+            user_email = request.args.get('user_email') or request.args.get('userEmail') or request.args.get('userId') or request.args.get('user_id')
             
             if not user_email:
                 return jsonify({"error": "user_email parameter is required"}), 400
             
-            # Get quiz history for the specific user from MongoDB, sorted by completion date (newest first)
-            history_cursor = quiz_history_collection.find({"userId": user_email}).sort("completedAt", -1)
+            history_cursor = quiz_history_collection.find({"user_email": user_email}).sort("completedAt", -1)
             history_list = []
             
             for entry in history_cursor:
-                # Convert ObjectId to string for JSON serialization
                 entry['_id'] = str(entry['_id'])
                 history_list.append(entry)
             
@@ -269,13 +266,10 @@ def quiz_history_endpoint():
             if not data:
                 return jsonify({"error": "No JSON data provided"}), 400
 
-            # Get user email from request data
-            user_email = data.get("userId", "anonymous@example.com")
+            user_email = data.get("user_email") or data.get("userEmail") or data.get("userId") or data.get("user_id") or "anonymous@example.com"
             
-            # Generate UUID for history entry
             history_uuid = str(uuid.uuid4())
             
-            # Add a unique ID and ensure timestamp
             history_entry = {
                 "id": history_uuid,
                 "quizId": data.get("quizId", ""),
@@ -287,7 +281,8 @@ def quiz_history_endpoint():
                 "percentage": data.get("percentage", 0),
                 "completedAt": data.get("completedAt", datetime.now().isoformat()),
                 "timeTaken": data.get("timeTaken", "Not tracked"),
-                "userId": user_email
+                "user_email": user_email,
+                "user_uid": data.get("userUid") or data.get("user_uid")
             }
 
             # Insert into MongoDB
@@ -305,14 +300,12 @@ def quiz_history_endpoint():
     elif request.method == "DELETE":
         # Clear quiz history for a specific user
         try:
-            # Get user email from query parameters (required for user-specific data)
-            user_email = request.args.get('user_email')
+            user_email = request.args.get('user_email') or request.args.get('userEmail') or request.args.get('userId') or request.args.get('user_id')
             
             if not user_email:
                 return jsonify({"error": "user_email parameter is required"}), 400
             
-            # Delete quiz history documents for the specific user
-            result = quiz_history_collection.delete_many({"userId": user_email})
+            result = quiz_history_collection.delete_many({"user_email": user_email})
             
             return jsonify({
                 "message": f"Quiz history cleared successfully for user {user_email}",

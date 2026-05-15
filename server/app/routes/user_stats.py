@@ -31,7 +31,7 @@ except Exception as e:
 def get_user_stats():
     """Get real-time user statistics: Active Roadmaps, Skills Learning, Quizzes Made"""
     try:
-        user_email = request.args.get('user_email')
+        user_email = request.args.get('user_email') or request.args.get('userEmail')
         if not user_email:
             return jsonify({"error": "user_email parameter is required"}), 400
         
@@ -76,7 +76,7 @@ def get_user_stats():
         unique_skills_count = skills_result[0].get("unique_skills_count", 0) if skills_result else 0
         
         # 3. Get Quizzes Made Count
-        quizzes_made_count = quiz_history_collection.count_documents({"userId": user_email})
+        quizzes_made_count = quiz_history_collection.count_documents({"user_email": user_email})
         
         # Calculate realistic learning time based on actual activity
         # 12 minutes per quiz (average time to complete + review)
@@ -154,8 +154,8 @@ def debug_user_stats():
         roadmap_count = roadmaps_collection.count_documents({"user_email": user_email})
         
         # Check quiz data  
-        quiz_sample = quiz_history_collection.find_one({"userId": user_email})
-        quiz_count = quiz_history_collection.count_documents({"userId": user_email})
+        quiz_sample = quiz_history_collection.find_one({"user_email": user_email})
+        quiz_count = quiz_history_collection.count_documents({"user_email": user_email})
         
         # Get sample skill structure from roadmap
         sample_skills = []

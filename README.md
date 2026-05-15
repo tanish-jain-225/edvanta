@@ -61,14 +61,18 @@ graph TB
 
 **Client (React App)** ↔ **REST API (Flask)** ↔ **AI Services (Gemini, MongoDB)**
 
-## 🎯 Feature showcase
+## 🎯 Feature Showcase
 
-Below are a few of the core features showcased visually — add screenshots or GIFs into `client/public/screenshots/` and reference them here for a polished demo.
+Edvanta provides a suite of AI-powered tools designed to make learning more interactive and personalized.
 
-- Intelligent Chatbot (context-aware doubt solving)
-- AI Tutor (conversational tutoring)
-- Smart Quiz System (personalized quizzes with auto-scoring)
-
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Intelligent Chatbot** | Context-aware doubt solving with conversation history | ✅ Active |
+| **AI Tutor** | Conversational tutoring system for various subjects | ✅ Active |
+| **Smart Quiz System** | AI-generated personalized quizzes with automatic scoring | ✅ Active |
+| **Learning Roadmaps** | Personalized learning paths with milestone tracking | ✅ Active |
+| **Visual Content Explorer** | YouTube API integration for educational video discovery | ✅ Active |
+| **Screen Fatigue Reminder** | Smart break reminders to prevent digital eye strain | ✅ Active |
 
 ## 📁 Project Structure
 
@@ -338,11 +342,12 @@ See `client/.env.example` for:
 - **Session Tracking** - Time spent and interaction patterns
 - **Performance Metrics** - Core Web Vitals and load times
 
-### 🔍 Development Tools
-- **Health Check Endpoints** - Service status monitoring
-- **Debug Components** - Real-time development insights
-- **Error Boundaries** - Graceful error handling
-- **Feature Flags** - Runtime feature availability
+### 🔍 Quality & Testing
+- **Vitest + JSDOM** - Comprehensive frontend unit and component testing
+- **Pytest** - Robust backend endpoint and logic validation
+- **GitHub Actions** - Automated CI/CD pipeline for every commit
+- **Atomic Operations** - Safe MongoDB updates with `$inc`
+- **Centralized API** - Consistent error handling and network resilience
 
 ## 🤝 Contributing
 
@@ -364,12 +369,12 @@ See `client/.env.example` for:
 - **Git**: Conventional commits, feature branch workflow
 - **Testing**: Unit tests for critical functionality
 
-### Project Structure Guidelines
-- Keep components small and focused
-- Use TypeScript for new utilities
-- Follow PWA best practices
-- Ensure mobile-first responsive design
-- Write accessible code (WCAG compliance)
+### Project Guidelines
+- **Architecture**: Keep components small and focused
+- **Fetching**: Use the `edvantaAPI` client for all network requests
+- **Testing**: Follow the "10/10 quality" standard with JSDOM tests
+- **UI**: Ensure mobile-first responsive design
+- **Accessibility**: Write accessible code (WCAG compliance)
 
 ## 📝 Available Scripts
 
@@ -377,13 +382,14 @@ See `client/.env.example` for:
 ```bash
 npm run dev       # Start development server
 npm run build     # Build for production
-npm run preview   # Preview production build
+npm run test      # Run unit/component tests
 npm run lint      # Run ESLint
 ```
 
 ### Backend (`server/`)
 ```bash
-python app.py                    # Start local development server
+python app.py                    # Start development server
+pytest                           # Run backend tests
 pip install -r requirements.txt  # Install dependencies
 ```
 

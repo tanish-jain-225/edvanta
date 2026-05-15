@@ -10,12 +10,12 @@ import './custom-css/PageTransition.css';
  */
 export function PageTransition({ children }) {
   const location = useLocation();
-  
+
   return (
-    <div 
+    <div
       key={location.pathname}
       className="w-full"
-      style={{ 
+      style={{
         animation: 'fadeIn 0.5s ease-in-out',
         opacity: 1
       }}

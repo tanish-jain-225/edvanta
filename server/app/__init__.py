@@ -58,8 +58,13 @@ def create_app() -> Flask:
     # Setup logging first
     setup_logging(app)
 
-    # Enable CORS to allow all origins for maximum compatibility
-    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+    # Enable CORS using configured origins (comma-separated list)
+    try:
+        allowed_origins = [o.strip() for o in Config.ALLOWED_ORIGINS.split(",") if o.strip()]
+    except Exception:
+        allowed_origins = ["http://localhost:5173"]
+
+    CORS(app, resources={r"/*": {"origins": allowed_origins}}, supports_credentials=True)
 
     # Import and register blueprints with error handling
     blueprints_to_register = [
@@ -185,24 +190,16 @@ def create_app() -> Flask:
 
         try:
             if isinstance(allowed, str):
-                allowed_list = [o.strip() for o in allowed.split(",")]
+                allowed_list = [o.strip() for o in allowed.split(",") if o.strip()]
             else:
                 allowed_list = list(allowed)
         except Exception:
-            allowed_list = ["*"]
+            allowed_list = ["http://localhost:5173"]
 
-        if "*" in allowed_list:
-            if origin:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Vary"] = "Origin"
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-            else:
-                response.headers["Access-Control-Allow-Origin"] = "*"
-        else:
-            if origin and origin in allowed_list:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Vary"] = "Origin"
-                response.headers["Access-Control-Allow-Credentials"] = "true"
+        if origin and origin in allowed_list:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
 
         # Common preflight and CORS headers
         response.headers.setdefault(

@@ -10,7 +10,7 @@ import { Button } from "../components/ui/button";
 import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { Link, useNavigate } from "react-router-dom";
-import backEndURL from "../hooks/helper";
+import { edvantaAPI } from "../lib/api";
 import {
   Brain,
   MessageSquare,
@@ -120,12 +120,10 @@ export function Dashboard() {
     }
 
     try {
-      const response = await fetch(
-        `${backEndURL}/api/user-stats?user_email=${encodeURIComponent(user.email)}`
-      );
+      const result = await edvantaAPI.getUserStats(user.email);
       
-      if (response.ok) {
-        const data = await response.json();
+      if (result.success) {
+        const data = result.data;
         setUserStats({
           quizzesTaken: data.quizzes_taken || 0,
           roadmapsActive: data.active_roadmaps || 0,
@@ -134,7 +132,7 @@ export function Dashboard() {
           roadmapsCreated: data.roadmaps_created || 0
         });
       } else {
-        console.error("Failed to fetch user stats:", response.status, response.statusText);
+        console.error("Failed to fetch user stats:", result.error);
       }
     } catch (error) {
       console.error("Failed to fetch stats:", error);
@@ -149,27 +147,21 @@ export function Dashboard() {
     setDetailsLoading(true);
     try {
       // Fetch quiz history
-      const quizResponse = await fetch(
-        `${backEndURL}/api/quiz-history?user_email=${encodeURIComponent(user.email)}`
-      );
-      if (quizResponse.ok) {
-        const quizData = await quizResponse.json();
+      const quizResult = await edvantaAPI.getQuizHistory(user.email);
+      if (quizResult.success) {
         // Get the 5 most recent quizzes
-        setQuizHistory(quizData.slice(0, 5));
+        setQuizHistory(quizResult.data.slice(0, 5));
       } else {
-        console.error("Failed to fetch quiz history:", quizResponse.status);
+        console.error("Failed to fetch quiz history:", quizResult.error);
       }
 
       // Fetch user roadmaps
-      const roadmapResponse = await fetch(
-        `${backEndURL}/api/roadmap/user?user_email=${encodeURIComponent(user.email)}`
-      );
-      if (roadmapResponse.ok) {
-        const roadmapData = await roadmapResponse.json();
+      const roadmapResult = await edvantaAPI.getUserRoadmaps(user.email);
+      if (roadmapResult.success) {
         // Get the 3 most recent roadmaps
-        setUserRoadmaps(roadmapData.slice(0, 3));
+        setUserRoadmaps(roadmapResult.data.slice(0, 3));
       } else {
-        console.error("Failed to fetch roadmaps:", roadmapResponse.status);
+        console.error("Failed to fetch roadmaps:", roadmapResult.error);
       }
     } catch (error) {
       console.error("Failed to fetch detailed data:", error);

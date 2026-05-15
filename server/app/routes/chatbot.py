@@ -58,22 +58,66 @@ def fix_id(document):
     return document
 
 
+def get_identifier(source):
+    """Extract the preferred identifier and its field from request data or args."""
+    if not source:
+        return None, None
+
+    user_email = source.get("userEmail") or source.get("user_email")
+    user_id = source.get("userId") or source.get("user_id")
+
+    if user_email:
+        return user_email, "userEmail"
+    if user_id:
+        return user_id, "userId"
+
+    return None, None
+
+
+def append_session_message(session_id, identifier_field, identifier, role, content):
+    """Append a message to an existing chat session."""
+    if not session_id or not identifier:
+        return False
+
+    message = {
+        "role": role,
+        "content": content,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    update = {
+        "$push": {"messages": message},
+        "$set": {
+            "lastActivity": datetime.utcnow().isoformat(),
+            "messageCount": {"$sum": [1]}
+        }
+    }
+
+    chat_sessions_col.update_one(
+        {"_id": ObjectId(session_id), identifier_field: identifier},
+        {
+            "$push": {"messages": message},
+            "$set": {"lastActivity": datetime.utcnow().isoformat()},
+            "$inc": {"messageCount": 1}
+        }
+    )
+    return True
+
+
 def get_ai_response(question: str, context: str = "", chat_history: list = None):
     """Generate AI response for doubt solving with conversation context."""
     try:
-        # Use centralized tutor response function with conversation history
         result = get_tutor_response(
-            prompt=question, 
-            subject=None, 
-            conversation_history=chat_history[-10:] if chat_history else None
+            prompt=question,
+            subject=None,
+            conversation_history=chat_history[-10:] if chat_history else None,
         )
-        
-        if result['success']:
-            return result['response']
-        else:
-            return None
 
-    except Exception as e:
+        if result["success"]:
+            return result["response"]
+        return None
+
+    except Exception:
         return None
 
 
@@ -82,10 +126,9 @@ def get_ai_response(question: str, context: str = "", chat_history: list = None)
 @chatbot_bp.route("/api/chat/loadChat", methods=["GET"])
 def load_chat_sessions():
     """Load all chat sessions for a user by email."""
-    user_email = request.args.get("userEmail")
-    user_id = request.args.get("userId")  # Keep for backward compatibility
+    user_email = request.args.get("user_email") or request.args.get("userEmail")
+    user_id = request.args.get("userId") or request.args.get("user_id")  # Keep for backward compatibility
 
-    # Prefer email over userId for identification
     identifier = user_email if user_email else user_id
     identifier_field = "userEmail" if user_email else "userId"
 
@@ -120,11 +163,10 @@ def save_chat_sessions():
     if not data:
         return jsonify({"error": "No JSON data provided"}), 400
 
-    user_email = data.get("userEmail")
-    user_id = data.get("userId")  # Keep for backward compatibility
+    user_email = data.get("user_email") or data.get("userEmail")
+    user_id = data.get("userId") or data.get("user_id")  # Keep for backward compatibility
     sessions = data.get("sessions", [])
 
-    # Prefer email over userId for identification
     identifier = user_email if user_email else user_id
     identifier_field = "userEmail" if user_email else "userId"
 
@@ -165,10 +207,9 @@ def create_chat_session():
         return jsonify({"error": "No JSON data provided"}), 400
 
     session_name = data.get("sessionName", "New Chat Session")
-    user_email = data.get("userEmail")
-    user_id = data.get("userId")  # Keep for backward compatibility
+    user_email = data.get("user_email") or data.get("userEmail")
+    user_id = data.get("userId") or data.get("user_id")  # Keep for backward compatibility
 
-    # Prefer email over userId for identification
     identifier = user_email if user_email else user_id
 
     if not identifier:
@@ -207,10 +248,9 @@ def update_session_messages(session_id):
         return jsonify({"error": "No JSON data provided"}), 400
 
     messages = data.get("messages", [])
-    user_email = data.get("userEmail")
-    user_id = data.get("userId")  # Keep for backward compatibility
+    user_email = data.get("user_email") or data.get("userEmail")
+    user_id = data.get("userId") or data.get("user_id")  # Keep for backward compatibility
 
-    # Prefer email over userId for identification
     identifier = user_email if user_email else user_id
     identifier_field = "userEmail" if user_email else "userId"
 
@@ -235,10 +275,9 @@ def update_session_messages(session_id):
 @chatbot_bp.route("/api/chat/deleteChat/<session_id>", methods=["DELETE"])
 def delete_chat_session(session_id):
     """Delete a chat session."""
-    user_email = request.args.get("userEmail")
-    user_id = request.args.get("userId")  # Keep for backward compatibility
+    user_email = request.args.get("user_email") or request.args.get("userEmail")
+    user_id = request.args.get("userId") or request.args.get("user_id")  # Keep for backward compatibility
 
-    # Prefer email over userId for identification
     identifier = user_email if user_email else user_id
     identifier_field = "userEmail" if user_email else "userId"
 
@@ -268,10 +307,9 @@ def update_session_activity(session_id):
     if not data:
         return jsonify({"error": "No JSON data provided"}), 400
 
-    user_email = data.get("userEmail")
-    user_id = data.get("userId")  # Keep for backward compatibility
+    user_email = data.get("user_email") or data.get("userEmail")
+    user_id = data.get("userId") or data.get("user_id")  # Keep for backward compatibility
 
-    # Prefer email over userId for identification
     identifier = user_email if user_email else user_id
     identifier_field = "userEmail" if user_email else "userId"
 
@@ -355,11 +393,13 @@ def send_message():
 
                 chat_sessions_col.update_one(
                     update_query,
-                    {"$set": {
-                        "messages": updated_history,
-                        "lastActivity": datetime.utcnow().isoformat(),
-                        "messageCount": len(updated_history)
-                    }}
+                    {
+                        "$set": {
+                            "messages": updated_history,
+                            "lastActivity": datetime.utcnow().isoformat(),
+                        },
+                        "$inc": {"messageCount": 2} # User message + AI response
+                    }
                 )
             except Exception as session_error:
                 return jsonify({"error": "Failed to update chat session with new messages"}), 500

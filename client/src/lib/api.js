@@ -306,7 +306,7 @@ export const edvantaAPI = {
 
   // Roadmaps
   generateRoadmap(goal, background, duration, userEmail) {
-    return api.post('/api/roadmap/generate', { goal, background, duration, user_email: userEmail });
+    return api.post('/api/roadmap/generate', { goal, background, duration_weeks: duration, user_email: userEmail });
   },
 
   getUserRoadmaps(userEmail) {
@@ -331,16 +331,16 @@ export const edvantaAPI = {
 
   // Chatbot
   sendChatMessage(message, userEmail, conversationId = null) {
-    return api.post('/api/chat', { message, user_email: userEmail, conversation_id: conversationId });
+    return api.post('/api/chat/message', { input: message, user_email: userEmail, session_id: conversationId });
   },
 
   loadChatHistory(userEmail) {
-    return api.get('/api/chat/loadChat', { userEmail });
+    return api.get('/api/chat/loadChat', { user_email: userEmail });
   },
 
   // Tutor
-  startTutorSession(message, userEmail, mode = 'text') {
-    return api.post('/api/tutor/session', { message, user_email: userEmail, mode });
+  startTutorSession(mode, userEmail, subject = 'general', isVoiceInput = false) {
+    return api.post('/api/tutor/session/start', { mode, subject, user_email: userEmail, isVoiceInput });
   },
 
   // Health checks

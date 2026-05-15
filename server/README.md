@@ -131,28 +131,28 @@ server/
 This section documents the most commonly used endpoints with request and response examples. Use these as templates for integration and testing. Replace base URL with your deployment (e.g., `https://api.example.com`).
 
 ### Authentication
-- Header: `Authorization: Bearer <JWT_OR_FIREBASE_ID_TOKEN>`
+- This backend currently does not enforce authentication by default.
+- If you add auth middleware later, pass `Authorization: Bearer <token>` and validate it server-side.
 
 ### 1) Chat (Send message)
-- Endpoint: `POST /api/chat`
+- Endpoint: `POST /api/chat/message`
 - Description: Send a message to the chatbot and receive AI-generated response.
 - Request (application/json):
 
 ```bash
-curl -X POST https://api.example.com/api/chat \
+curl -X POST https://api.example.com/api/chat/message \
    -H "Content-Type: application/json" \
-   -H "Authorization: Bearer <token>" \
-   -d '{"user_email":"user@example.com", "message":"Explain dynamic programming"}'
+   -d '{"input":"Explain dynamic programming","userEmail":"user@example.com","sessionId":null,"chatHistory":[]}'
 ```
 
 - Response (200):
 
 ```json
 {
-   "status": "ok",
-   "reply": "Dynamic programming is ...",
-   "conversation_id": "abc123",
-   "metadata": {"tokens_used": 120}
+  "success": true,
+  "message": "Dynamic programming is ...",
+  "timestamp": "2026-05-15T12:00:00Z",
+  "context_messages_used": 0
 }
 ```
 
@@ -164,7 +164,7 @@ curl -X POST https://api.example.com/api/chat \
 ```bash
 curl -X POST https://api.example.com/api/quizzes/generate \
    -H "Content-Type: application/json" \
-   -d '{"topic":"binary search","num_questions":5, "difficulty":"medium"}'
+   -d '{"topic":"binary search","numberOfQuestions":5, "difficulty":"medium"}'
 ```
 
 - Response (200):
@@ -179,23 +179,24 @@ curl -X POST https://api.example.com/api/quizzes/generate \
 }
 ```
 
-### 3) Score Quiz
-- Endpoint: `POST /api/quizzes/score`
+### 3) Submit Quiz
+- Endpoint: `POST /api/quizzes/submit`
 - Request:
 
 ```bash
-curl -X POST https://api.example.com/api/quizzes/score \
+curl -X POST https://api.example.com/api/quizzes/submit \
    -H "Content-Type: application/json" \
-   -d '{"quiz_id":"q_123","user_email":"user@example.com","answers":[{"id":1,"answer":"A"}]}'
+   -d '{"quiz_id":"q_123","answers":[{"id":1,"answer":"A"}]}'
 ```
 
 - Response (200):
 
 ```json
 {
-   "status":"ok",
-   "score": 80,
-   "summary": {"correct":4,"total":5}
+  "score": 4,
+  "total": 5,
+  "percentage": 80,
+  "feedback": []
 }
 ```
 
@@ -204,20 +205,39 @@ For a complete OpenAPI/Swagger spec: consider adding `openapi.yaml` and serving 
 
 
 ### Chatbot & Tutoring
-- `POST /api/chat` - Send chat message
-- `GET /api/chat/history/{user_email}` - Get chat history
+- `POST /api/chat/message` - Send chat message
+- `GET /api/chat/loadChat` - Load chat sessions
+- `POST /api/chat/createChat` - Create a chat session
+- `PUT /api/chat/updateMessages/<session_id>/messages` - Update session messages
+- `PATCH /api/chat/updateActivity/<session_id>/activity` - Update session activity
+- `DELETE /api/chat/deleteChat/<session_id>` - Delete session
 - `POST /api/tutor/ask` - Ask tutor question
-- `POST /api/tutor/voice` - Voice tutoring session
+- `POST /api/tutor/session/start` - Start tutor session
+- `POST /api/tutor/session/end` - End tutor session
+- `POST /api/tutor/voice/toggle` - Toggle voice output
+- `GET /api/tutor/voice/connection` - Check voice services
+- `POST /api/tutor/voice/optimize` - Optimize text for voice
+- `GET /api/tutor/chat/history` - Get tutor chat history
+- `POST /api/tutor/chat/clear` - Clear tutor chat history
+- `GET /api/tutor/health` - Tutor health check
 
 ### Quiz System
 - `POST /api/quizzes/generate` - Generate quiz from topic
-- `POST /api/quizzes/score` - Score quiz submission
-- `GET /api/quizzes/history/{user_email}` - Get quiz history
+- `POST /api/quizzes/submit` - Submit quiz answers
+- `GET /api/tools/quizzes` - List saved quizzes
+- `POST /api/tools/quizzes` - Save a quiz
+- `DELETE /api/tools/quizzes/<quiz_id>` - Delete a quiz
+- `GET /api/quiz-history` - Get quiz history
+- `POST /api/quiz-history` - Log quiz history
+- `DELETE /api/quiz-history` - Clear quiz history
 
-### Learning Roadmaps  
+### Learning Roadmaps
 - `POST /api/roadmap/generate` - Generate learning roadmap
-- `GET /api/roadmap/user/{user_email}` - Get user roadmaps
-- `GET /api/roadmap/download/{roadmap_id}` - Download roadmap PDF
+- `GET /api/roadmap/user` - Get user roadmaps
+- `GET /api/roadmap/<roadmap_id>` - Get roadmap details
+- `PUT /api/roadmap/<roadmap_id>` - Update roadmap
+- `DELETE /api/roadmap/<roadmap_id>` - Delete roadmap
+- `GET /api/roadmap/download/<roadmap_id>` - Download roadmap PDF
 
 
 ### User Analytics

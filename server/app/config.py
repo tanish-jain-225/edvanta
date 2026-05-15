@@ -12,7 +12,7 @@ Environment variables (required for deployment):
 - GEMINI_API_KEY: Google Gemini API key for AI features
 
 Optional environment variables:
-- ALLOWED_ORIGINS: Comma separated origins for CORS (default: "*")
+- ALLOWED_ORIGINS: Comma separated origins for CORS (default: "http://localhost:5173")
 - GEMINI_TEMPERATURE/GEMINI_TOP_P/GEMINI_TOP_K: AI generation parameters
 - GEMINI_MODEL_NAME: Gemini model to use (default: gemini-2.5-flash)
 """
@@ -73,7 +73,7 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
     # CORS settings
-    ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*")
+    ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
 
     # MongoDB Configuration
     MONGODB_URI = (
@@ -91,4 +91,4 @@ class Config:
     MONGODB_VOICE_CHAT_COLLECTION = os.getenv("MONGODB_VOICE_CHAT_COLLECTION", "voice_chats")
     MONGODB_ACTIVE_SESSIONS_COLLECTION = os.getenv("MONGODB_ACTIVE_SESSIONS_COLLECTION", "active_sessions")
     MONGODB_ROADMAP_COLLECTION = os.getenv("MONGODB_ROADMAP_COLLECTION", "roadmaps")
-    MONGODB_USER_STATS_COLLECTION = os.getenv("MONGODB_USER_STATS_COLLECTION", "user_stats")
+    MONGODB_USER_STATS_COLLECTION = os.getenv("MONGODB_USER_STATS_COLLECTION", "user_stats")

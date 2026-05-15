@@ -231,17 +231,24 @@ def generate_ai_response(
         # Check for valid text response
         response_text = None
         try:
-            if hasattr(response, 'text'):
+            if hasattr(response, 'text') and response.text:
                 response_text = response.text
+            elif hasattr(response, 'content') and response.content:
+                response_text = response.content
+            elif hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content:
+                    response_text = candidate.content
+                elif hasattr(candidate, 'text') and candidate.text:
+                    response_text = candidate.text
         except (ValueError, AttributeError) as e:
-            # Check if it's a MAX_TOKENS issue (finish_reason=2)
             if hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
                 if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
                     print(f"MAX_TOKENS reached for {ai_type} - response truncated")
                     if ai_type == 'roadmap':
                         return {'success': False, 'response': '', 'error': 'max_tokens'}
-            print(f"Error accessing response.text for {ai_type}: {e}")
+            print(f"Error accessing AI response content for {ai_type}: {e}")
         
         if not response or not response_text:
             # For roadmap, allow fallback handling
@@ -656,7 +663,7 @@ def check_ai_availability() -> Dict[str, Any]:
 
 def get_vertex_response(prompt: str, context: str = None) -> str:
     """Legacy compatibility - redirect to new AI system."""
-    result = get_tutor_response(prompt, context=context)
+    result = get_tutor_response(prompt, context)
     if result['success']:
         return result['response']
     else:

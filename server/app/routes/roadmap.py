@@ -36,11 +36,16 @@ def generate_roadmap():
     if db is None:
         client, db, collection_name = connect_to_mongodb()
 
-    data = request.get_json()
+    data = request.get_json() or {}
     goal = data.get("goal")
     background = data.get("background")  # user's current knowledge/skills
-    duration_weeks = data.get("duration_weeks")
-    user_email = data.get("user_email")
+    raw_duration = data.get("duration_weeks") or data.get("duration")
+    try:
+        duration_weeks = int(raw_duration) if raw_duration is not None else None
+    except (TypeError, ValueError):
+        duration_weeks = None
+
+    user_email = data.get("user_email") or data.get("userEmail")
 
     if not goal or not background:
         return jsonify({"error": "Missing goal or background"}), 400
@@ -77,7 +82,7 @@ def generate_roadmap():
         roadmap_collection.insert_one(roadmap_document)
         return jsonify({"success": True, "roadmap": roadmap_data})
     except Exception as e:
-        raise e
+        return jsonify({"error": f"Roadmap generation failed: {str(e)}"}), 500
 
 
 @roadmap_bp.route("/api/roadmap/user", methods=["GET"])
@@ -93,7 +98,7 @@ def get_user_roadmaps():
         client, db, collection_name = connect_to_mongodb()
         # If still unavailable, proceed with in-memory fallback (do not 503)
 
-    user_email = request.args.get("user_email")
+    user_email = request.args.get("user_email") or request.args.get("userEmail")
     if not user_email:
         return jsonify({"error": "Missing user_email parameter"}), 400
 
@@ -113,9 +118,9 @@ def get_user_roadmaps():
         return jsonify({"error": f"Failed to retrieve roadmaps: {str(e)}"}), 500
 
 
-@roadmap_bp.route("/api/roadmap/<roadmap_id>", methods=["GET", "DELETE"])
+@roadmap_bp.route("/api/roadmap/<roadmap_id>", methods=["GET", "PUT", "DELETE"])
 def get_roadmap_by_id(roadmap_id):
-    """Get or delete a specific roadmap by ID.
+    """Get, update, or delete a specific roadmap by ID.
 
     Query params:
     - user_email: The email of the user requesting the roadmap
@@ -128,7 +133,7 @@ def get_roadmap_by_id(roadmap_id):
     if not roadmap_id:
         return jsonify({"error": "Missing roadmap_id parameter"}), 400
 
-    user_email = request.args.get("user_email")
+    user_email = request.args.get("user_email") or request.args.get("userEmail")
     if not user_email:
         return jsonify({"error": "Missing user_email parameter"}), 400
 
@@ -137,14 +142,36 @@ def get_roadmap_by_id(roadmap_id):
         if db is not None and collection_name is not None:
             roadmap_collection = db[collection_name]
 
-            # Check if roadmap exists and verify ownership
             roadmap = roadmap_collection.find_one(
                 {"id": roadmap_id, "user_email": user_email})
 
             if not roadmap:
                 return jsonify({"error": "Roadmap not found or access denied"}), 404
 
-            # For DELETE method, delete the roadmap
+            if request.method == "PUT":
+                update_data = {}
+                body = request.get_json() or {}
+                for field in ["title", "description", "duration_weeks", "data"]:
+                    if field in body:
+                        update_data[field] = body[field]
+
+                if not update_data:
+                    return jsonify({"error": "No update payload provided"}), 400
+
+                update_data["updated_at"] = datetime.utcnow()
+                result = roadmap_collection.update_one(
+                    {"id": roadmap_id, "user_email": user_email},
+                    {"$set": update_data}
+                )
+
+                if result.modified_count > 0:
+                    roadmap = roadmap_collection.find_one(
+                        {"id": roadmap_id, "user_email": user_email})
+                    roadmap["_id"] = str(roadmap["_id"])
+                    return jsonify({"success": True, "roadmap": roadmap}), 200
+
+                return jsonify({"success": True, "message": "No changes were made"}), 200
+
             if request.method == "DELETE":
                 result = roadmap_collection.delete_one(
                     {"id": roadmap_id, "user_email": user_email})
@@ -154,8 +181,6 @@ def get_roadmap_by_id(roadmap_id):
                 else:
                     return jsonify({"error": "Failed to delete roadmap"}), 500
 
-            # For GET method, return the roadmap
-            # Convert ObjectId to string for JSON serialization
             roadmap["_id"] = str(roadmap["_id"])
             return jsonify(roadmap)
 
@@ -168,6 +193,15 @@ def get_roadmap_by_id(roadmap_id):
 
         if not r:
             return jsonify({"error": "Roadmap not found or access denied"}), 404
+
+        if request.method == "PUT":
+            body = request.get_json() or {}
+            for field in ["title", "description", "duration_weeks", "data"]:
+                if field in body:
+                    r[field] = body[field]
+            r["updated_at"] = datetime.utcnow()
+            _in_memory_roadmaps[r.get("id")] = r
+            return jsonify({"success": True, "roadmap": r}), 200
 
         if request.method == "DELETE":
             _in_memory_roadmaps.pop(r.get("id"), None)
@@ -191,7 +225,7 @@ def download_roadmap(roadmap_id):
     if db is None:
         client, db, collection_name = connect_to_mongodb()
 
-    user_email = request.args.get("user_email")
+    user_email = request.args.get("user_email") or request.args.get("userEmail")
     if not user_email:
         return jsonify({"error": "Missing user_email parameter"}), 400
 

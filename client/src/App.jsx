@@ -40,7 +40,6 @@ function useUnifiedLoading(location, authLoading) {
   useEffect(() => {
     timerRef.current = setTimeout(() => setInitialLoading(false), LOADING_MINIMUM_TIME);
     return () => clearTimeout(timerRef.current);
-    // eslint-disable-next-line
   }, []);
 
   return authLoading || initialLoading;

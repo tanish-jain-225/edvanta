@@ -1446,18 +1446,14 @@ export function ConversationalTutor() {
 
   // Send voice message to tutor with session validation - BULLETPROOF VERSION
   const sendMessage = async (voiceText) => {
+    const activeSessionId = currentSessionId || sessionId;
     try {
       if (!voiceText || !voiceText.trim()) {
         return;
       }
 
-      const activeSessionId = currentSessionId || sessionId;
       if (!activeSessionId) {
         console.warn("No active session, cannot send message");
-        // setLastError({ 
-        //   message: "No active session. Please start a new session first.",
-        //   timestamp: Date.now() 
-        // });
         return;
       }
 

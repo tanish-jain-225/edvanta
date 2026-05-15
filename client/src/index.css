@@ -72,7 +72,8 @@
     /* Prevent horizontal overflow */
     overflow-x: hidden;
     /* Ensure scroll position resets */
-    scroll-padding-top: 80px; /* Account for fixed navbar */
+    scroll-padding-top: 80px;
+    /* Account for fixed navbar */
   }
 
   body {
@@ -109,17 +110,35 @@
   }
 
   /* Mobile-first responsive typography */
-  h1 { @apply text-2xl sm:text-3xl lg:text-4xl xl:text-5xl; }
-  h2 { @apply text-xl sm:text-2xl lg:text-3xl xl:text-4xl; }
-  h3 { @apply text-lg sm:text-xl lg:text-2xl xl:text-3xl; }
-  h4 { @apply text-base sm:text-lg lg:text-xl xl:text-2xl; }
-  h5 { @apply text-sm sm:text-base lg:text-lg xl:text-xl; }
-  h6 { @apply text-xs sm:text-sm lg:text-base xl:text-lg; }
+  h1 {
+    @apply text-2xl sm:text-3xl lg:text-4xl xl:text-5xl;
+  }
+
+  h2 {
+    @apply text-xl sm:text-2xl lg:text-3xl xl:text-4xl;
+  }
+
+  h3 {
+    @apply text-lg sm:text-xl lg:text-2xl xl:text-3xl;
+  }
+
+  h4 {
+    @apply text-base sm:text-lg lg:text-xl xl:text-2xl;
+  }
+
+  h5 {
+    @apply text-sm sm:text-base lg:text-lg xl:text-xl;
+  }
+
+  h6 {
+    @apply text-xs sm:text-sm lg:text-base xl:text-lg;
+  }
 
   /* Fix viewport issues on mobile */
   @media screen and (max-width: 768px) {
     body {
-      font-size: 16px; /* Prevent zoom on iOS */
+      font-size: 16px;
+      /* Prevent zoom on iOS */
     }
   }
 }
@@ -180,7 +199,8 @@
     background-color: rgba(255, 255, 255, 0.1);
   }
 
-  .prose ul, .prose ol {
+  .prose ul,
+  .prose ol {
     margin-top: 0.5em;
     margin-bottom: 0.5em;
     padding-left: 1.5em;
@@ -205,7 +225,8 @@
     margin: 1em 0;
   }
 
-  .prose th, .prose td {
+  .prose th,
+  .prose td {
     border: 1px solid #e5e7eb;
     padding: 0.5em;
     text-align: left;
@@ -262,11 +283,11 @@
   .delay-0 {
     animation-delay: 0ms;
   }
-  
+
   .delay-150 {
     animation-delay: 150ms;
   }
-  
+
   .delay-300 {
     animation-delay: 300ms;
   }
@@ -427,7 +448,7 @@
 
 /* Chat pattern background */
 .chat-pattern {
-  background-image: 
+  background-image:
     radial-gradient(circle at 25px 25px, rgba(0, 0, 0, 0.01) 2px, transparent 0),
     radial-gradient(circle at 75px 75px, rgba(0, 0, 0, 0.01) 2px, transparent 0);
   background-size: 100px 100px;
@@ -440,10 +461,12 @@
     width: 0%;
     opacity: 0.7;
   }
+
   50% {
     width: 100%;
     opacity: 1;
   }
+
   100% {
     width: 0%;
     opacity: 0.7;
@@ -454,9 +477,11 @@
   0% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-10px);
   }
+
   100% {
     transform: translateY(0px);
   }
@@ -464,10 +489,13 @@
 
 /* Custom loading animations */
 @keyframes loader-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.6;
     transform: scale(0.85);
@@ -475,10 +503,13 @@
 }
 
 @keyframes logo-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     filter: drop-shadow(0 0 5px rgba(72, 170, 177, 0.3));
     transform: scale(1);
   }
+
   50% {
     filter: drop-shadow(0 0 10px rgba(72, 170, 177, 0.6));
     transform: scale(1.05);
@@ -502,6 +533,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -511,13 +543,16 @@
 .page-transition-enter {
   opacity: 0;
 }
+
 .page-transition-enter-active {
   opacity: 1;
   transition: opacity 300ms;
 }
+
 .page-transition-exit {
   opacity: 1;
 }
+
 .page-transition-exit-active {
   opacity: 0;
   transition: opacity 300ms;
@@ -529,6 +564,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -540,6 +576,7 @@
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
