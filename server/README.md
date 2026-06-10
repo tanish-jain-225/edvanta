@@ -3,7 +3,7 @@
 <!-- Badges: update URLs to point to your CI / coverage / packaging if available -->
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org)
 [![Flask](https://img.shields.io/badge/Flask-3.1.1-black.svg)](https://palletsprojects.com/p/flask/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](../LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](../docs/LICENSE)
 
 A Flask-based REST API backend powering the Edvanta educational platform. Features AI-powered learning tools including chatbots, quiz generation, roadmap creation, and more.
 

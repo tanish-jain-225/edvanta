@@ -1,5 +1,5 @@
 <div align="center">
-	<img src="client/public/edvanta-logo.png" alt="Edvanta" height="90" />
+	<img src="assets/edvanta-logo.png" alt="Edvanta" height="90" />
 </div>
 
 # Edvanta
@@ -8,7 +8,7 @@
 A comprehensive full-stack educational platform that revolutionizes learning through artificial intelligence, offering personalized learning tools, beautiful responsive design, and seamless deployment across any platform.
 
 <!-- Project badges -->
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.0.0-blue.svg)](client/package.json) [![Deploy](https://img.shields.io/badge/deploy-vercel-brightgreen.svg)](https://vercel.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](docs/LICENSE) [![Version](https://img.shields.io/badge/version-0.0.0-blue.svg)](client/package.json) [![Deploy](https://img.shields.io/badge/deploy-vercel-brightgreen.svg)](https://vercel.com)
 
 ## 🌟 Key Features
 
@@ -78,6 +78,11 @@ Edvanta provides a suite of AI-powered tools designed to make learning more inte
 
 ```
 edvanta/
+├── assets/                          # Global static assets (logo, branding images)
+├── docs/                            # Project documentation (Setup, Contributing, License)
+│   ├── CONTRIBUTING.md              # Rules and guidelines for contributors
+│   ├── LICENSE                      # Open-source license terms
+│   └── SETUP.md                     # Step-by-step developer setup instructions
 ├── client/                          # React + Vite Frontend Application
 │   ├── src/
 │   │   ├── components/              # Reusable UI components
@@ -351,7 +356,7 @@ See `client/.env.example` for:
 
 ## 🤝 Contributing
 
-**Contribution guidelines:** See `CONTRIBUTING.md` for detailed guidelines, testing rules, and PR process.
+**Contribution guidelines:** See `docs/CONTRIBUTING.md` for detailed guidelines, testing rules, and PR process.
 
 ### Development Workflow
 1. **Fork** the repository
