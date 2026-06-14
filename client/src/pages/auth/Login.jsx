@@ -51,7 +51,7 @@ export function Login() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      
+
       // Check if user document exists, create with default interests if not
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (!userDoc.exists()) {
@@ -68,7 +68,7 @@ export function Login() {
           { merge: true }
         );
       }
-      
+
       navigate("/dashboard");
     } catch (error) {
       setError(error.message);
@@ -110,7 +110,7 @@ export function Login() {
             className="w-full flex items-center justify-center text-sm sm:text-base py-2 sm:py-3"
           >
             <img
-              src="/src/assets/google-icon.png"
+              src="/google-icon.png"
               alt="Google"
               className="h-3 w-3 sm:h-4 sm:w-4 mr-2"
             />

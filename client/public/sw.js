@@ -29,15 +29,12 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activating...');
-  
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys
           .filter((key) => key.startsWith('edvanta-') && key !== CACHE_NAME)
           .map((key) => {
-            console.log('[Service Worker] Removing old cache:', key);
             return caches.delete(key);
           })
       );

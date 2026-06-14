@@ -339,7 +339,6 @@ export function Quizzes() {
   useEffect(() => {
     const handleSyncComplete = (event) => {
       if (event.detail && event.detail.type === "quiz") {
-        console.log("[Quizzes] Sync complete event received: reloading data");
         if (user?.email) {
           loadQuizzes();
           loadQuizHistory();

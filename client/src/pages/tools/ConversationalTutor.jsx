@@ -655,7 +655,6 @@ export function ConversationalTutor() {
         switch (event.error) {
           case "no-speech":
             // This is normal - user might just be thinking, keep mic active
-            console.log('No speech detected, mic remains active');
             break;
             
           case "aborted":
@@ -734,7 +733,6 @@ export function ConversationalTutor() {
       // Start the recognition
       try {
         recognition.start();
-        console.log('Speech recognition started successfully');
       } catch (startError) {
         console.error("Failed to start recognition:", startError);
         speechRecognitionRef.current = null;

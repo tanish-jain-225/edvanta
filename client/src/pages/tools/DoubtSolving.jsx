@@ -264,7 +264,6 @@ export function DoubtSolving() {
   useEffect(() => {
     const handleSyncComplete = (event) => {
       if (event.detail && event.detail.type === "chat") {
-        console.log("[DoubtSolving] Sync complete event received: reloading chat sessions...");
         if (user?.email) {
           const mappedId = getSessionIdMapping(user.email, currentSessionId);
           const cached = getCachedData(user.email, "chat_sessions", []);

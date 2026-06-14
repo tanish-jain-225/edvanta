@@ -65,7 +65,6 @@ export function Roadmap() {
   useEffect(() => {
     const handleSyncComplete = (event) => {
       if (event.detail && event.detail.type === "roadmap") {
-        console.log("[Roadmap] Sync complete event received: reloading roadmaps...");
         if (user?.email) {
           fetchUserRoadmaps();
         }
