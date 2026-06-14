@@ -13,17 +13,37 @@ from app.utils.mongo_utils import connect_to_mongodb
 
 chatbot_bp = Blueprint("chatbot", __name__)
 
-# MongoDB connection - REQUIRED
-try:
-    _, _, collection_name = connect_to_mongodb('MONGODB_CHAT_COLLECTION')
-    # Get the collection using the centralized helper
-    # We still need the collection object for the route logic
-    from app.utils.mongo_utils import get_mongo_client
-    client = get_mongo_client()
-    db = client[Config.MONGODB_DB_NAME]
-    chat_sessions_col = db[Config.MONGODB_CHAT_COLLECTION]
-except Exception as e:
-    raise Exception(f"MongoDB connection required for chatbot - no fallbacks: {str(e)}")
+class LazyCollectionProxy:
+    def __init__(self, init_fn):
+        self._init_fn = init_fn
+        self._collection = None
+
+    def _get_collection(self):
+        if self._collection is None:
+            self._collection = self._init_fn()
+            if self._collection is None:
+                raise Exception("MongoDB collection not available - connection failed")
+        return self._collection
+
+    def __getattr__(self, name):
+        return getattr(self._get_collection(), name)
+
+    def __getitem__(self, item):
+        return self._get_collection()[item]
+
+def _init_chat_sessions():
+    try:
+        _, _, collection_name = connect_to_mongodb('MONGODB_CHAT_COLLECTION')
+        from app.utils.mongo_utils import get_mongo_client
+        client = get_mongo_client()
+        if client is not None:
+            db = client[Config.MONGODB_DB_NAME]
+            return db[Config.MONGODB_CHAT_COLLECTION]
+    except Exception as e:
+        print(f"Chatbot MongoDB connection failed: {str(e)}")
+    return None
+
+chat_sessions_col = LazyCollectionProxy(_init_chat_sessions)
 
 # AI Configuration
 SYSTEM_PROMPT = """You are an expert educational tutor helping students with their academic doubts and questions. You should:
