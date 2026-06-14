@@ -13,5 +13,5 @@ if __name__ == "__main__":
     print(f"🚀 Starting Edvanta backend on http://localhost:{PORT}")
     print(f"📝 Environment: {config.ENV}")
     print(f"🐛 Debug mode: {config.DEBUG}")
-    print(f"\n💡 Press Ctrl+C to stop\n")
+    print("\n💡 Press Ctrl+C to stop\n")
     app.run(port=PORT, debug=config.DEBUG)

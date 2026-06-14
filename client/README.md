@@ -22,6 +22,7 @@ A modern React-based educational platform built with cutting-edge technologies f
 - 👨‍🏫 **Conversational Tutor** - Interactive AI tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestones
 - 🎬 **Visual Content Explorer** - YouTube API integration for educational videos
+- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads
 
 ### **Enhanced User Experience**
 - 🔐 **Firebase Authentication** - Secure user accounts with profile management
@@ -124,7 +125,7 @@ client/
     │       ├── PageTransition.jsx # Smooth page transitions
     │       ├── ScreenFatigueReminder.jsx # Break reminder system
     │       ├── ScrollToTop.jsx # Auto-scroll component
-    │       ├── UserInterestForm.jsx # User preference form
+    │       ├── OfflineIndicator.jsx # Network status indicator
     │       └── custom-css/ # Custom CSS modules
     │           ├── LoadingIndicator.css
     │           └── PageTransition.css
@@ -147,7 +148,8 @@ client/
             ├── Quizzes.jsx         # Quiz generation & scoring
             ├── ConversationalTutor.jsx # AI tutoring system
             ├── Roadmap.jsx         # Learning path generator
-            └── VisualContent.jsx   # YouTube API video explorer
+            ├── VisualContent.jsx   # YouTube API video explorer
+            └── ResumeAnalysis.jsx  # AI-powered resume analysis
 ```
 
 
@@ -351,6 +353,7 @@ The client communicates with the Edvanta backend through a centralized API clien
 - **Tutoring**: `/api/tutor/ask`, `/api/tutor/voice`
 - **Roadmaps**: `/api/roadmap/generate`, `/api/roadmap/user/{user_email}`
 - **Analytics**: `/api/user-stats`
+- **Resume Analyzer**: `/api/resume/analyze`
 
 ### **Environment Detection**
 The app automatically detects environment and switches API URLs:

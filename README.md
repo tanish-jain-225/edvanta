@@ -18,6 +18,7 @@ A comprehensive full-stack educational platform that revolutionizes learning thr
 - 👨‍🏫 **AI Tutor** - Interactive conversational tutoring system
 - 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
 - 🎬 **Visual Content Explorer** - YouTube API integration for educational video discovery
+- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads
 
 ### **Modern React Application**
 - 📱 **Responsive Design** - Mobile-first interface optimized for all devices
@@ -73,6 +74,7 @@ Edvanta provides a suite of AI-powered tools designed to make learning more inte
 | **Learning Roadmaps** | Personalized learning paths with milestone tracking | ✅ Active |
 | **Visual Content Explorer** | YouTube API integration for educational video discovery | ✅ Active |
 | **Screen Fatigue Reminder** | Smart break reminders to prevent digital eye strain | ✅ Active |
+| **Resume Analyzer** | AI-powered resume scoring, feedback, and job mapping | ✅ Active |
 
 ## 📁 Project Structure
 
@@ -92,9 +94,9 @@ edvanta/
 │   │   │       ├── progress.jsx, tabs.jsx
 │   │   │       ├── HeroSpline.jsx   # 3D hero section
 │   │   │       ├── ScreenFatigueReminder.jsx # Break reminder system
-│   │   │       ├── PageTransition.jsx # Smooth transitions
+│   │   │       ├── PageTransition.jsx # Smooth page transitions
 │   │   │       ├── ScrollToTop.jsx  # Auto-scroll component
-│   │   │       ├── UserInterestForm.jsx # User preference form
+│   │   │       ├── OfflineIndicator.jsx # Network status indicator
 │   │   │       └── custom-css/      # Custom CSS modules
 │   │   ├── pages/                   # Route-based page components
 │   │   │   ├── Home.jsx, Dashboard.jsx
@@ -104,10 +106,11 @@ edvanta/
 │   │   │       ├── DoubtSolving.jsx # AI chatbot for Q&A
 │   │   │       ├── Quizzes.jsx     # Quiz generation & scoring
 │   │   │       ├── Roadmap.jsx     # Learning path generator
-│   │   │       └── VisualContent.jsx # YouTube API video explorer
+│   │   │       ├── VisualContent.jsx # YouTube API video explorer
+│   │   │       └── ResumeAnalysis.jsx # AI-powered resume analysis
 │   │   ├── hooks/                   # Custom React hooks
 │   │   │   ├── useAuth.js, useResponsive.js, helper.js
-│   │   └── lib/                     # Core utilities
+│   │   └── lib/                   # Core utilities
 │   │       ├── api.js               # Centralized API client
 │   │       ├── firebase.js          # Firebase configuration
 │   │       └── utils.js             # Helper functions
@@ -121,9 +124,10 @@ edvanta/
     ├── app/
     │   ├── __init__.py              # Application factory
     │   ├── config.py                # Environment configuration
-    │   ├── routes/                  # API endpoints (blueprints)
+    │   ├── routes/
+    │   │   ├── __init__.py
     │   │   ├── chatbot.py, quizzes.py, tutor.py
-    │   │   ├── roadmap.py, user_stats.py
+    │   │   ├── roadmap.py, user_stats.py, resume.py
     │   └── utils/                   # Service integrations
     │       ├── ai_utils.py          # Gemini AI integration
     │       ├── mongo_utils.py, quizzes_utils.py
@@ -246,23 +250,64 @@ See `client/.env.example` for:
 |--------|----------|-------------|
 | `GET` | `/` | Health check & environment info |
 | `GET` | `/api/runtime-features` | Feature availability status |
+| `GET` | `/api/health` | Simple health check status |
 
-### AI Learning Tools
+### AI Doubt Solving Chat
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/chat` | Send chat message to AI |
-| `GET` | `/api/chat/history/{user_email}` | Get conversation history |
-| `POST` | `/api/quizzes/generate` | Create AI-generated quiz |
-| `POST` | `/api/quizzes/score` | Score quiz submission |
-| `POST` | `/api/tutor/ask` | Ask AI tutor question |
-| `POST` | `/api/tutor/voice` | Voice tutoring session |
+| `POST` | `/api/chat/message` | Send chat message to AI chatbot |
+| `GET` | `/api/chat/loadChat` | Load all chat sessions for a user |
+| `POST` | `/api/chat/createChat` | Create a new chat session |
+| `PUT` | `/api/chat/saveChat` | Save multiple chat sessions for a user |
+| `PUT` | `/api/chat/updateMessages/{session_id}/messages` | Update messages inside a chat session |
+| `DELETE` | `/api/chat/deleteChat/{session_id}` | Delete a chat session |
+| `PATCH` | `/api/chat/updateActivity/{session_id}/activity` | Update the last activity timestamp |
 
-### Learning & Career Tools  
+### AI Quizzes
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/roadmap/generate` | Generate learning roadmap |
-| `GET` | `/api/roadmap/user/{user_email}` | Get user roadmaps |
+| `POST` | `/api/quizzes/generate` | Generate AI quiz from topic |
+| `POST` | `/api/quizzes/submit` | Submit quiz answers for evaluation |
+| `GET` | `/api/tools/quizzes` | List saved quizzes for a user |
+| `POST` | `/api/tools/quizzes` | Save a quiz to database |
+| `DELETE` | `/api/tools/quizzes/{quiz_id}` | Delete a saved quiz by UUID |
+| `GET` | `/api/quiz-history` | Get quiz completion history |
+| `POST` | `/api/quiz-history` | Log quiz completion to history |
+| `DELETE` | `/api/quiz-history` | Clear quiz history for a user |
+
+### AI Tutor
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/tutor/ask` | Ask AI tutor a question |
+| `POST` | `/api/tutor/session/start` | Start tutor session with voice-aware init |
+| `POST` | `/api/tutor/session/end` | End active tutor session |
+| `GET` | `/api/tutor/session/active` | Get active tutor session status |
+| `POST` | `/api/tutor/voice/toggle` | Enable/disable voice response output |
+| `GET` | `/api/tutor/voice/connection` | Check voice connection status |
+| `POST` | `/api/tutor/voice/optimize` | Optimize text response for voice |
+| `GET` | `/api/tutor/chat/history` | Get pagination/filtered chat history |
+| `POST` | `/api/tutor/chat/clear` | Clear chat history for user |
+| `GET` | `/api/tutor/health` | Tutor health check |
+
+### Learning Roadmaps
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/roadmap/generate` | Generate roadmap from goal/background |
+| `GET` | `/api/roadmap/user/{user_email}` | Get all roadmaps for a user |
+| `GET` | `/api/roadmap/{roadmap_id}` | Get specific roadmap details |
+| `PUT` | `/api/roadmap/{roadmap_id}` | Update roadmap milestones/progress |
+| `DELETE` | `/api/roadmap/{roadmap_id}` | Delete a roadmap |
+| `GET` | `/api/roadmap/download/{roadmap_id}` | Download roadmap as a PDF |
+
+### User Analytics
+| Method | Endpoint | Description |
+|--------|----------|-------------|
 | `GET` | `/api/user-stats` | Get user progress statistics |
+
+### Resume Analyzer
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/resume/analyze` | Upload resume (PDF/TXT) to Cloudinary and get Gemini AI feedback & analysis |
 
 ### Visual Content (Client-Side Only)
 | Feature | Implementation | Description |

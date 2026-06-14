@@ -37,7 +37,7 @@ The backend handles AI processing, database communication, and business logic.
     ```
 4.  **Configure environment variables**:
     - Copy `.env.example` to `.env`.
-    - Fill in your `MONGODB_URI` and `GEMINI_API_KEY`.
+    - Fill in your `MONGODB_URI`, `GEMINI_API_KEY`, and Cloudinary variables (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`).
 5.  **Run the server**:
     ```bash
     python app.py
@@ -109,6 +109,11 @@ pytest
 ### YouTube API
 1. Enable the **YouTube Data API v3** in the [Google Cloud Console](https://console.cloud.google.com/).
 2. Create an API Key and add it to your client `.env`.
+
+### Cloudinary (Resume Storage)
+1. Sign up for a free account at [Cloudinary](https://cloudinary.com/).
+2. Copy your **Cloud Name**, **API Key**, and **API Secret** from the dashboard.
+3. Add these to your server `.env` as `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`.
 
 ---
 

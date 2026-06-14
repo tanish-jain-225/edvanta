@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Wifi, WifiOff } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { processSyncQueue } from '../../lib/offlineStorage';
 
 /**
  * Floating Offline Indicator
@@ -7,6 +9,7 @@ import { Wifi, WifiOff } from 'lucide-react';
  */
 export default function OfflineIndicator() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const { user } = useAuth();
 
   useEffect(() => {
     const handleOnline = () => {
@@ -25,6 +28,13 @@ export default function OfflineIndicator() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Trigger offline sync queue processing when coming online
+  useEffect(() => {
+    if (isOnline && user?.email) {
+      processSyncQueue(user.email);
+    }
+  }, [isOnline, user?.email]);
 
   // Only show when offline or just came back online (for 3 seconds)
   const [showOnline, setShowOnline] = useState(false);

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
 import { useAuth } from "../../hooks/useAuth";
 import { signOut } from "firebase/auth";
 import { auth } from "../../lib/firebase";
-import { BookOpen, User, LogOut, Menu, Bell, X } from "lucide-react";
+import { LogOut, Menu, X } from "lucide-react";
 import { getUserProfileImage } from "../../lib/utils";
 
 export function Navbar() {
@@ -76,18 +76,18 @@ export function Navbar() {
             <div className="hidden md:flex items-center space-x-6">
               {user ? (
                 <>
-                  <Link to="/" className="nav-link hover:text-primary transition-colors">
+                  <NavLink to="/" end className={({ isActive }) => `nav-link hover:text-primary transition-colors ${isActive ? 'active' : ''}`}>
                     Home
-                  </Link>
-                  <Link to="/dashboard" className="nav-link hover:text-primary transition-colors">
+                  </NavLink>
+                  <NavLink to="/dashboard" className={({ isActive }) => `nav-link hover:text-primary transition-colors ${isActive ? 'active' : ''}`}>
                     Dashboard
-                  </Link>
+                  </NavLink>
                 </>
               ) : (
                 <>
-                  <Link to="/" className="nav-link hover:text-primary transition-colors">
+                  <NavLink to="/" end className={({ isActive }) => `nav-link hover:text-primary transition-colors ${isActive ? 'active' : ''}`}>
                     Home
-                  </Link>
+                  </NavLink>
                 </>
               )}
             </div>
@@ -101,7 +101,7 @@ export function Navbar() {
                       <img
                         src={getUserProfileImage(user, userProfile)}
                         alt="Profile"
-                        className="w-8 h-8 rounded-full object-cover border border-blue-500"
+                        className="w-8 h-8 rounded-full object-cover border border-primary"
                         onError={(e) => {
                           console.error("Error loading profile image:", e.target.src);
                           e.target.src = '/default-avatar.svg';
@@ -155,12 +155,12 @@ export function Navbar() {
           <div className="flex flex-col h-full">
             {/* User Profile Section */}
             {user && (
-              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100/50">
                 <div className="flex items-center space-x-3">
                   <img
                     src={getUserProfileImage(user, userProfile)}
                     alt="Profile"
-                    className="w-12 h-12 rounded-full object-cover border-2 border-blue-500"
+                    className="w-12 h-12 rounded-full object-cover border-2 border-primary"
                     onError={(e) => {
                       console.error("Error loading profile image:", e.target.src);
                       e.target.src = '/default-avatar.svg';
@@ -183,80 +183,149 @@ export function Navbar() {
               <div className="p-6 space-y-4">
                 {user ? (
                   <>
-                    <Link
+                    <NavLink
                       to="/"
-                      className="block px-4 py-3 text-base font-medium text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                      end
+                      className={({ isActive }) =>
+                        `block px-4 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
+                          isActive
+                            ? "bg-primary/10 text-primary border-l-4 border-primary"
+                            : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                        }`
+                      }
                       onClick={closeMobileMenu}
                     >
                       Home
-                    </Link>
-                    <Link
+                    </NavLink>
+                    <NavLink
                       to="/dashboard"
-                      className="block px-4 py-3 text-base font-medium text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                      className={({ isActive }) =>
+                        `block px-4 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
+                          isActive
+                            ? "bg-primary/10 text-primary border-l-4 border-primary"
+                            : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                        }`
+                      }
                       onClick={closeMobileMenu}
                     >
                       Dashboard
-                    </Link>
+                    </NavLink>
                     <div className="pt-4 border-t border-gray-200">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                         Learning Tools
                       </p>
                       <div className="space-y-2">
-                        <Link
+                        <NavLink
                           to="/tools/doubt-solving"
-                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                          className={({ isActive }) =>
+                            `block px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                              isActive
+                                ? "bg-primary/10 text-primary border-l-4 border-primary"
+                                : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                            }`
+                          }
                           onClick={closeMobileMenu}
                         >
                           Doubt Solving
-                        </Link>
-                        <Link
+                        </NavLink>
+                        <NavLink
                           to="/tools/quizzes"
-                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                          className={({ isActive }) =>
+                            `block px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                              isActive
+                                ? "bg-primary/10 text-primary border-l-4 border-primary"
+                                : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                            }`
+                          }
                           onClick={closeMobileMenu}
                         >
                           Quizzes
-                        </Link>
-                        <Link
+                        </NavLink>
+                        <NavLink
                           to="/tools/conversational-tutor"
-                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                          className={({ isActive }) =>
+                            `block px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                              isActive
+                                ? "bg-primary/10 text-primary border-l-4 border-primary"
+                                : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                            }`
+                          }
                           onClick={closeMobileMenu}
                         >
                           Voice Tutor
-                        </Link>
-                        <Link
+                        </NavLink>
+                        <NavLink
                           to="/tools/roadmap"
-                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                          className={({ isActive }) =>
+                            `block px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                              isActive
+                                ? "bg-primary/10 text-primary border-l-4 border-primary"
+                                : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                            }`
+                          }
                           onClick={closeMobileMenu}
                         >
                           Career Roadmap
-                        </Link>
-                        <Link
+                        </NavLink>
+                        <NavLink
                           to="/tools/visual-content"
-                          className="block px-4 py-3 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                          className={({ isActive }) =>
+                            `block px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                              isActive
+                                ? "bg-primary/10 text-primary border-l-4 border-primary"
+                                : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                            }`
+                          }
                           onClick={closeMobileMenu}
                         >
                           Visual Content
-                        </Link>
+                        </NavLink>
+                        <NavLink
+                          to="/tools/resume-analysis"
+                          className={({ isActive }) =>
+                            `block px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                              isActive
+                                ? "bg-primary/10 text-primary border-l-4 border-primary"
+                                : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                            }`
+                          }
+                          onClick={closeMobileMenu}
+                        >
+                          Resume Analyzer
+                        </NavLink>
                       </div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <Link
+                    <NavLink
                       to="/"
-                      className="block px-4 py-3 text-base font-medium text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                      end
+                      className={({ isActive }) =>
+                        `block px-4 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
+                          isActive
+                            ? "bg-primary/10 text-primary border-l-4 border-primary"
+                            : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                        }`
+                      }
                       onClick={closeMobileMenu}
                     >
                       Home
-                    </Link>
+                    </NavLink>
                     <div className="pt-4 border-t border-gray-200 space-y-3">
-                      <Link
+                      <NavLink
                         to="/auth/login"
-                        className="block px-4 py-3 text-base font-medium text-gray-900 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200"
+                        className={({ isActive }) =>
+                          `block px-4 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
+                            isActive
+                              ? "bg-primary/10 text-primary border-l-4 border-primary"
+                              : "text-gray-900 hover:bg-primary-50 hover:text-primary"
+                          }`
+                        }
                         onClick={closeMobileMenu}
                       >
                         Login
-                      </Link>
+                      </NavLink>
                       <Link
                         to="/auth/signup"
                         className="block px-4 py-3 text-base font-medium bg-gradient-to-r from-primary to-primary-600 text-white rounded-lg hover:from-primary-600 hover:to-primary-700 transition-colors duration-200 text-center"

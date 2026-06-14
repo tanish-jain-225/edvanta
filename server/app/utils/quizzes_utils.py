@@ -1,7 +1,5 @@
 # Quiz AI Help Utils using centralized AI system
 
-import json
-import os
 from .ai_utils import generate_quiz_content
 
 def create_quiz(topic: str, difficulty: str = "medium", num_questions: int = 10):

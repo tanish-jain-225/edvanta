@@ -2,7 +2,6 @@
 
 from flask import Flask
 from flask_cors import CORS
-import os
 import logging
 
 # Load environment variables from a .env file if present (local dev convenience)
@@ -78,6 +77,8 @@ def create_app() -> Flask:
             'app.routes.roadmap', fromlist=['roadmap_bp']).roadmap_bp),
         ('user_stats', lambda: __import__('app.routes.user_stats',
          fromlist=['user_stats_bp']).user_stats_bp),
+        ('resume', lambda: __import__(
+            'app.routes.resume', fromlist=['resume_bp']).resume_bp),
     ]
 
     registered_blueprints = []
@@ -221,7 +222,6 @@ def create_app() -> Flask:
     @app.errorhandler(Exception)
     def handle_exception(error):
         from flask import jsonify
-        import traceback
 
         # Log the full error with traceback in debug mode
         if app.config.get('DEBUG'):

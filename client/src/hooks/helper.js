@@ -27,7 +27,7 @@ console.log(`🔗 Backend URL: ${cleanBackEndURL}`);
 try {
   new URL(cleanBackEndURL);
   console.log('✅ Backend URL format is valid');
-} catch (error) {
+} catch {
   console.error('❌ Invalid backend URL format:', cleanBackEndURL);
   console.error('Please check your environment variables in .env file');
 }

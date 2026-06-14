@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -24,15 +24,15 @@ import {
   Trophy,
   Target,
   BarChart,
-  PlayCircle,
   Plus,
-  FileText,
   Loader2,
   XCircle,
   Trash2,
+  AlertCircle,
 } from "lucide-react";
 import backEndURL from "../../hooks/helper";
 import { useLocation } from "react-router-dom";
+import { getCachedData, setCachedData, queueSyncAction } from "../../lib/offlineStorage";
 
 export function Quizzes() {
   const location = useLocation();
@@ -123,6 +123,14 @@ export function Quizzes() {
         return;
       }
 
+      if (!navigator.onLine) {
+        const cached = getCachedData(user.email, "quizzes", []);
+        setQuizzes(cached);
+        await enforceMinimumLoadingTime(startTime);
+        setIsLoading(false);
+        return;
+      }
+
       const response = await fetch(
         `${backEndURL}/api/tools/quizzes?user_email=${encodeURIComponent(
           user.email
@@ -131,12 +139,20 @@ export function Quizzes() {
       if (response.ok) {
         const data = await response.json();
         setQuizzes(data);
+        setCachedData(user.email, "quizzes", data);
+      } else {
+        const cached = getCachedData(user.email, "quizzes", []);
+        setQuizzes(cached);
       }
 
       // Ensure minimum loading time of 1 second
       await enforceMinimumLoadingTime(startTime);
     } catch (error) {
       console.error("Failed to load quizzes:", error);
+      if (user?.email) {
+        const cached = getCachedData(user.email, "quizzes", []);
+        setQuizzes(cached);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -169,6 +185,14 @@ export function Quizzes() {
         return;
       }
 
+      if (!navigator.onLine) {
+        const cached = getCachedData(user.email, "quiz_history", []);
+        setQuizHistory(cached);
+        await enforceMinimumLoadingTime(startTime);
+        setIsLoadingHistory(false);
+        return;
+      }
+
       const response = await fetch(
         `${backEndURL}/api/quiz-history?user_email=${encodeURIComponent(
           user.email
@@ -177,12 +201,20 @@ export function Quizzes() {
       if (response.ok) {
         const data = await response.json();
         setQuizHistory(data);
+        setCachedData(user.email, "quiz_history", data);
+      } else {
+        const cached = getCachedData(user.email, "quiz_history", []);
+        setQuizHistory(cached);
       }
 
       // Ensure minimum loading time of 1 second
       await enforceMinimumLoadingTime(startTime);
     } catch (error) {
       console.error("Failed to load quiz history:", error);
+      if (user?.email) {
+        const cached = getCachedData(user.email, "quiz_history", []);
+        setQuizHistory(cached);
+      }
     } finally {
       setIsLoadingHistory(false);
     }
@@ -205,6 +237,13 @@ export function Quizzes() {
         return;
       }
 
+      if (!navigator.onLine) {
+        setQuizHistory([]);
+        setCachedData(user.email, "quiz_history", []);
+        queueSyncAction(user.email, "CLEAR_QUIZ_HISTORY", { userEmail: user.email });
+        return;
+      }
+
       const response = await fetch(
         `${backEndURL}/api/quiz-history?user_email=${encodeURIComponent(
           user.email
@@ -217,6 +256,7 @@ export function Quizzes() {
       if (response.ok) {
         // Clear local state
         setQuizHistory([]);
+        setCachedData(user.email, "quiz_history", []);
       } else {
         throw new Error("Failed to clear quiz history");
       }
@@ -295,6 +335,21 @@ export function Quizzes() {
     }
   };
 
+  // Background synchronization listener
+  useEffect(() => {
+    const handleSyncComplete = (event) => {
+      if (event.detail && event.detail.type === "quiz") {
+        console.log("[Quizzes] Sync complete event received: reloading data");
+        if (user?.email) {
+          loadQuizzes();
+          loadQuizHistory();
+        }
+      }
+    };
+    window.addEventListener("edvanta-sync-complete", handleSyncComplete);
+    return () => window.removeEventListener("edvanta-sync-complete", handleSyncComplete);
+  }, [user?.email]);
+
   const startQuiz = (quiz) => {
     if (!quiz.quiz_data) return;
 
@@ -323,6 +378,15 @@ export function Quizzes() {
           "Are you sure you want to delete this quiz? This action cannot be undone."
         )
       ) {
+        return;
+      }
+
+      if (!navigator.onLine) {
+        // Delete locally and cache updated state immediately
+        const updatedQuizzes = quizzes.filter((q) => q.id !== quizId);
+        setQuizzes(updatedQuizzes);
+        setCachedData(user.email, "quizzes", updatedQuizzes);
+        queueSyncAction(user.email, "DELETE_QUIZ", { quizId });
         return;
       }
 
@@ -409,6 +473,65 @@ export function Quizzes() {
         answer: answer,
       }));
 
+      if (!navigator.onLine) {
+        // Perform client-side grading of questions
+        const questions = currentQuiz.quiz_data.questions;
+        const total = questions.length;
+        let score = 0;
+        
+        const feedback = questions.map((question) => {
+          const userAnswer = answers[question.id];
+          const correctAnswer = question.correctAnswer;
+          const isCorrect = userAnswer === correctAnswer;
+          if (isCorrect) score++;
+          
+          return {
+            question_id: question.id,
+            question: question.question,
+            user_answer: userAnswer,
+            correct_answer: correctAnswer,
+            is_correct: isCorrect,
+            options: question.options
+          };
+        });
+
+        const percentage = Math.round((score / total) * 100);
+        const resultData = {
+          score,
+          total,
+          percentage,
+          feedback
+        };
+
+        // Cache the history locally and queue for background sync
+        const completionData = {
+          quizId: currentQuiz.id,
+          quizTitle: currentQuiz.title,
+          topic: currentQuiz.quiz_data.topic,
+          difficulty: currentQuiz.quiz_data.difficulty,
+          totalQuestions: total,
+          correctAnswers: score,
+          percentage,
+          completedAt: new Date().toISOString(),
+          timeTaken: "Not tracked",
+          userId: currentUser.email,
+          userUid: currentUser.uid,
+          isOfflineLogged: true
+        };
+
+        const currentHistory = getCachedData(user.email, "quiz_history", []);
+        const updatedHistory = [completionData, ...currentHistory];
+        setCachedData(user.email, "quiz_history", updatedHistory);
+        setQuizHistory(updatedHistory);
+
+        // Queue action for syncing with the database once online
+        queueSyncAction(user.email, "LOG_QUIZ_HISTORY", completionData);
+
+        setResults(resultData);
+        setShowResults(true);
+        return;
+      }
+
       const response = await fetch(`${backEndURL}/api/quizzes/submit`, {
         method: "POST",
         headers: {
@@ -469,7 +592,7 @@ export function Quizzes() {
 
             {/* Results Content */}
             <div className="p-3 sm:p-6 space-y-3 sm:space-y-4 max-h-60 sm:max-h-96 overflow-y-auto">
-              {results.feedback.map((item, index) => (
+              {results.feedback.map((item) => (
                 <div
                   key={item.question_id}
                   className="p-3 sm:p-4 border border-white/20 rounded-lg bg-white/50"
@@ -844,6 +967,16 @@ export function Quizzes() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!navigator.onLine && (
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg text-orange-800 flex items-start gap-3 text-sm mb-2">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block">Offline Mode</span>
+                    <span>AI Quiz generation requires an active internet connection. You can still review and attempt all of your previously saved quizzes in the <strong>Browse Quizzes</strong> tab.</span>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Quiz Topic</label>
                 <Input
@@ -851,6 +984,7 @@ export function Quizzes() {
                   value={newQuizTopic}
                   onChange={(e) => setNewQuizTopic(e.target.value)}
                   className="text-sm sm:text-base"
+                  disabled={!navigator.onLine}
                 />
                 {roadmapData?.fromRoadmap && (
                   <p className="text-xs text-blue-600 flex items-center gap-1">
@@ -867,6 +1001,7 @@ export function Quizzes() {
                     className="w-full p-2 text-sm sm:text-base border rounded-md"
                     value={difficulty}
                     onChange={(e) => setDifficulty(e.target.value)}
+                    disabled={!navigator.onLine}
                   >
                     <option value="easy">Easy</option>
                     <option value="medium">Medium</option>
@@ -883,6 +1018,7 @@ export function Quizzes() {
                     onChange={(e) =>
                       setNumberOfQuestions(parseInt(e.target.value))
                     }
+                    disabled={!navigator.onLine}
                   >
                     <option value={5}>5 questions</option>
                     <option value={10}>10 questions</option>
@@ -894,9 +1030,9 @@ export function Quizzes() {
 
               <Button
                 className="w-full text-sm sm:text-base"
-                disabled={!newQuizTopic.trim() || isGenerating || !user}
+                disabled={!newQuizTopic.trim() || isGenerating || !user || !navigator.onLine}
                 onClick={generateQuiz}
-                title={!user ? "Please login to generate quizzes" : ""}
+                title={!user ? "Please login to generate quizzes" : !navigator.onLine ? "AI Quiz generation requires an internet connection" : ""}
               >
                 {isGenerating ? (
                   <>
@@ -912,6 +1048,11 @@ export function Quizzes() {
                       Login to Generate Quiz
                     </span>
                     <span className="sm:hidden">Login Required</span>
+                  </>
+                ) : !navigator.onLine ? (
+                  <>
+                    <span className="hidden sm:inline">Offline (Disabled)</span>
+                    <span className="sm:hidden">Offline</span>
                   </>
                 ) : (
                   <>

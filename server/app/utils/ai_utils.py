@@ -20,18 +20,15 @@ Configuration:
 """
 
 import json
-import os
 import re
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any
 from datetime import datetime
-import time
 
 # AI Provider Import - REQUIRED, NO FALLBACKS
 import google.generativeai as genai
 AI_AVAILABLE = True
 
 # Database
-from pymongo import MongoClient
 from bson import ObjectId
 
 # Internal imports
@@ -102,7 +99,7 @@ def initialize_ai() -> bool:
         print(f"Error initializing AI: {e}")
         return False
 
-def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: int = None):
+def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: int = None, response_mime_type: str = None):
     """Get configured AI model with specified parameters."""
     if not initialize_ai():
         return None
@@ -115,6 +112,9 @@ def get_ai_model(model_name: str = None, temperature: float = None, max_tokens: 
             'max_output_tokens': max_tokens or Config.GEMINI_MAX_OUTPUT_TOKENS,
         }
         
+        if response_mime_type:
+            generation_config['response_mime_type'] = response_mime_type
+            
         # Remove artificial safety restrictions for better performance
         if hasattr(Config, 'GEMINI_TOP_P') and Config.GEMINI_TOP_P:
             generation_config['top_p'] = Config.GEMINI_TOP_P
@@ -176,7 +176,8 @@ def generate_ai_response(
         model = get_ai_model(
             model_name=model_config.get('model_name') if model_config else None,
             temperature=model_config.get('temperature') if model_config else None,
-            max_tokens=model_config.get('max_tokens') if model_config else None
+            max_tokens=model_config.get('max_tokens') if model_config else None,
+            response_mime_type=model_config.get('response_mime_type') if model_config else None
         )
         
         if not model:
@@ -196,7 +197,6 @@ def generate_ai_response(
                     role = "Student" if msg.get('role') == 'user' else "Tutor"
                     content = msg.get('content', '').strip()
                     if content:  # Only add non-empty messages
-                        timestamp = msg.get('timestamp', '')
                         full_prompt += f"{i}. {role}: {content}\n"
                 full_prompt += "\nImportant: Reference this conversation history when relevant. Build upon previous topics discussed.\n\n"
             
@@ -267,6 +267,107 @@ def generate_ai_response(
         print(f"AI response generation error for {ai_type}: {e}")
         raise e
 
+def clean_json_string(s: str) -> str:
+    """Escape control characters like literal newlines and tabs inside JSON string values, and escape invalid backslashes."""
+    result = []
+    in_string = False
+    i = 0
+    n = len(s)
+    while i < n:
+        char = s[i]
+        if in_string:
+            if char == '"':
+                in_string = False
+                result.append(char)
+            elif char == '\\':
+                is_valid = False
+                skip_len = 0
+                if i + 1 < n:
+                    next_char = s[i+1]
+                    if next_char in ['"', '\\', '/', 'b', 'f', 'n', 'r', 't']:
+                        is_valid = True
+                        skip_len = 2
+                    elif next_char == 'u':
+                        if i + 5 < n:
+                            is_hex = True
+                            for k in range(i + 2, i + 6):
+                                if s[k] not in '0123456789abcdefABCDEF':
+                                    is_hex = False
+                                    break
+                            if is_hex:
+                                is_valid = True
+                                skip_len = 6
+                if is_valid:
+                    result.append(s[i : i + skip_len])
+                    i += skip_len
+                    continue
+                else:
+                    result.append('\\\\')
+            elif char == '\n':
+                result.append('\\n')
+            elif char == '\r':
+                result.append('\\r')
+            elif char == '\t':
+                result.append('\\t')
+            else:
+                result.append(char)
+        else:
+            if char == '"':
+                in_string = True
+            result.append(char)
+        i += 1
+    return "".join(result)
+
+
+def try_repair_json(s: str) -> str:
+    """Attempt to repair a truncated JSON string by closing open quotes and brackets/braces."""
+    s = s.strip()
+    if not s:
+        return s
+        
+    # Check if JSON starts with brace/bracket and is unclosed
+    if (s.startswith('{') or s.startswith('[')) and not (s.endswith('}') or s.endswith(']')):
+        in_str = False
+        escaped = False
+        braces = 0
+        brackets = 0
+        
+        i = 0
+        n = len(s)
+        while i < n:
+            char = s[i]
+            if escaped:
+                escaped = False
+                i += 1
+                continue
+            if char == '\\':
+                escaped = True
+                i += 1
+                continue
+            if char == '"':
+                in_str = not in_str
+                i += 1
+                continue
+            if not in_str:
+                if char == '{':
+                    braces += 1
+                elif char == '}':
+                    braces -= 1
+                elif char == '[':
+                    brackets += 1
+                elif char == ']':
+                    brackets -= 1
+            i += 1
+            
+        # Repair the unclosed parts
+        if in_str:
+            s += '"'
+        s += ']' * max(0, brackets)
+        s += '}' * max(0, braces)
+        
+    return s
+
+
 # =============================================================================
 # SPECIALIZED AI FUNCTIONS
 # =============================================================================
@@ -332,7 +433,7 @@ Create 3-5 nodes with proper progression. Return only the JSON."""
         prompt=prompt,
         system_prompt="You are a learning path expert. Return ONLY valid JSON, no markdown formatting.",
         ai_type='roadmap',
-        model_config={'max_tokens': 6144, 'temperature': 0.4}
+        model_config={'max_tokens': 6144, 'temperature': 0.4, 'response_mime_type': 'application/json'}
     )
     
     if result['success']:
@@ -358,6 +459,7 @@ Create 3-5 nodes with proper progression. Return only the JSON."""
             if first_brace != -1 and last_brace != -1:
                 response_text = response_text[first_brace:last_brace+1]
             
+            response_text = clean_json_string(response_text)
             roadmap_data = json.loads(response_text)
             return {'success': True, 'roadmap': roadmap_data, 'error': None}
         except json.JSONDecodeError as e:
@@ -405,7 +507,7 @@ Return ONLY this JSON structure:
         prompt=prompt,
         system_prompt=SYSTEM_PROMPTS['quiz'],
         ai_type='quiz',
-        model_config={'temperature': 0.6, 'max_tokens': 6144}
+        model_config={'temperature': 0.6, 'max_tokens': 6144, 'response_mime_type': 'application/json'}
     )
     
     if result['success']:
@@ -431,6 +533,7 @@ Return ONLY this JSON structure:
             if first_bracket != -1 and last_bracket != -1:
                 response_text = response_text[first_bracket:last_bracket+1]
             
+            response_text = clean_json_string(response_text)
             quiz_data = json.loads(response_text)
             return {'success': True, 'questions': quiz_data, 'error': None}
         except json.JSONDecodeError as e:
@@ -443,6 +546,93 @@ Return ONLY this JSON structure:
     
     return result
 
+def analyze_resume_text(resume_text: str) -> Dict[str, Any]:
+    """Analyze resume text content and return structured feedback."""
+    prompt = f"""You are an expert ATS (Applicant Tracking System) and professional career coach. Analyze the following resume text content and provide a comprehensive evaluation.
+
+Resume Content:
+\"\"\"
+{resume_text}
+\"\"\"
+
+CRITICAL REQUIREMENTS:
+- Return ONLY a valid JSON object, no markdown code block wrapper, no other text.
+- Be objective, constructive, and detailed.
+- Return the response exactly in the following JSON format:
+{{
+  "score": <an integer between 0 and 100 representing the overall strength of the resume>,
+  "summary": "<a concise professional summary of the resume evaluation>",
+  "strengths": ["<strength 1>", "<strength 2>", ...],
+  "improvements": ["<improvement suggestion 1>", "<improvement suggestion 2>", ...],
+  "skills_found": ["<key skill identified 1>", "<key skill identified 2>", ...],
+  "suggested_roles": ["<suggested target job role 1>", "<suggested target job role 2>", ...],
+  "detailed_feedback": "<comprehensive evaluation in Markdown format covering formatting, content impact, sections layout, and custom action items>"
+}}
+"""
+
+    result = generate_ai_response(
+        prompt=prompt,
+        system_prompt="You are an expert career advisor. Return ONLY a valid JSON object.",
+        ai_type='resume',
+        model_config={'temperature': 0.3, 'max_tokens': 8192, 'response_mime_type': 'application/json'}
+    )
+    
+    if result['success']:
+        try:
+            # Clean the response to extract JSON
+            response_text = result['response'].strip()
+            
+            # Remove markdown code blocks
+            if '```json' in response_text:
+                start = response_text.find('```json') + 7
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            elif '```' in response_text:
+                start = response_text.find('```') + 3
+                end = response_text.rfind('```')
+                if end > start:
+                    response_text = response_text[start:end].strip()
+            
+            # Find JSON object boundaries
+            first_brace = response_text.find('{')
+            last_brace = response_text.rfind('}')
+            if first_brace != -1 and last_brace != -1:
+                response_text = response_text[first_brace:last_brace+1]
+            
+            response_text = clean_json_string(response_text)
+            try:
+                analysis_data = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Attempt to recover truncated JSON if possible
+                repaired_response = try_repair_json(response_text)
+                analysis_data = json.loads(repaired_response)
+            
+            # Basic validation of expected fields
+            expected_keys = ["score", "summary", "strengths", "improvements", "skills_found", "suggested_roles", "detailed_feedback"]
+            for key in expected_keys:
+                if key not in analysis_data:
+                    if key == "score":
+                        analysis_data[key] = 70
+                    elif key in ["strengths", "improvements", "skills_found", "suggested_roles"]:
+                        analysis_data[key] = []
+                    else:
+                        analysis_data[key] = ""
+            
+            return {'success': True, 'analysis': analysis_data, 'error': None}
+        except json.JSONDecodeError as e:
+            print(f"Resume Analysis JSON parse error: {e}")
+            print(f"FULL RESPONSE LENGTH: {len(result['response'])}")
+            print("--- START FULL RESPONSE ---")
+            print(result['response'])
+            print("--- END FULL RESPONSE ---")
+            return {
+                'success': False, 
+                'analysis': None, 
+                'error': f'Failed to parse analysis JSON: {str(e)}'
+            }
+            
+    return {'success': False, 'analysis': None, 'error': result.get('error', 'AI generation failed')}
 
 # =============================================================================
 # CONVERSATION & SESSION MANAGEMENT
@@ -693,13 +883,7 @@ def get_conversational_tutor_response(
     is_voice_input: bool = False
 ) -> str:
     """Legacy compatibility - redirect to new tutor system."""
-    context = {
-        'subject': subject,
-        'conversation_history': conversation_history,
-        'mode': mode,
-        'is_voice_input': is_voice_input
-    }
-    
+
     result = get_tutor_response(prompt, subject, conversation_history)
     if result['success']:
         response = result['response']

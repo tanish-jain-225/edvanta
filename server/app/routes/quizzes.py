@@ -5,10 +5,7 @@ Responsible for generating quizzes from topic content and managing quiz data.
 """
 from flask import Blueprint, request, jsonify
 import uuid
-import os
 from datetime import datetime
-from pymongo import MongoClient
-from bson import ObjectId
 from ..utils.quizzes_utils import create_quiz
 from ..config import Config
 
@@ -112,7 +109,7 @@ def manage_quizzes():
             
             return jsonify(formatted_quizzes)
             
-        except Exception as e:
+        except Exception:
             return jsonify([])
     
     elif request.method == "POST":
@@ -256,7 +253,7 @@ def quiz_history_endpoint():
             
             return jsonify(history_list)
             
-        except Exception as e:
+        except Exception:
             return jsonify([])
     
     elif request.method == "POST":

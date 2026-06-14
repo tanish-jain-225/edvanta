@@ -34,7 +34,7 @@ export default [
       'react/no-unescaped-entities': 'off',
       'react/react-in-jsx-scope': 'off',
       'react-hooks/exhaustive-deps': 'off',
-      'no-unused-vars': 'off',
+      'no-unused-vars': 'error',
     },
   },
 ]

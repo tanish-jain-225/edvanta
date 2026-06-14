@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import {
   Card,
   CardContent,
@@ -7,10 +9,8 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { useAuth } from "../hooks/useAuth";
-import { useResponsive } from "../hooks/useResponsive";
-import { Link, useNavigate } from "react-router-dom";
 import { edvantaAPI } from "../lib/api";
+import { getCachedData, setCachedData } from "../lib/offlineStorage";
 import {
   Brain,
   MessageSquare,
@@ -22,6 +22,7 @@ import {
   Activity,
   LogIn,
   Target,
+  FileText
 } from "lucide-react";
 
 // ============================================================================
@@ -60,6 +61,14 @@ const CORE_TOOLS = [
     href: "/tools/roadmap",
     color: "bg-indigo-100 text-indigo-700",
     status: "working"
+  },
+  {
+    icon: FileText,
+    title: "Resume Analyzer",
+    description: "Upload resume for instant Gemini AI feedback",
+    href: "/tools/resume-analysis",
+    color: "bg-pink-100 text-pink-700",
+    status: "working"
   }
 ];
 
@@ -91,7 +100,7 @@ const formatLearningTime = (totalMinutes) => {
 export function Dashboard() {
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
-  const { isMobile } = useResponsive();
+
 
   // ========================================================================
   // STATE MANAGEMENT
@@ -119,23 +128,38 @@ export function Dashboard() {
       return;
     }
 
+    if (!navigator.onLine) {
+      const cached = getCachedData(user.email, "user_stats");
+      if (cached) {
+        setUserStats(cached);
+      }
+      setLoading(false);
+      return;
+    }
+
     try {
       const result = await edvantaAPI.getUserStats(user.email);
       
       if (result.success) {
         const data = result.data;
-        setUserStats({
+        const statsObj = {
           quizzesTaken: data.quizzes_taken || 0,
           roadmapsActive: data.active_roadmaps || 0,
           learningMinutes: data.total_learning_minutes || 0,
           skillsLearning: data.skills_learning || 0,
           roadmapsCreated: data.roadmaps_created || 0
-        });
+        };
+        setUserStats(statsObj);
+        setCachedData(user.email, "user_stats", statsObj);
       } else {
         console.error("Failed to fetch user stats:", result.error);
+        const cached = getCachedData(user.email, "user_stats");
+        if (cached) setUserStats(cached);
       }
     } catch (error) {
       console.error("Failed to fetch stats:", error);
+      const cached = getCachedData(user.email, "user_stats");
+      if (cached) setUserStats(cached);
     } finally {
       setLoading(false);
     }
@@ -144,27 +168,48 @@ export function Dashboard() {
   const fetchDetailedData = async () => {
     if (!user?.email) return;
     
+    if (!navigator.onLine) {
+      const cachedQuizHistory = getCachedData(user.email, "quiz_history");
+      if (cachedQuizHistory) {
+        setQuizHistory(cachedQuizHistory.slice(0, 5));
+      }
+      const cachedRoadmaps = getCachedData(user.email, "user_roadmaps");
+      if (cachedRoadmaps) {
+        setUserRoadmaps(cachedRoadmaps.slice(0, 3));
+      }
+      setDetailsLoading(false);
+      return;
+    }
+
     setDetailsLoading(true);
     try {
       // Fetch quiz history
       const quizResult = await edvantaAPI.getQuizHistory(user.email);
       if (quizResult.success) {
-        // Get the 5 most recent quizzes
         setQuizHistory(quizResult.data.slice(0, 5));
+        setCachedData(user.email, "quiz_history", quizResult.data);
       } else {
         console.error("Failed to fetch quiz history:", quizResult.error);
+        const cachedQuizHistory = getCachedData(user.email, "quiz_history");
+        if (cachedQuizHistory) setQuizHistory(cachedQuizHistory.slice(0, 5));
       }
 
       // Fetch user roadmaps
       const roadmapResult = await edvantaAPI.getUserRoadmaps(user.email);
       if (roadmapResult.success) {
-        // Get the 3 most recent roadmaps
         setUserRoadmaps(roadmapResult.data.slice(0, 3));
+        setCachedData(user.email, "user_roadmaps", roadmapResult.data);
       } else {
         console.error("Failed to fetch roadmaps:", roadmapResult.error);
+        const cachedRoadmaps = getCachedData(user.email, "user_roadmaps");
+        if (cachedRoadmaps) setUserRoadmaps(cachedRoadmaps.slice(0, 3));
       }
     } catch (error) {
       console.error("Failed to fetch detailed data:", error);
+      const cachedQuizHistory = getCachedData(user.email, "quiz_history");
+      if (cachedQuizHistory) setQuizHistory(cachedQuizHistory.slice(0, 5));
+      const cachedRoadmaps = getCachedData(user.email, "user_roadmaps");
+      if (cachedRoadmaps) setUserRoadmaps(cachedRoadmaps.slice(0, 3));
     } finally {
       setDetailsLoading(false);
     }

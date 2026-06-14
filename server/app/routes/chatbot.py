@@ -4,18 +4,10 @@ Handles conversational Q&A for student doubts with chat session management,
 message persistence, and AI responses using centralized AI system.
 """
 from flask import Blueprint, request, jsonify
-import time
-from pymongo import MongoClient
 from bson import ObjectId
 from ..config import Config
 from datetime import datetime
-from app.utils.ai_utils import (
-    get_chatbot_response,
-    get_tutor_response,
-    save_chat_message,
-    get_chat_history,
-    clear_chat_history
-)
+from app.utils.ai_utils import get_tutor_response
 
 from app.utils.mongo_utils import connect_to_mongodb
 
@@ -85,13 +77,7 @@ def append_session_message(session_id, identifier_field, identifier, role, conte
         "timestamp": datetime.utcnow().isoformat(),
     }
 
-    update = {
-        "$push": {"messages": message},
-        "$set": {
-            "lastActivity": datetime.utcnow().isoformat(),
-            "messageCount": {"$sum": [1]}
-        }
-    }
+
 
     chat_sessions_col.update_one(
         {"_id": ObjectId(session_id), identifier_field: identifier},
@@ -151,7 +137,7 @@ def load_chat_sessions():
             "currentSessionId": current_session_id,
             "sessionCounter": session_counter
         })
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Failed to load chat sessions"}), 500
 
 
@@ -194,7 +180,7 @@ def save_chat_sessions():
                     {"_id": session["_id"]}, session, upsert=True)
 
         return jsonify({"success": True})
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Failed to save chat sessions"}), 500
 
 
@@ -235,7 +221,7 @@ def create_chat_session():
         session["_id"] = result.inserted_id
 
         return jsonify({"success": True, "session": fix_id(session)})
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Failed to create chat session"}), 500
 
 
@@ -268,7 +254,7 @@ def update_session_messages(session_id):
         )
 
         return jsonify({"success": result.modified_count > 0})
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Failed to update session messages"}), 500
 
 
@@ -295,7 +281,7 @@ def delete_chat_session(session_id):
             fix_id(s)
 
         return jsonify({"success": True, "remainingSessions": sessions})
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Failed to delete chat session"}), 500
 
 
@@ -323,7 +309,7 @@ def update_session_activity(session_id):
         )
 
         return jsonify({"success": result.modified_count > 0})
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Failed to update session activity"}), 500
 
 
@@ -343,7 +329,6 @@ def send_message():
 
     # Prefer email over userId for identification
     identifier = user_email if user_email else user_id
-    identifier_field = "userEmail" if user_email else "userId"
 
     if not user_message or not identifier:
         return jsonify({"error": "Message and userEmail/userId are required"}), 400
@@ -401,7 +386,7 @@ def send_message():
                         "$inc": {"messageCount": 2} # User message + AI response
                     }
                 )
-            except Exception as session_error:
+            except Exception:
                 return jsonify({"error": "Failed to update chat session with new messages"}), 500
 
         response_data = {
@@ -444,12 +429,7 @@ def ask_question():
                     {"role": "assistant", "content": line.replace('Tutor:', '').strip()})
 
     # Call the new message endpoint internally
-    new_data = {
-        "input": question,
-        "userId": "anonymous",
-        "chatHistory": chat_history,
-        "sessionId": None
-    }
+
 
     # Get AI response directly
     try:

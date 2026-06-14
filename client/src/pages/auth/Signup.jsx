@@ -15,7 +15,6 @@ import {
 } from "../../components/ui/card";
 
 import {
-  BookOpen,
   Mail,
   Lock,
   User,

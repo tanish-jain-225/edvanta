@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "../../components/ui/card";
 
-import { BookOpen, Mail, Lock } from "lucide-react";
+import { Mail, Lock } from "lucide-react";
 
 export function Login() {
   const [email, setEmail] = useState("");

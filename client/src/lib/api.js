@@ -81,15 +81,22 @@ export class APIClient {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Reduced to 10s timeout
+      const timeoutMs = options.timeout || 60000; // Allow custom timeout or default to 60s
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      const requestHeaders = {
+        ...this.defaultHeaders,
+        ...options.headers,
+      };
+
+      if (options.body instanceof FormData) {
+        delete requestHeaders['Content-Type'];
+      }
 
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
-        headers: {
-          ...this.defaultHeaders,
-          ...options.headers,
-        },
+        headers: requestHeaders,
       });
 
       clearTimeout(timeoutId);
@@ -152,7 +159,7 @@ export class APIClient {
 
       const errorMessage = data?.error || data?.message || `HTTP ${response.status}`;
       return APIResponse.error(errorMessage, response.status, errorType);
-    } catch (parseError) {
+    } catch {
       return APIResponse.error(
         `Failed to parse response from ${endpoint}`, 
         response.status, 
@@ -243,7 +250,7 @@ export class APIClient {
   }
 
   // File upload method
-  async uploadFile(endpoint, file, additionalData = {}) {
+  async uploadFile(endpoint, file, additionalData = {}, options = {}) {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -257,6 +264,7 @@ export class APIClient {
       headers: {
         // Remove Content-Type header to let browser set boundary for FormData
       },
+      ...options,
     });
   }
 }
@@ -343,6 +351,20 @@ export const edvantaAPI = {
     return api.post('/api/tutor/session/start', { mode, subject, user_email: userEmail, isVoiceInput });
   },
 
+  // Resume Analysis
+  analyzeResume(file, userEmail = null) {
+    const additionalData = userEmail ? { user_email: userEmail } : {};
+    return api.uploadFile('/api/resume/analyze', file, additionalData, { timeout: 120000 });
+  },
+
+  getResumeHistory(userEmail) {
+    return api.get('/api/resume/history', { user_email: userEmail });
+  },
+
+  deleteResume(id) {
+    return api.delete(`/api/resume/history/${id}`);
+  },
+
   // Health checks
   getHealth() {
     return api.get('/api/health');
@@ -380,7 +402,7 @@ export const handleAPIError = (error, fallbackMessage = 'Something went wrong') 
 // Example usage:
 // import { useState, useCallback } from 'react';
 // const { loading, error, execute, setError } = useAPICall();
-export const createAPICallHook = (initialLoading = false) => {
+export const createAPICallHook = () => {
   // This is a factory function that returns a hook
   // Use it like: const useMyAPICall = createAPICallHook(false);
   return () => {

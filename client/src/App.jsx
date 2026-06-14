@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -24,6 +24,7 @@ import { Quizzes } from "./pages/tools/Quizzes";
 import { ConversationalTutor } from "./pages/tools/ConversationalTutor";
 import { Roadmap } from "./pages/tools/Roadmap";
 import VisualContent from "./pages/tools/VisualContent";
+import { ResumeAnalysis } from "./pages/tools/ResumeAnalysis";
 
 // Preload logo image instantly on app start
 const LOGO_SRC = "/edvanta-logo.png";
@@ -58,18 +59,7 @@ function DashboardLayout({ children }) {
   );
 }
 
-// Layout Component for Public Pages
-function PublicLayout({ children }) {
-  return (
-    <div className="min-h-screen">
-      <Navbar />
-      <div className="pt-16">
-        {/* Added pt-16 to account for fixed navbar height */}
-        <PageTransition>{children}</PageTransition>
-      </div>
-    </div>
-  );
-}
+
 
 // Protected Route Component
 function ProtectedRoute({ children }) {
@@ -183,6 +173,16 @@ function AppRoutes() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <VisualContent />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tools/resume-analysis"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <ResumeAnalysis />
                 </DashboardLayout>
               </ProtectedRoute>
             }

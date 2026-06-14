@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -16,18 +16,14 @@ import {
   Volume2,
   VolumeX,
   Play,
-  Pause,
   MessageSquare,
-  Sparkles,
   BookOpen,
   Users,
   Brain,
   LogIn,
-  Send,
   AlertCircle,
   Loader2,
   Square,
-  CheckCircle,
 } from "lucide-react";
 import { Input } from "../../components/ui/input";
 import backEndURL from "../../hooks/helper";
@@ -80,19 +76,13 @@ const UI_TEXT = {
 };
 
 // Constants for better error handling
-const NETWORK_CHECK_INTERVAL = 5000; // 5 seconds
+
 
 export function ConversationalTutor() {
-  // Global error boundary state
-  const [hasError, setHasError] = useState(false);
-  const [errorDetails, setErrorDetails] = useState(null);
-
   // Error boundary effect
   useEffect(() => {
     const handleUnhandledError = (event) => {
       console.error('Unhandled error in ConversationalTutor:', event.error);
-      setHasError(true);
-      setErrorDetails(event.error.message || 'An unexpected error occurred');
     };
 
     const handleUnhandledPromiseRejection = (event) => {
@@ -131,18 +121,12 @@ export function ConversationalTutor() {
   const [isStartingSession, setIsStartingSession] = useState(false);
   const [isEndingSession, setIsEndingSession] = useState(false);
   const [transcript, setTranscript] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState(null);
   const [errorCount, setErrorCount] = useState(0);
   const [checkingForActiveSession, setCheckingForActiveSession] = useState(true);
-  const [isStartButtonClicked, setIsStartButtonClicked] = useState(false);
-  const [isEndButtonClicked, setIsEndButtonClicked] = useState(false);
   
   // Network connectivity state
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
-  // Speech recognition state tracking
-  const [isRecognitionRestarting, setIsRecognitionRestarting] = useState(false);
   const restartTimeoutRef = useRef(null);
   
   // Counter for unique message IDs to prevent duplicates
@@ -154,12 +138,7 @@ export function ConversationalTutor() {
     return `${prefix}-${Date.now()}-${messageIdCounter.current}`;
   };
   
-  // Performance monitoring
-  const [performanceMetrics, setPerformanceMetrics] = useState({
-    responseTime: 0,
-    errorRate: 0,
-    totalRequests: 0,
-  });
+
 
   // Voice synthesis related
   const speechSynthesisRef = useRef(null);
@@ -196,7 +175,7 @@ export function ConversationalTutor() {
     }
     
     setIsLoading(true);
-    const startTime = Date.now();
+
     
     try {
       const response = await axios.get(
@@ -204,12 +183,7 @@ export function ConversationalTutor() {
         { timeout: 8000 } // Reduced timeout
       );
       
-      const responseTime = Date.now() - startTime;
-      setPerformanceMetrics(prev => ({
-        ...prev,
-        responseTime,
-        totalRequests: prev.totalRequests + 1,
-      }));
+      // Request successful
       
       if (response.data.success) {
         return true;
@@ -219,22 +193,8 @@ export function ConversationalTutor() {
     } catch (error) {
       console.error('Backend connection error:', error);
       
-      setPerformanceMetrics(prev => ({
-        ...prev,
-        errorRate: (prev.errorRate + 1) / (prev.totalRequests + 1),
-        totalRequests: prev.totalRequests + 1,
-      }));
+      // Request failed
       
-      let errorMessage;
-      if (error.code === 'ERR_BAD_RESPONSE' && error.response?.status >= 500) {
-        errorMessage = 'Voice tutor services are temporarily unavailable. Please try again later.';
-      } else if (error.code === 'ECONNABORTED') {
-        errorMessage = 'Connection timeout. Please try again.';
-      } else {
-        errorMessage = 'Could not connect to voice tutor services. Please check your connection.';
-      }
-        
-      // setLastError({ message: errorMessage, timestamp: Date.now() });
       return false;
     } finally {
       setIsLoading(false);
@@ -354,7 +314,7 @@ export function ConversationalTutor() {
     if (speechRecognitionRef.current) {
       try {
         speechRecognitionRef.current.stop();
-      } catch (error) {
+      } catch {
         // Ignore errors when stopping
       }
       speechRecognitionRef.current = null;
@@ -630,7 +590,7 @@ export function ConversationalTutor() {
     if (speechRecognitionRef.current) {
       try {
         speechRecognitionRef.current.stop();
-      } catch (e) {
+      } catch {
         // Ignore errors
       }
       speechRecognitionRef.current = null;
@@ -663,7 +623,6 @@ export function ConversationalTutor() {
       recognition.onstart = () => {
         setTranscript("");
         // setLastError(null); // Clear any previous errors
-        setIsRecognitionRestarting(false); // Mark restart as complete
       };
 
       recognition.onresult = (event) => {
@@ -813,14 +772,13 @@ export function ConversationalTutor() {
       try {
         speechRecognitionRef.current.manualStop = true;
         speechRecognitionRef.current.stop();
-      } catch (error) {
+      } catch {
         // Ignore errors when stopping
       }
       speechRecognitionRef.current = null;
     }
     
-    // Clear restart state
-    setIsRecognitionRestarting(false);
+
   };
 
   // Removed safeRestartRecognition to prevent automatic restart loops
@@ -834,34 +792,7 @@ export function ConversationalTutor() {
     }
   };
 
-  // Function to completely reset the speech recognition system
-  const resetSpeechRecognition = () => {
-    cleanupSpeechRecognition();
-    setMicState(MicState.INACTIVE);
-    setTranscript("");
-  };
 
-  // Simplified microphone permission check - removed unnecessary getUserMedia call
-  const checkMicrophoneAvailability = async () => {
-    try {
-      // Simple permission check without actually accessing the microphone
-      const permissions = await navigator.permissions.query({ name: 'microphone' });
-      
-      if (permissions.state === 'denied') {
-        const errorMessage = "Microphone access is blocked. Please allow microphone access in your browser settings and refresh the page.";
-        // setLastError({ message: errorMessage, timestamp: Date.now() });
-        return false;
-      }
-      
-      // Clear any previous errors
-      // setLastError(null);
-      return true;
-    } catch (error) {
-      // Fallback for browsers that don't support permissions API
-      console.warn("Could not check microphone permissions:", error);
-      return true; // Assume permission is granted and let speech recognition handle it
-    }
-  };
 
   // Enhanced microphone control functions
   const startMicrophone = () => {
@@ -883,8 +814,7 @@ export function ConversationalTutor() {
     setTranscript("");
     // setLastError(null);
 
-    // Reset restart state when manually starting microphone
-    setIsRecognitionRestarting(false);
+
 
     // Set the mic state to active
     setMicState(MicState.ACTIVE);
@@ -1184,7 +1114,6 @@ export function ConversationalTutor() {
   // Start a new tutoring session with proper cleanup
   const startSession = async () => {
     if (!user) {
-      setIsStartButtonClicked(true);
       // setLastError({ 
       //   message: "Please log in to start a tutoring session.",
       //   timestamp: Date.now() 
@@ -1287,11 +1216,7 @@ export function ConversationalTutor() {
     } catch (error) {
       console.error("Error starting session:", error);
       
-      const errorMessage = error.code === 'ECONNABORTED' 
-        ? "Session start timeout. Please check your connection and try again."
-        : "Failed to start a session. Please check your internet connection.";
-        
-      // setLastError({ message: errorMessage, timestamp: Date.now() });
+
     } finally {
       // Ensure minimum loading time of 2 seconds
       await enforceMinimumLoadingTime(startTime);
@@ -1387,7 +1312,6 @@ export function ConversationalTutor() {
         setIsSpeaking(false);
         setCurrentSpeakingMessageId(null);
         setTranscript("");
-        setConnectionStatus(null);
         // setLastError(null);
         
       } else {
@@ -1676,6 +1600,31 @@ export function ConversationalTutor() {
             </p>
           </div>
         </div>
+      ) : !isOnline ? (
+        // Offline block screen
+        <div className="flex-1 flex items-center justify-center flex-col gap-4 px-4 py-8">
+          <Card className="max-w-md w-full text-center p-6 sm:p-8 border-orange-200 bg-orange-50/20 shadow-md rounded-2xl">
+            <CardHeader className="pb-4 flex flex-col items-center">
+              <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-3">
+                <AlertCircle className="h-9 w-9 text-orange-600" />
+              </div>
+              <CardTitle className="text-xl text-orange-900 font-bold">Voice Tutor Offline</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                The AI Conversational Tutor requires an active internet connection to synthesize text, recognize voice inputs, and generate real-time audio responses.
+              </p>
+              <p className="text-xs text-orange-600 font-medium">
+                Please reconnect to your network to start a session.
+              </p>
+            </CardContent>
+            <CardFooter className="pt-4 flex justify-center">
+              <Button disabled className="w-full bg-orange-100 text-orange-700 font-semibold cursor-not-allowed">
+                Tutor Unavailable Offline
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       ) : !isSessionActive ? (
         // Session setup screen
         <div className="flex flex-col lg:flex-row flex-1 gap-6 w-full">
@@ -1757,7 +1706,7 @@ export function ConversationalTutor() {
                 }
               >
                 {isStartingSession ? (
-                  <>{isConnecting ? "Connecting..." : "Starting Session..."}</>
+                  <>Starting Session...</>
                 ) : (
                   <>{UI_TEXT.startButton}</>
                 )}

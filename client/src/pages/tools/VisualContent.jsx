@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { Search, Play, ExternalLink, Clock, Eye } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Search, Play, ExternalLink, Clock, Eye, AlertCircle } from 'lucide-react';
 
 const VisualContent = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -9,11 +9,40 @@ const VisualContent = () => {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Network connectivity state
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Close video modal if going offline
+  useEffect(() => {
+    if (!isOnline) {
+      setSelectedVideo(null);
+    }
+  }, [isOnline]);
+
   // YouTube API configuration
   const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
   const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3/search';
 
   const searchVideos = useCallback(async () => {
+    if (!navigator.onLine) {
+      setError('Search is not available in offline mode.');
+      setHasSearched(true);
+      return;
+    }
+
     if (!searchQuery.trim()) {
       setError('Please enter a search query');
       setHasSearched(true);
@@ -127,6 +156,16 @@ const VisualContent = () => {
             Visual Content Explorer
           </h1>
           
+          {!isOnline && (
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg text-orange-800 flex items-start gap-3 text-sm mb-6">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" />
+              <div>
+                <span className="font-semibold block">Offline Mode</span>
+                <span>YouTube Search and Video Playback require an active internet connection. Please reconnect to explore visual content.</span>
+              </div>
+            </div>
+          )}
+
           {/* Search Section */}
           <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-8">
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -137,13 +176,14 @@ const VisualContent = () => {
                   value={searchQuery}
                   onChange={handleSearchQueryChange}
                   onKeyPress={handleKeyPress}
-                  placeholder="Search for educational videos, tutorials, lectures..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm sm:text-base"
+                  placeholder={isOnline ? "Search for educational videos, tutorials, lectures..." : "YouTube search is unavailable offline"}
+                  disabled={!isOnline}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
               <button
                 onClick={searchVideos}
-                disabled={loading}
+                disabled={loading || !isOnline}
                 className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 {loading ? (
@@ -174,8 +214,13 @@ const VisualContent = () => {
               {videos.map((video) => (
                 <div
                   key={video.id.videoId}
-                  className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer"
-                  onClick={() => setSelectedVideo(video)}
+                  className={`bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 ${
+                    isOnline ? 'hover:shadow-xl cursor-pointer' : 'opacity-75 cursor-not-allowed'
+                  }`}
+                  onClick={() => {
+                    if (!isOnline) return;
+                    setSelectedVideo(video);
+                  }}
                 >
                   {/* Thumbnail */}
                   <div className="relative group">
@@ -213,9 +258,11 @@ const VisualContent = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!isOnline) return;
                           openVideoInNewTab(video.id.videoId);
                         }}
-                        className="text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                        disabled={!isOnline}
+                        className="text-purple-600 hover:text-purple-800 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ExternalLink className="w-3 h-3" />
                         Watch

@@ -79,7 +79,7 @@
       "name": "Offline Mode",
       "short_name": "Offline",
       "description": "Access offline content",
-      "url": "/offline-dashboard",
+      "url": "/dashboard",
       "icons": [{ "src": "/edvanta-logo.png", "sizes": "96x96" }]
     }
   ],

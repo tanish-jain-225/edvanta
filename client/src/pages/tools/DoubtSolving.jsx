@@ -1,23 +1,20 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import {
   MessageSquare,
   Send,
-  Bot,
-  User,
-  Lightbulb,
   Plus,
   History,
   Trash2,
   X,
-  Clock,
   LogIn,
 } from "lucide-react";
 import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
 import { getUserProfileImage } from "../../lib/utils";
+import { getCachedData, setCachedData, queueSyncAction, getSessionIdMapping } from "../../lib/offlineStorage";
 
 export function DoubtSolving() {
   const [messages, setMessages] = useState([]);
@@ -65,6 +62,17 @@ export function DoubtSolving() {
   const loadChatSessions = async () => {
     if (!user || !user.email) return;
 
+    if (!navigator.onLine) {
+      const cached = getCachedData(user.email, "chat_sessions", []);
+      setChatSessions(cached);
+      if (cached.length > 0) {
+        const currentId = cached[0].id;
+        setCurrentSessionId(currentId);
+        setMessages(cached[0].messages || []);
+      }
+      return;
+    }
+
     try {
       const response = await fetch(
         `${backEndURL}/api/chat/loadChat?userEmail=${encodeURIComponent(
@@ -75,6 +83,7 @@ export function DoubtSolving() {
         const data = await response.json();
         if (data.success) {
           setChatSessions(data.sessions || []);
+          setCachedData(user.email, "chat_sessions", data.sessions || []);
           if (data.currentSessionId) {
             setCurrentSessionId(data.currentSessionId);
             // Load messages from current session
@@ -89,24 +98,51 @@ export function DoubtSolving() {
       }
     } catch (error) {
       console.error("Failed to load chat sessions:", error);
+      const cached = getCachedData(user.email, "chat_sessions", []);
+      setChatSessions(cached);
     }
   };
 
   const createNewSession = async () => {
     if (!user || !user.email) return;
 
-    try {
-      const now = new Date();
-      const sessionName = `Chat ${now.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })} at ${now.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })}`;
+    const now = new Date();
+    const sessionName = `Chat ${now.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })} at ${now.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })}`;
 
+    if (!navigator.onLine) {
+      const tempSessionId = `temp-session-${Date.now()}`;
+      const newSession = {
+        id: tempSessionId,
+        sessionName: sessionName,
+        messages: [],
+        messageCount: 0,
+        lastActivity: now.toISOString(),
+      };
+      const updatedSessions = [newSession, ...chatSessions];
+      setChatSessions(updatedSessions);
+      setCachedData(user.email, "chat_sessions", updatedSessions);
+      setCurrentSessionId(tempSessionId);
+      setMessages([]);
+      setIsHistoryOpen(false);
+
+      // Queue background action to create session once online
+      queueSyncAction(user.email, "CREATE_CHAT_SESSION", {
+        sessionName,
+        userEmail: user.email,
+        tempSessionId,
+      });
+      return;
+    }
+
+    try {
       const response = await fetch(`${backEndURL}/api/chat/createChat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,7 +155,9 @@ export function DoubtSolving() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setChatSessions((prev) => [data.session, ...prev]);
+          const updatedSessions = [data.session, ...chatSessions];
+          setChatSessions(updatedSessions);
+          setCachedData(user.email, "chat_sessions", updatedSessions);
           setCurrentSessionId(data.session.id);
           setMessages([]);
           setIsHistoryOpen(false);
@@ -139,15 +177,17 @@ export function DoubtSolving() {
       if (session) {
         setMessages(session.messages || []);
 
-        // Update activity
-        await fetch(
-          `${backEndURL}/api/chat/updateActivity/${sessionId}/activity`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userEmail: user.email }),
-          }
-        );
+        if (navigator.onLine && !sessionId.startsWith("temp-")) {
+          // Update activity
+          await fetch(
+            `${backEndURL}/api/chat/updateActivity/${sessionId}/activity`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userEmail: user.email }),
+            }
+          );
+        }
       }
       setIsHistoryOpen(false);
     } catch (error) {
@@ -157,6 +197,37 @@ export function DoubtSolving() {
 
   const deleteSession = async (sessionId) => {
     if (!user || !user.email) return;
+
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this session? This action cannot be undone."
+      )
+    ) {
+      return;
+    }
+
+    if (!navigator.onLine) {
+      const remainingSessions = chatSessions.filter((s) => s.id !== sessionId);
+      setChatSessions(remainingSessions);
+      setCachedData(user.email, "chat_sessions", remainingSessions);
+
+      if (sessionId === currentSessionId) {
+        if (remainingSessions.length > 0) {
+          setCurrentSessionId(remainingSessions[0].id);
+          setMessages(remainingSessions[0].messages || []);
+        } else {
+          setCurrentSessionId(null);
+          setMessages([]);
+        }
+      }
+
+      // Queue sync delete action once online
+      queueSyncAction(user.email, "DELETE_CHAT_SESSION", {
+        sessionId,
+        userEmail: user.email,
+      });
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -172,6 +243,7 @@ export function DoubtSolving() {
         const data = await response.json();
         if (data.success) {
           setChatSessions(data.remainingSessions || []);
+          setCachedData(user.email, "chat_sessions", data.remainingSessions || []);
           if (sessionId === currentSessionId) {
             if (data.remainingSessions.length > 0) {
               setCurrentSessionId(data.remainingSessions[0].id);
@@ -188,21 +260,119 @@ export function DoubtSolving() {
     }
   };
 
+  // Background synchronization listener
+  useEffect(() => {
+    const handleSyncComplete = (event) => {
+      if (event.detail && event.detail.type === "chat") {
+        console.log("[DoubtSolving] Sync complete event received: reloading chat sessions...");
+        if (user?.email) {
+          const mappedId = getSessionIdMapping(user.email, currentSessionId);
+          const cached = getCachedData(user.email, "chat_sessions", []);
+          setChatSessions(cached);
+          
+          const targetSessionId = mappedId || currentSessionId;
+          if (targetSessionId) {
+            setCurrentSessionId(targetSessionId);
+            const activeSession = cached.find((s) => s.id === targetSessionId);
+            if (activeSession) {
+              setMessages(activeSession.messages || []);
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener("edvanta-sync-complete", handleSyncComplete);
+    return () => window.removeEventListener("edvanta-sync-complete", handleSyncComplete);
+  }, [user?.email, currentSessionId]);
+
   const handleSendMessage = async () => {
     if (!currentMessage.trim() || !user || !user.email) return;
 
+    const tempMsgId = `temp-msg-${Date.now()}`;
     const userMessage = {
+      id: tempMsgId,
       role: "user",
       content: currentMessage,
       timestamp: new Date().toISOString(), // Temporary timestamp, will be updated with server timestamp
     };
 
-    // Add user message to UI immediately
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
     const questionToSend = currentMessage;
     setCurrentMessage("");
     setIsTyping(true);
+
+    if (!navigator.onLine) {
+      let sessionId = currentSessionId;
+      const now = new Date();
+      
+      // If no current session, create a temp one locally
+      if (!sessionId) {
+        const sessionName = `Chat ${now.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })} at ${now.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })}`;
+        sessionId = `temp-session-${Date.now()}`;
+        setCurrentSessionId(sessionId);
+
+        const newSession = {
+          id: sessionId,
+          sessionName: sessionName,
+          messages: [],
+          messageCount: 0,
+          lastActivity: now.toISOString(),
+        };
+        const updatedSessions = [newSession, ...chatSessions];
+        setChatSessions(updatedSessions);
+        setCachedData(user.email, "chat_sessions", updatedSessions);
+
+        // Queue server sync for creating the session once online
+        queueSyncAction(user.email, "CREATE_CHAT_SESSION", {
+          sessionName,
+          userEmail: user.email,
+          tempSessionId: sessionId,
+        });
+      }
+
+      const botResponse = {
+        id: `bot-temp-${tempMsgId}`,
+        role: "assistant",
+        content: "You are currently offline. Your question has been saved and queued. It will be sent to the AI tutor automatically when you go back online, and this message will update with the tutor's response.",
+        timestamp: now.toISOString(),
+        isOfflinePlaceholder: true,
+      };
+
+      const finalMessages = [...messages, userMessage, botResponse];
+      setMessages(finalMessages);
+
+      const updatedSessions = chatSessions.map((session) =>
+        session.id === sessionId
+          ? {
+              ...session,
+              messages: finalMessages,
+              messageCount: finalMessages.length,
+              lastActivity: now.toISOString(),
+            }
+          : session
+      );
+      setChatSessions(updatedSessions);
+      setCachedData(user.email, "chat_sessions", updatedSessions);
+
+      // Queue background message sending action
+      queueSyncAction(user.email, "SEND_CHAT_MESSAGE", {
+        message: questionToSend,
+        userEmail: user.email,
+        chatHistory: messages,
+        sessionId: sessionId,
+        tempMsgId,
+      });
+
+      setIsTyping(false);
+      return;
+    }
 
     try {
       // If no current session, create one
@@ -236,10 +406,15 @@ export function DoubtSolving() {
           if (createData.success) {
             sessionId = createData.session.id;
             setCurrentSessionId(sessionId);
-            setChatSessions((prev) => [createData.session, ...prev]);
+            const updatedSessions = [createData.session, ...chatSessions];
+            setChatSessions(updatedSessions);
+            setCachedData(user.email, "chat_sessions", updatedSessions);
           }
         }
       }
+
+      // Add user message to UI immediately for responsive feel
+      setMessages((prev) => [...prev, userMessage]);
 
       // Send message to AI with conversation context (excluding the temporary user message we just added)
       const response = await fetch(`${backEndURL}/api/chat/message`, {
@@ -277,19 +452,19 @@ export function DoubtSolving() {
         const finalMessages = [...messages, updatedUserMessage, botResponse];
         setMessages(finalMessages);
 
-        // Update the session in local state
-        setChatSessions((prev) =>
-          prev.map((session) =>
-            session.id === sessionId
-              ? {
-                  ...session,
-                  messages: finalMessages,
-                  messageCount: finalMessages.length,
-                  lastActivity: serverTimestamp,
-                }
-              : session
-          )
+        // Update the session in local state and cache
+        const updatedSessions = chatSessions.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                messages: finalMessages,
+                messageCount: finalMessages.length,
+                lastActivity: serverTimestamp,
+              }
+            : session
         );
+        setChatSessions(updatedSessions);
+        setCachedData(user.email, "chat_sessions", updatedSessions);
       }
     } catch (error) {
       console.error("Error calling API:", error);
@@ -450,7 +625,7 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
 
     // Restore code blocks with copy to clipboard button
     formatted = formatted.replace(/\[\[CODEBLOCK_(\d+)\]\]/g, (match, idx) => {
-      const { lang, code, raw } = codeBlocks[idx];
+      const { lang, code } = codeBlocks[idx];
       const codeId = `codeblock-${Math.random()
         .toString(36)
         .slice(2, 10)}-${idx}`;

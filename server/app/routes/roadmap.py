@@ -4,8 +4,6 @@ Generates a learning roadmap with milestones, resources, and estimated durations
 Stores and retrieves roadmaps from MongoDB.
 """
 from flask import Blueprint, request, jsonify, send_file
-import os
-import json
 import uuid
 from datetime import datetime
 from app.utils.ai_utils import generate_roadmap_content
@@ -247,9 +245,7 @@ def download_roadmap(roadmap_id):
         from reportlab.lib.pagesizes import A4
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_LEFT
         from reportlab.lib.units import mm
-        from reportlab.lib import colors
         import io
 
         buf = io.BytesIO()
@@ -267,7 +263,7 @@ def download_roadmap(roadmap_id):
         h1 = ParagraphStyle("Title", parent=styles["Heading1"], fontSize=18, leading=22, spaceAfter=6)
         h2 = ParagraphStyle("Section", parent=styles["Heading2"], fontSize=13, spaceBefore=12, spaceAfter=6)
         normal = styles["BodyText"]
-        bullet_style = ParagraphStyle("Bullet", parent=styles["BodyText"], bulletIndent=10, leftIndent=12)
+
 
         story = []
         # Header

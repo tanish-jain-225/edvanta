@@ -1,5 +1,5 @@
-import React, { Suspense } from "react";
-const HeroSpline = React.lazy(() => import("../components/ui/HeroSpline"));
+import { Suspense, lazy } from "react";
+const HeroSpline = lazy(() => import("../components/ui/HeroSpline"));
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import {
@@ -10,17 +10,14 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { useResponsive } from "../hooks/useResponsive";
 import {
   MessageSquare,
   Brain,
   Mic,
   MapPin,
-  FileText,
   ArrowRight,
   CheckCircle,
   Zap,
-  Clock,
 } from "lucide-react";
 
 const features = [
@@ -75,33 +72,7 @@ const steps = [
   },
 ];
 
-const stats = [
-  { number: "10K+", label: "Active Learners", icon: Brain },
-  { number: "50K+", label: "Quizzes Generated", icon: MessageSquare },
-  { number: "1M+", label: "Learning Minutes", icon: Clock },
-  { number: "95%", label: "Success Rate", icon: CheckCircle },
-];
 
-const testimonials = [
-  {
-    quote: "Edvanta transformed how I learn programming. The AI-generated roadmaps are incredibly detailed.",
-    author: "Sarah Chen",
-    role: "Software Developer",
-    avatar: "SC"
-  },
-  {
-    quote: "The voice tutor feature is amazing! It's like having a personal teacher available 24/7.",
-    author: "Michael Rodriguez", 
-    role: "Data Science Student",
-    avatar: "MR"
-  },
-  {
-    quote: "I improved my skills 3x faster using Edvanta's personalized learning paths.",
-    author: "Emily Johnson",
-    role: "Product Manager",
-    avatar: "EJ"
-  }
-];
 
 const comparisons = [
   { feature: "AI-Powered Content Generation", edvanta: true, others: false },
@@ -112,7 +83,7 @@ const comparisons = [
 ];
 
 function Home() {
-  const { isMobile, isTablet, isDesktop } = useResponsive();
+
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

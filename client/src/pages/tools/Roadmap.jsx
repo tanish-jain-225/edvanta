@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -9,22 +9,14 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
-import { Progress } from "../../components/ui/progress";
+
 import {
   MapPin,
   Target,
   CheckCircle,
   Clock,
-  Star,
   BookOpen,
-  Code,
-  Palette,
-  TrendingUp,
-  Users,
-  Award,
   ArrowRight,
-  Plus,
-  Filter,
   AlertCircle,
   Loader2,
   X,
@@ -36,7 +28,16 @@ import {
 
 import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
-import { use } from "react";
+import { getCachedData, setCachedData, queueSyncAction } from "../../lib/offlineStorage";
+
+const enforceMinimumLoadingTime = async (startTime, minimumTime = 1000) => {
+  const timeElapsed = Date.now() - startTime;
+  if (timeElapsed < minimumTime) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, minimumTime - timeElapsed)
+    );
+  }
+};
 
 export function Roadmap() {
   const { user } = useAuth();
@@ -45,7 +46,7 @@ export function Roadmap() {
   const [customBackground, setCustomBackground] = useState("");
   const [customDuration, setCustomDuration] = useState(null);
   const [savedRoadmaps, setSavedRoadmaps] = useState([]);
-  const [customRoadmap, setCustomRoadmap] = useState(null);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoadingRoadmaps, setIsLoadingRoadmaps] = useState(false);
@@ -60,6 +61,20 @@ export function Roadmap() {
     }
   }, [user]);
 
+  // Background synchronization listener
+  useEffect(() => {
+    const handleSyncComplete = (event) => {
+      if (event.detail && event.detail.type === "roadmap") {
+        console.log("[Roadmap] Sync complete event received: reloading roadmaps...");
+        if (user?.email) {
+          fetchUserRoadmaps();
+        }
+      }
+    };
+    window.addEventListener("edvanta-sync-complete", handleSyncComplete);
+    return () => window.removeEventListener("edvanta-sync-complete", handleSyncComplete);
+  }, [user?.email]);
+
   // Function to fetch user's roadmaps from the database
   const fetchUserRoadmaps = async () => {
     if (!user?.email) return;
@@ -67,6 +82,29 @@ export function Roadmap() {
     try {
       setIsLoadingRoadmaps(true);
       const startTime = Date.now();
+
+      if (!navigator.onLine) {
+        const roadmapsData = getCachedData(user.email, "user_roadmaps", []);
+        const transformedRoadmaps = roadmapsData.map((roadmap) => ({
+          id: roadmap.id,
+          title: roadmap.title,
+          description: roadmap.description,
+          duration: roadmap.duration_weeks,
+          dateCreated: new Date(roadmap.created_at).toLocaleDateString(),
+          data: roadmap.data,
+          skills: roadmap.data.nodes
+            ? roadmap.data.nodes
+                .filter((node) => node.id !== "start")
+                .slice(0, 3)
+                .map((node) => node.title)
+            : [],
+        }));
+
+        await enforceMinimumLoadingTime(startTime, 2000);
+        setSavedRoadmaps(transformedRoadmaps);
+        setIsLoadingRoadmaps(false);
+        return;
+      }
 
       const response = await fetch(
         `${backEndURL}/api/roadmap/user?user_email=${user.email}`
@@ -78,6 +116,7 @@ export function Roadmap() {
       }
 
       const roadmapsData = await response.json();
+      setCachedData(user.email, "user_roadmaps", roadmapsData);
 
       // Transform the data to match the expected format
       const transformedRoadmaps = roadmapsData.map((roadmap) => ({
@@ -95,21 +134,31 @@ export function Roadmap() {
           : [],
       }));
 
-      // Calculate time elapsed since starting the fetch
-      const timeElapsed = Date.now() - startTime;
-      const minimumLoadingTime = 2000; // 2 seconds in milliseconds
-
-      // If fetch completed too quickly, wait until minimum loading time is reached
-      if (timeElapsed < minimumLoadingTime) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, minimumLoadingTime - timeElapsed)
-        );
-      }
+      // Wait for minimum loading time to ensure consistent UI animation behavior
+      await enforceMinimumLoadingTime(startTime, 2000);
 
       setSavedRoadmaps(transformedRoadmaps);
     } catch (err) {
       console.error("Error fetching roadmaps:", err);
-      // Keep any existing roadmaps if there was an error
+      // Fallback to cache on error
+      if (user?.email) {
+        const roadmapsData = getCachedData(user.email, "user_roadmaps", []);
+        const transformedRoadmaps = roadmapsData.map((roadmap) => ({
+          id: roadmap.id,
+          title: roadmap.title,
+          description: roadmap.description,
+          duration: roadmap.duration_weeks,
+          dateCreated: new Date(roadmap.created_at).toLocaleDateString(),
+          data: roadmap.data,
+          skills: roadmap.data.nodes
+            ? roadmap.data.nodes
+                .filter((node) => node.id !== "start")
+                .slice(0, 3)
+                .map((node) => node.title)
+            : [],
+        }));
+        setSavedRoadmaps(transformedRoadmaps);
+      }
     } finally {
       setIsLoadingRoadmaps(false);
     }
@@ -157,11 +206,7 @@ export function Roadmap() {
         throw new Error(errorData.error || "Failed to generate roadmap");
       }
 
-      const data = await response.json();
-
-      // Process the roadmap data
-      const parsedRoadmap = data.roadmap;
-      setCustomRoadmap(parsedRoadmap);
+      await response.json();
 
       // Fetch updated roadmaps after successful generation
       fetchUserRoadmaps();
@@ -187,6 +232,33 @@ export function Roadmap() {
       return;
     }
 
+    // If offline, try loading from cache
+    if (!navigator.onLine) {
+      const detailedRoadmap = getCachedData(user.email, `roadmap_detail_${roadmap.id}`);
+      if (detailedRoadmap) {
+        const transformedRoadmap = {
+          id: detailedRoadmap.id,
+          title: detailedRoadmap.title,
+          description: detailedRoadmap.description,
+          duration: detailedRoadmap.duration_weeks,
+          dateCreated: new Date(detailedRoadmap.created_at).toLocaleDateString(),
+          data: detailedRoadmap.data,
+          skills: detailedRoadmap.data.nodes
+            ? detailedRoadmap.data.nodes
+                .filter((node) => node.id !== "start")
+                .slice(0, 3)
+                .map((node) => node.title)
+            : [],
+        };
+        setSelectedRoadmap(transformedRoadmap);
+      } else {
+        // Fallback to selecting what we have in the list item
+        setSelectedRoadmap(roadmap);
+      }
+      setShowRoadmapModal(true);
+      return;
+    }
+
     try {
       // If we already have the full roadmap data, just use it
       if (roadmap.data && roadmap.data.nodes && roadmap.data.edges) {
@@ -205,6 +277,7 @@ export function Roadmap() {
       }
 
       const detailedRoadmap = await response.json();
+      setCachedData(user.email, `roadmap_detail_${roadmap.id}`, detailedRoadmap);
 
       // Transform to match expected format if needed
       const transformedRoadmap = {
@@ -245,6 +318,26 @@ export function Roadmap() {
       )
     ) {
       return; // User cancelled the deletion
+    }
+
+    if (!navigator.onLine) {
+      // Remove from state immediately
+      const updatedSaved = savedRoadmaps.filter(r => r.id !== roadmapId);
+      setSavedRoadmaps(updatedSaved);
+      
+      // Update cache
+      const cachedRaw = getCachedData(user.email, "user_roadmaps", []);
+      const updatedRaw = cachedRaw.filter(r => r.id !== roadmapId);
+      setCachedData(user.email, "user_roadmaps", updatedRaw);
+
+      // Queue background deletion task
+      queueSyncAction(user.email, "DELETE_ROADMAP", { roadmapId, userEmail: user.email });
+
+      if (selectedRoadmap && selectedRoadmap.id === roadmapId) {
+        setSelectedRoadmap(null);
+        setShowRoadmapModal(false);
+      }
+      return;
     }
 
     try {
@@ -368,6 +461,16 @@ export function Roadmap() {
             </div>
           ) : (
             <div className="space-y-3">
+              {!navigator.onLine && (
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg text-orange-800 flex items-start gap-3 text-sm">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block">Offline Mode</span>
+                    <span>AI Career roadmap generation requires an active internet connection. You can still browse and explore your previously saved career roadmaps below.</span>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label
                   htmlFor="goal"
@@ -380,6 +483,7 @@ export function Roadmap() {
                   placeholder="Eg. Become a Data Scientist"
                   value={customGoal}
                   onChange={(e) => setCustomGoal(e.target.value)}
+                  disabled={!navigator.onLine}
                 />
               </div>
 
@@ -395,6 +499,7 @@ export function Roadmap() {
                   placeholder="Eg. 3 years in software development, familiar with Python and data analysis"
                   value={customBackground}
                   onChange={(e) => setCustomBackground(e.target.value)}
+                  disabled={!navigator.onLine}
                 />
               </div>
 
@@ -416,6 +521,7 @@ export function Roadmap() {
                     )
                   }
                   min="1"
+                  disabled={!navigator.onLine}
                 />
               </div>
 
@@ -433,13 +539,18 @@ export function Roadmap() {
                   isGenerating ||
                   !user ||
                   !customGoal?.trim() ||
-                  !customBackground?.trim()
+                  !customBackground?.trim() ||
+                  !navigator.onLine
                 }
               >
                 {isGenerating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Generating your roadmap...
+                  </>
+                ) : !navigator.onLine ? (
+                  <>
+                    Offline (Disabled)
                   </>
                 ) : (
                   <>

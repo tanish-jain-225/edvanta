@@ -17,7 +17,6 @@ Optional environment variables:
 - GEMINI_MODEL_NAME: Gemini model to use (default: gemini-2.5-flash)
 """
 import os
-from typing import List
 
 
 class Config:
@@ -69,9 +68,6 @@ class Config:
     GEMINI_TOP_K = int(os.getenv("GEMINI_TOP_K", "40"))
     GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "4096"))
 
-    # Alternative AI providers
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
     # CORS settings
     ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
 
@@ -92,3 +88,10 @@ class Config:
     MONGODB_ACTIVE_SESSIONS_COLLECTION = os.getenv("MONGODB_ACTIVE_SESSIONS_COLLECTION", "active_sessions")
     MONGODB_ROADMAP_COLLECTION = os.getenv("MONGODB_ROADMAP_COLLECTION", "roadmaps")
     MONGODB_USER_STATS_COLLECTION = os.getenv("MONGODB_USER_STATS_COLLECTION", "user_stats")
+    MONGODB_RESUME_COLLECTION = os.getenv("MONGODB_RESUME_COLLECTION", "resumes")
+
+    # Cloudinary Configuration
+    CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+    CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+

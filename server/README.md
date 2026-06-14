@@ -26,6 +26,7 @@ Works seamlessly across all hosting platforms without configuration:
 - 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support
 - 📊 **User Analytics** - Comprehensive learning progress & performance tracking
 - 🎬 **Visual Content Explorer** - Client-side YouTube API integration (no backend required)
+- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads
 
 ### **Robust Architecture**
 - 🔄 **Auto-Environment Detection** - Automatically adapts to deployment platform
@@ -111,11 +112,13 @@ server/
     │   ├── quizzes.py      # Quiz generation & scoring system
     │   ├── tutor.py        # AI tutoring with voice support
     │   ├── roadmap.py      # Learning roadmap creation
+    │   ├── resume.py       # Resume upload and AI analysis
     │   └── user_stats.py   # User statistics & progress tracking
     └── utils/
         ├── __init__.py
         ├── ai_utils.py     # Gemini AI integration
-        │       ├── mongo_utils.py, quizzes_utils.py
+        ├── mongo_utils.py   # MongoDB helper functions
+        └── quizzes_utils.py # Quiz processing helpers
 ```
 
 ## 🔧 API Endpoints
@@ -243,6 +246,9 @@ For a complete OpenAPI/Swagger spec: consider adding `openapi.yaml` and serving 
 ### User Analytics
 - `GET /api/user-stats` - Get user progress statistics
 
+### Resume Analyzer
+- `POST /api/resume/analyze` - Upload resume (PDF/TXT) to Cloudinary and get Gemini AI feedback & analysis
+
 ---
 
 ## Authentication & authorization flow
@@ -278,6 +284,7 @@ All environment variables are documented in `.env.example` with detailed setup i
 - `ALLOWED_ORIGINS` - CORS configuration (default: *)
 - `GEMINI_MODEL_NAME` - AI model version (default: gemini-2.5-flash)
 - `GEMINI_TEMPERATURE`, `GEMINI_TOP_P`, `GEMINI_TOP_K` - AI tuning parameters
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` - Cloudinary credentials for Resume file storage
 
 See `.env.example` for complete documentation and setup guides.
 
@@ -416,6 +423,9 @@ SECRET_KEY="replace-with-random-secret"
 ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"
 GEMINI_MODEL_NAME="gemini-2.5-flash"
 GEMINI_TEMPERATURE=0.2
+CLOUDINARY_CLOUD_NAME="your-cloudinary-cloud-name"
+CLOUDINARY_API_KEY="your-cloudinary-api-key"
+CLOUDINARY_API_SECRET="your-cloudinary-api-secret"
 ```
 
 Never commit `.env` to the repository; use your platform secrets manager (Vercel, Heroku config vars, AWS Secrets Manager).

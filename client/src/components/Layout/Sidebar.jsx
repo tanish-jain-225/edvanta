@@ -1,4 +1,4 @@
-import React from 'react'
+
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import {
@@ -7,10 +7,8 @@ import {
   Brain,
   Mic,
   MapPin,
-  Trophy,
-  Settings,
-  Wifi,
-  Video
+  Video,
+  FileText
 } from 'lucide-react'
 
 const navigation = [
@@ -18,8 +16,9 @@ const navigation = [
   { name: 'Doubt Solving', href: '/tools/doubt-solving', icon: MessageSquare },
   { name: 'Quizzes', href: '/tools/quizzes', icon: Brain },
   { name: 'Voice Tutor', href: '/tools/conversational-tutor', icon: Mic },
-  { name: 'Roadmap', href: '/tools/roadmap', icon: MapPin },
+  { name: 'Career Roadmap', href: '/tools/roadmap', icon: MapPin },
   { name: 'Visual Content', href: '/tools/visual-content', icon: Video },
+  { name: 'Resume Analyzer', href: '/tools/resume-analysis', icon: FileText },
 ]
 
 export function Sidebar({ className }) {

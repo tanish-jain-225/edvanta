@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./button";
 import { X, Eye, Monitor, Clock, Zap } from "lucide-react";
 
@@ -49,7 +49,7 @@ const SCREEN_FATIGUE_TIPS = [
 export function ScreenFatigueReminder() {
   const [isVisible, setIsVisible] = useState(false);
   const [currentTip, setCurrentTip] = useState(0);
-  const [lastShown, setLastShown] = useState(null);
+
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [tipCycleKey, setTipCycleKey] = useState(0); // Key to reset the auto-cycle timer
 
@@ -101,9 +101,7 @@ export function ScreenFatigueReminder() {
     setCurrentTip(randomTipIndex);
     setIsVisible(true);
 
-    // Store the current time
     const now = Date.now();
-    setLastShown(now);
     localStorage.setItem("screenFatigueLastShown", now.toString());
   };
 
@@ -116,21 +114,7 @@ export function ScreenFatigueReminder() {
     }, REMINDER_INTERVAL_MINUTES * 60 * 1000);
   };
 
-  const handleTakeBreak = () => {
-    setIsVisible(false);
 
-    // Show a brief "taking break" message
-    setTimeout(() => {
-      alert(
-        "Great! Take a 5-10 minute break. Walk around, hydrate, and rest your eyes. 👀✨"
-      );
-    }, 100);
-
-    // Set next reminder for configured interval
-    setTimeout(() => {
-      showReminder();
-    }, REMINDER_INTERVAL_MINUTES * 60 * 1000);
-  };
 
   const handleNextTip = () => {
     setIsTransitioning(true);

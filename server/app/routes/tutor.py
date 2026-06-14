@@ -4,20 +4,16 @@ Combines AI tutoring responses with Gemini AI for seamless voice interaction
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-import os
-import json
-import traceback
 from app.utils.ai_utils import (
     get_tutor_response,
-    get_chatbot_response,
-    get_chat_history,
-    clear_chat_history,
     save_active_session,
     get_active_session,
     end_active_session,
-    save_chat_message,
     initialize_ai,
-    _optimize_for_voice
+    _optimize_for_voice,
+    save_chat_message,
+    get_chat_history,
+    clear_chat_history
 )
 
 tutor_bp = Blueprint('tutor', __name__)
@@ -51,14 +47,7 @@ def tutor_ask():
         return jsonify({"error": "User email is required for conversation tracking"}), 400
 
     try:
-        # Create context for the AI based on mode and subject
-        context = {
-            "mode": mode,
-            "subject": subject,
-            "is_voice_input": is_voice_input,
-            "user_email": user_email,
-            "session_id": session_id
-        }
+
 
         # Call centralized AI for the response with conversation history
         ai_result = get_tutor_response(prompt, subject, conversation_history=conversation_history)
@@ -95,14 +84,6 @@ def tutor_ask():
         return jsonify(result)
 
     except Exception as e:
-
-        # Create a friendly error message
-        error_context = {
-            "mode": mode,
-            "subject": subject,
-            "is_voice_input": is_voice_input,
-            "is_error_state": True
-        }
 
         # Get a graceful error response
         fallback_result = get_tutor_response(
@@ -168,15 +149,7 @@ def start_session():
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         session_id = f"tutor_{mode}_{subject.replace(' ', '_')}_{timestamp}"
 
-        # Create context for Gemini AI welcome message
-        welcome_context = {
-            "mode": mode,
-            "subject": subject,
-            "session_id": session_id,
-            "is_welcome": True,
-            "is_voice_input": is_voice_input,
-            "user_email": user_email
-        }
+
 
         # Get personalized welcome message
         welcome_prompt = f"Generate a welcoming message for a {mode} session about {subject}"
@@ -233,7 +206,6 @@ def end_session():
 
     session_id = data.get('session_id')
     user_email = data.get('userEmail')
-    is_voice_input = data.get('isVoiceInput', True)  # Default to voice input
 
     if not session_id:
         return jsonify({"error": "Session ID is required"}), 400
@@ -290,18 +262,9 @@ def toggle_voice():
 
     try:
 
-        # Extract session mode from session ID
-        session_parts = session_id.split('_')
-        mode = session_parts[1] if len(session_parts) > 1 else 'tutor'
 
-        # Create context for Gemini AI voice toggle message
-        voice_context = {
-            "mode": mode,
-            "session_id": session_id,
-            "voice_enabled": enabled,
-            "is_voice_input": is_voice_input,
-            "user_email": user_email
-        }
+
+
 
         # Prepare a response that works well for both text and voice
         voice_prompt = f"Generate a brief message indicating that voice output is {'enabled' if enabled else 'disabled'}"

@@ -8,6 +8,17 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode !== "test" && tailwindcss(),
   ].filter(Boolean),
+  build: {
+    target: "esnext",
+  },
+  esbuild: {
+    target: "esnext",
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: "esnext",
+    },
+  },
   test: {
     globals: true,
     environment: "happy-dom",
