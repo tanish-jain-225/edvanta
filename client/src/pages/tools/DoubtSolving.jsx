@@ -10,6 +10,10 @@ import {
   Trash2,
   X,
   LogIn,
+  Volume2,
+  VolumeX,
+  Copy,
+  Check,
 } from "lucide-react";
 import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
@@ -24,8 +28,10 @@ export function DoubtSolving() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentlySpeakingId, setCurrentlySpeakingId] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const utteranceRef = useRef(null);
 
   // Use authentication to get user email
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -45,6 +51,15 @@ export function DoubtSolving() {
       initializeChat();
     }
   }, [authLoading, user]);
+
+  // Cleanup SpeechSynthesis on unmount
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   const initializeChat = async () => {
     try {
@@ -495,6 +510,50 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
     }
   };
 
+  const toggleSpeakMessage = (messageId, text) => {
+    if (!window.speechSynthesis) {
+      alert("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
+    const synth = window.speechSynthesis;
+
+    if (currentlySpeakingId === messageId) {
+      synth.cancel();
+      setCurrentlySpeakingId(null);
+      return;
+    }
+
+    // Stop any existing speech
+    synth.cancel();
+
+    // Clean text: strip markdown code blocks and formatting
+    let cleanText = text
+      .replace(/```[\s\S]*?```/g, "") // remove code blocks
+      .replace(/`([^`]+)`/g, "$1")    // remove inline code formatting
+      .replace(/\*\*(.*?)\*\*/g, "$1") // remove bold formatting
+      .replace(/\*(.*?)\*/g, "$1")     // remove italic formatting
+      .replace(/<[^>]*>/g, "")        // remove HTML tags
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1"); // remove markdown links
+
+    if (!cleanText.trim()) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utteranceRef.current = utterance;
+
+    utterance.onend = () => {
+      setCurrentlySpeakingId(null);
+    };
+
+    utterance.onerror = (e) => {
+      console.error("Speech error:", e);
+      setCurrentlySpeakingId(null);
+    };
+
+    setCurrentlySpeakingId(messageId);
+    synth.speak(utterance);
+  };
+
   const formatUserContent = (content) => {
     // Simplified formatting for user messages with explicit white text
     return `<p class="text-white">${content.replace(/\n/g, "<br>")}</p>`;
@@ -790,7 +849,33 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
                 <p className="text-base text-gray-600 mb-4">
                   Ask any question and I'll help you understand it step by step.
                 </p>
-                <p className="text-sm text-gray-500 max-w-md mx-auto">
+
+                {/* Suggested Prompts Cards */}
+                <div className="max-w-2xl mx-auto mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                  {[
+                    { title: "Explain Recursion", desc: "Understand how recursive functions call themselves in programming.", query: "Can you explain how recursion works in programming with a simple analogy and a Python example?" },
+                    { title: "REST APIs vs GraphQL", desc: "Compare these two popular API design patterns.", query: "What are the core differences between REST APIs and GraphQL? When should I choose one over the other?" },
+                    { title: "Solve a Math Concept", desc: "Learn how quadratic formulas or derivatives are calculated.", query: "Can you explain how the quadratic formula works and solve x^2 - 5x + 6 = 0 step by step?" },
+                    { title: "Explain Photosynthesis", desc: "Break down the biological solar energy conversion.", query: "Can you break down the process of photosynthesis into simple, digestible stages for a science student?" }
+                  ].map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setCurrentMessage(item.query);
+                        if (inputRef.current) {
+                          inputRef.current.focus();
+                        }
+                      }}
+                      className="p-4 rounded-xl border border-gray-200 bg-white hover:bg-blue-50/50 hover:border-blue-200 cursor-pointer text-left transition-all hover:shadow-sm"
+                      type="button"
+                    >
+                      <h4 className="font-semibold text-gray-800 text-sm mb-1">{item.title}</h4>
+                      <p className="text-xs text-gray-500 leading-relaxed">{item.desc}</p>
+                    </button>
+                  ))}
+                </div>
+
+                <p className="text-xs text-gray-450 max-w-md mx-auto mt-8">
                   Your conversations are automatically saved to your account (
                   {user.email?.split("@")[0]}...) and will persist across all
                   your devices.
@@ -853,18 +938,37 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
                       }}
                     />
 
-                    {/* Timestamp */}
-                    {message.timestamp && (
-                      <div
-                        className={`text-xs ${
-                          isUserMessage ? "text-blue-100" : "text-gray-400"
-                        } mt-2`}
-                      >
-                        <div className="font-medium">
-                          {formatExactTimestamp(message.timestamp)}
+                    {/* Timestamp & Controls */}
+                    <div className="flex items-center justify-between gap-4 mt-2 border-t border-gray-100/50 pt-1">
+                      {message.timestamp && (
+                        <div
+                          className={`text-[10px] xs:text-xs ${
+                            isUserMessage ? "text-blue-100" : "text-gray-400"
+                          }`}
+                        >
+                          <div className="font-medium">
+                            {formatExactTimestamp(message.timestamp)}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      
+                      {!isUserMessage && (
+                        <button
+                          onClick={() => toggleSpeakMessage(index, message.content)}
+                          className={`p-1 rounded cursor-pointer transition-colors flex items-center justify-center ${
+                            currentlySpeakingId === index ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                          }`}
+                          title={currentlySpeakingId === index ? "Stop speaking" : "Speak answer"}
+                          type="button"
+                        >
+                          {currentlySpeakingId === index ? (
+                            <VolumeX className="w-3.5 h-3.5 animate-pulse" />
+                          ) : (
+                            <Volume2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* User Profile */}

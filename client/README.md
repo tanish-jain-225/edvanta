@@ -1,3 +1,7 @@
+<div align="center">
+	<img src="../assets/edvanta-logo.png" alt="Edvanta" height="90" />
+</div>
+
 # Edvanta Client
 
 A modern React-based educational platform built with cutting-edge technologies for optimal performance and accessibility. Features AI-powered learning tools with a beautiful, responsive interface.
@@ -17,12 +21,12 @@ A modern React-based educational platform built with cutting-edge technologies f
 - 🌐 **Progressive Web App** - Installable with offline support and caching
 
 ### **AI-Powered Learning Tools**
-- 🤖 **Doubt Solving Chatbot** - AI-powered Q&A with conversation history
-- 📝 **Quiz Generator** - AI-generated personalized quizzes with scoring
-- 👨‍🏫 **Conversational Tutor** - Interactive AI tutoring system
-- 🗺️ **Learning Roadmaps** - Personalized learning paths with milestones
-- 🎬 **Visual Content Explorer** - YouTube API integration for educational videos
-- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads
+- 🤖 **Doubt Solving Chatbot** - AI chatbot with quick starter prompts, code copy feedback, and Web SpeechSynthesis Text-to-Speech (TTS) reading.
+- 📝 **Quiz Generator** - AI-generated personalized quizzes with scoring and history logs.
+- 👨‍🏫 **Conversational Tutor** - Voice tutoring system with pitch/rate speech customization, system voice selection dropdown, and pulsating recording wave animations.
+- 🗺️ **Learning Roadmaps** - Learning paths with milestone checkboxes, completion progress percentage bars, and persistent server-side MongoDB syncing.
+- 🎬 **Visual Content Explorer** - YouTube API integration for educational videos and embed previews.
+- 📄 **Resume Analyzer** - AI resume feedback and job mapping with Cloudinary uploading, featuring an animated circular ATS score progress ring.
 
 ### **Enhanced User Experience**
 - 🔐 **Firebase Authentication** - Secure user accounts with profile management

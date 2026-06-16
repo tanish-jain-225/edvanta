@@ -29,6 +29,7 @@ import {
 import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
 import { getCachedData, setCachedData, queueSyncAction } from "../../lib/offlineStorage";
+import { edvantaAPI } from "../../lib/api";
 
 const enforceMinimumLoadingTime = async (startTime, minimumTime = 1000) => {
   const timeElapsed = Date.now() - startTime;
@@ -37,6 +38,14 @@ const enforceMinimumLoadingTime = async (startTime, minimumTime = 1000) => {
       setTimeout(resolve, minimumTime - timeElapsed)
     );
   }
+};
+
+const getRoadmapProgress = (nodes) => {
+  if (!nodes || !Array.isArray(nodes)) return 0;
+  const targetNodes = nodes.filter((n) => n.id !== "start");
+  if (targetNodes.length === 0) return 0;
+  const completedNodes = targetNodes.filter((n) => n.completed).length;
+  return Math.round((completedNodes / targetNodes.length) * 100);
 };
 
 export function Roadmap() {
@@ -417,6 +426,80 @@ export function Roadmap() {
     }
   };
 
+  const toggleMilestone = async (roadmapId, nodeId) => {
+    if (!selectedRoadmap || !user?.email) return;
+
+    // Toggle completed state on the node
+    const updatedNodes = selectedRoadmap.data.nodes.map((node) => {
+      if (node.id === nodeId) {
+        return { ...node, completed: !node.completed };
+      }
+      return node;
+    });
+
+    const updatedRoadmap = {
+      ...selectedRoadmap,
+      data: {
+        ...selectedRoadmap.data,
+        nodes: updatedNodes,
+      },
+    };
+
+    // Update state immediately for responsive feel
+    setSelectedRoadmap(updatedRoadmap);
+
+    // Update the list of saved roadmaps so the main view updates as well
+    setSavedRoadmaps((prev) =>
+      prev.map((r) => (r.id === roadmapId ? updatedRoadmap : r))
+    );
+
+    if (!navigator.onLine) {
+      // Save locally to cache
+      const cachedRaw = getCachedData(user.email, "user_roadmaps", []);
+      const updatedRaw = cachedRaw.map((r) =>
+        r.id === roadmapId ? { ...r, data: updatedRoadmap.data } : r
+      );
+      setCachedData(user.email, "user_roadmaps", updatedRaw);
+      setCachedData(user.email, `roadmap_detail_${roadmapId}`, {
+        ...selectedRoadmap,
+        data: updatedRoadmap.data,
+      });
+
+      // Queue background sync task
+      queueSyncAction(user.email, "UPDATE_ROADMAP_PROGRESS", {
+        roadmapId,
+        progressData: { data: updatedRoadmap.data },
+        userEmail: user.email,
+      });
+      return;
+    }
+
+    try {
+      const response = await edvantaAPI.updateRoadmapProgress(
+        roadmapId,
+        { data: updatedRoadmap.data },
+        user.email
+      );
+
+      if (response.success) {
+        // Save to cache
+        const cachedRaw = getCachedData(user.email, "user_roadmaps", []);
+        const updatedRaw = cachedRaw.map((r) =>
+          r.id === roadmapId ? { ...r, data: updatedRoadmap.data } : r
+        );
+        setCachedData(user.email, "user_roadmaps", updatedRaw);
+        setCachedData(user.email, `roadmap_detail_${roadmapId}`, {
+          ...selectedRoadmap,
+          data: updatedRoadmap.data,
+        });
+      } else {
+        console.error("Failed to update roadmap progress on server:", response.error);
+      }
+    } catch (error) {
+      console.error("Error updating roadmap progress:", error);
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 lg:p-6">
       {/* Header */}
@@ -644,6 +727,20 @@ export function Roadmap() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="px-4 pb-4 flex-grow flex flex-col">
+                    {roadmap.data.nodes && (
+                      <div className="mb-3">
+                        <div className="flex justify-between text-xs font-semibold text-gray-500 mb-1">
+                          <span>Progress</span>
+                          <span>{getRoadmapProgress(roadmap.data.nodes)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden border border-gray-200/50">
+                          <div 
+                            className="bg-primary h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${getRoadmapProgress(roadmap.data.nodes)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                     <div className="mb-4 flex-grow">
                       <p className="text-xs text-gray-600 line-clamp-2 mb-2">
                         {roadmap.description}
@@ -808,6 +905,19 @@ export function Roadmap() {
                     </div>
                   </div>
                 </div>
+                {/* Modal Progress Bar */}
+                <div className="mt-4 pt-4 border-t border-blue-200/50">
+                  <div className="flex justify-between text-xs font-semibold text-blue-800 mb-1">
+                    <span>Learning Progress</span>
+                    <span>{getRoadmapProgress(selectedRoadmap.data.nodes)}% Completed</span>
+                  </div>
+                  <div className="w-full bg-blue-100/70 rounded-full h-2 overflow-hidden border border-blue-200/40">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 h-full rounded-full transition-all duration-500" 
+                      style={{ width: `${getRoadmapProgress(selectedRoadmap.data.nodes)}%` }}
+                    ></div>
+                  </div>
+                </div>
               </div>
 
               {/* Roadmap Timeline */}
@@ -850,8 +960,24 @@ export function Roadmap() {
                           <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative z-[1] overflow-hidden">
                             <CardHeader className="pb-1 xs:pb-2 sm:pb-3 px-2 xs:px-3 sm:px-6 pt-2 xs:pt-3 sm:pt-4">
                               <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-1 sm:gap-2">
-                                <CardTitle className="text-xs xs:text-sm sm:text-base md:text-lg text-gray-800 line-clamp-2 break-words">
-                                  {node.title}
+                                <CardTitle 
+                                  className={`text-xs xs:text-sm sm:text-base md:text-lg text-gray-800 flex items-center gap-2 select-none ${index > 0 ? "cursor-pointer hover:text-primary" : ""}`}
+                                  onClick={() => index > 0 && toggleMilestone(selectedRoadmap.id, node.id)}
+                                >
+                                  {index > 0 && (
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all flex-shrink-0 ${
+                                      node.completed 
+                                        ? "bg-green-500 border-green-600 text-white" 
+                                        : "border-gray-300 bg-white"
+                                    }`}>
+                                      {node.completed ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                      ) : null}
+                                    </div>
+                                  )}
+                                  <span className={node.completed ? "line-through text-gray-400" : ""}>
+                                    {node.title}
+                                  </span>
                                 </CardTitle>
                                 {node.recommended_weeks && (
                                   <Badge

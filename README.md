@@ -13,27 +13,27 @@ A comprehensive full-stack educational platform that revolutionizes learning thr
 ## 🌟 Key Features
 
 ### **AI-Powered Learning Ecosystem**
-- 🤖 **Intelligent Chatbot** - Context-aware doubt solving with conversation history
-- 📝 **Smart Quiz System** - AI-generated personalized quizzes with automatic scoring
-- 👨‍🏫 **AI Tutor** - Interactive conversational tutoring system
-- 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
-- 🎬 **Visual Content Explorer** - YouTube API integration for educational video discovery
-- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads
+- 🤖 **Intelligent Doubt Solver** - Context-aware chatbot with quick starter prompts, code syntax highlighting with copy-code feedback, and an integrated Text-to-Speech (TTS) speech reader.
+- 📝 **Smart Quiz System** - AI-generated personalized quizzes with automatic scoring, instant review, and history logs.
+- 👨‍🏫 **AI Tutor** - Voice-enabled interactive conversational tutor with customizable speech synthesis (pitch slider, rate slider, system voices dropdown) and a pulsating audio wave recording visualizer.
+- 🗺️ **Learning Roadmaps** - Personalized career learning paths with interactive milestone tracking (completion checkboxes), progress bar cards, and persistent server-side MongoDB syncing.
+- 🎬 **Visual Content Explorer** - YouTube API integration for educational video discovery and embed previews.
+- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed PDF/TXT uploads, featuring a custom animated ATS Score circular gauge chart.
 
 ### **Modern React Application**
-- 📱 **Responsive Design** - Mobile-first interface optimized for all devices
-- ⚡ **Lightning Fast** - Vite build system with optimized performance
-- 🎨 **Beautiful UI** - TailwindCSS with Radix UI components
-- 🔥 **Hot Reload** - Instant development feedback with Vite HMR
-- 🌙 **Screen Fatigue Prevention** - Smart break reminders with timer reset
-- 🌐 **Basic PWA** - Simple offline support with floating status indicator
+- 📱 **Responsive Design** - Mobile-first interface optimized for all screen sizes and devices.
+- ⚡ **Lightning Fast** - Powered by Vite build system with fast hot-reloading (HMR).
+- 🎨 **Premium Light Mode Design** - Refined, modern corporate educational theme with clean typography (Poppins/Inter), soft cards, elegant glassmorphic components, and elevation shadows. Locked to Light Mode to maximize visual accessibility.
+- 🔥 **Hot Reload** - Instant development feedback with Vite HMR.
+- 🌙 **Screen Fatigue Prevention** - Smart break reminders with customizable timer reset.
+- 🌐 **Basic PWA** - Offline support with network status alerts and background sync queueing.
 
 ### **Universal Deployment**
-- 🌐 **Platform Agnostic** - Works on Vercel, AWS, Heroku, Google Cloud, locally
-- 🚀 **Serverless Ready** - Optimized for serverless environments
-- 📦 **Zero Configuration** - Auto-detects environment and adapts
-- 🛡️ **Production Grade** - Built-in security, error handling, and monitoring
-- 🔌 **Offline Access** - All pages remain accessible when connection is lost
+- 🌐 **Platform Agnostic** - Fully compatible with Vercel serverless, AWS, Railway, Render, or local setups.
+- 🚀 **Serverless Ready** - Optimized backend routing and modular Python handlers.
+- 📦 **Zero Configuration** - Auto-resolves development vs production endpoints.
+- 🛡️ **Production Grade** - Secure API keys, input validation, and structured error boundaries.
+- 🔌 **Offline Access** - Cached assets and local storage integration for resilient usability.
 
 ## 🏗️ Architecture Overview
 
@@ -66,15 +66,15 @@ graph TB
 
 Edvanta provides a suite of AI-powered tools designed to make learning more interactive and personalized.
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Intelligent Chatbot** | Context-aware doubt solving with conversation history | ✅ Active |
-| **AI Tutor** | Conversational tutoring system for various subjects | ✅ Active |
-| **Smart Quiz System** | AI-generated personalized quizzes with automatic scoring | ✅ Active |
-| **Learning Roadmaps** | Personalized learning paths with milestone tracking | ✅ Active |
-| **Visual Content Explorer** | YouTube API integration for educational video discovery | ✅ Active |
-| **Screen Fatigue Reminder** | Smart break reminders to prevent digital eye strain | ✅ Active |
-| **Resume Analyzer** | AI-powered resume scoring, feedback, and job mapping | ✅ Active |
+| Feature | Description | Interactive Capabilities | Status |
+|---------|-------------|--------------------------|--------|
+| **Intelligent Chatbot** | Doubt solving with session history | Quick starters, Code copy, Text-to-Speech (TTS) | ✅ 10/10 Active |
+| **AI Tutor** | Conversational tutor | Speech Rate/Pitch, Custom Voices, Audio Recording Wave | ✅ 10/10 Active |
+| **Smart Quiz System** | AI-generated quizzes & evaluation | Automatic grading, Interactive selection, History | ✅ 10/10 Active |
+| **Learning Roadmaps** | Personalized learning paths | Milestone checkboxes, Progress percentage bars, DB Sync | ✅ 10/10 Active |
+| **Visual Content Explorer** | YouTube video explorer | Video search, Modal player embed | ✅ 10/10 Active |
+| **Resume Analyzer** | AI-powered resume scanning | File upload, Animated ATS Score circular gauge, Job mapping | ✅ 10/10 Active |
+| **Screen Fatigue** | Eye strain prevention | Smart notifications, Break reminders | ✅ 10/10 Active |
 
 ## 📁 Project Structure
 

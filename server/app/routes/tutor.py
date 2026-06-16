@@ -84,13 +84,15 @@ def tutor_ask():
         return jsonify(result)
 
     except Exception as e:
-
-        # Get a graceful error response
-        fallback_result = get_tutor_response(
-            f"Error processing request about {subject}",
-            subject
-        )
-        fallback_response = fallback_result['response']
+        # Get a graceful error response without crashing if fallback also fails (e.g. quota limits)
+        try:
+            fallback_result = get_tutor_response(
+                f"Error processing request about {subject}",
+                subject
+            )
+            fallback_response = fallback_result.get('response', 'I encountered an error processing your query. Please try again.')
+        except Exception:
+            fallback_response = "I encountered an error processing your query. Please try again in a few moments."
 
         return jsonify({
             "success": False,
@@ -468,9 +470,12 @@ def check_voice_connection():
 
         if ai_initialized:
             # Try to generate a simple test response
-            test_result = get_tutor_response("Test connection")
+            try:
+                test_result = get_tutor_response("Test connection")
+            except Exception as e:
+                test_result = {'success': False, 'error': str(e)}
 
-            if test_result['success']:
+            if test_result.get('success'):
                 status = "Voice services are working properly"
                 return jsonify({
                     "success": True,
@@ -478,7 +483,7 @@ def check_voice_connection():
                     "timestamp": datetime.utcnow().isoformat()
                 })
             else:
-                status = "Voice services are partially available (AI initialization OK, but response generation failed)"
+                status = f"Voice services are partially available (AI initialization OK, but response generation failed: {test_result.get('error', 'Unknown error')})"
         else:
             status = "Voice services are unavailable (AI initialization failed)"
 

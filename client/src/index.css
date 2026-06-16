@@ -487,6 +487,15 @@
   }
 }
 
+@keyframes recording-wave {
+  0% {
+    height: 15%;
+  }
+  100% {
+    height: 100%;
+  }
+}
+
 /* Custom loading animations */
 @keyframes loader-pulse {
 

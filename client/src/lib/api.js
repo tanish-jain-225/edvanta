@@ -326,11 +326,11 @@ export const edvantaAPI = {
   },
 
   updateRoadmapProgress(roadmapId, progressData, userEmail) {
-    return api.put(`/api/roadmap/${roadmapId}`, { ...progressData, user_email: userEmail });
+    return api.put(`/api/roadmap/${roadmapId}?user_email=${encodeURIComponent(userEmail)}`, progressData);
   },
 
   deleteRoadmap(roadmapId, userEmail) {
-    return api.delete(`/api/roadmap/${roadmapId}`, { user_email: userEmail });
+    return api.delete(`/api/roadmap/${roadmapId}?user_email=${encodeURIComponent(userEmail)}`);
   },
 
   downloadRoadmap(roadmapId, userEmail) {

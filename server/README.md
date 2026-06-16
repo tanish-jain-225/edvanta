@@ -1,3 +1,7 @@
+<div align="center">
+	<img src="../assets/edvanta-logo.png" alt="Edvanta" height="90" />
+</div>
+
 # Edvanta Backend Server
 
 <!-- Badges: update URLs to point to your CI / coverage / packaging if available -->
@@ -20,13 +24,13 @@ Works seamlessly across all hosting platforms without configuration:
 - ✅ **Local Development**
 
 ### **AI-Powered Learning Tools**
-- 🤖 **Conversational Chatbot** - Context-aware doubt solving with chat history
-- 📝 **Quiz Generation** - AI-generated quizzes with automatic scoring & analytics
-- 🗺️ **Learning Roadmaps** - Personalized learning paths with milestone tracking
-- 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support
-- 📊 **User Analytics** - Comprehensive learning progress & performance tracking
-- 🎬 **Visual Content Explorer** - Client-side YouTube API integration (no backend required)
-- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads
+- 🤖 **Conversational Chatbot** - Context-aware doubt solving with chat history.
+- 📝 **Quiz Generation** - AI-generated quizzes with automatic scoring & analytics.
+- 🗺️ **Learning Roadmaps** - Personalized learning paths with direct parameter syncing, milestone state updates, and persistent DB updates.
+- 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support, featuring robust try-except exception containment to handle API quota limits (429) gracefully without returning 500, and a connection test route returning 503 on service unavailability.
+- 📊 **User Analytics** - Comprehensive learning progress & performance tracking.
+- 🎬 **Visual Content Explorer** - Client-side YouTube API integration (no backend required).
+- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads.
 
 ### **Robust Architecture**
 - 🔄 **Auto-Environment Detection** - Automatically adapts to deployment platform

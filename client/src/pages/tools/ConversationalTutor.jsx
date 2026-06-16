@@ -124,6 +124,12 @@ export function ConversationalTutor() {
   const [errorCount, setErrorCount] = useState(0);
   const [checkingForActiveSession, setCheckingForActiveSession] = useState(true);
   
+  // Voice TTS settings
+  const [voiceRate, setVoiceRate] = useState(1.0);
+  const [voicePitch, setVoicePitch] = useState(1.0);
+  const [selectedVoiceName, setSelectedVoiceName] = useState("");
+  const [browserVoices, setBrowserVoices] = useState([]);
+  
   // Network connectivity state
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
@@ -253,6 +259,33 @@ export function ConversationalTutor() {
       }
     };
   }, []);
+
+  // Load voices when speechSynthesis is ready
+  useEffect(() => {
+    const loadVoices = () => {
+      if (window.speechSynthesis) {
+        const voices = window.speechSynthesis.getVoices();
+        setBrowserVoices(voices);
+        
+        // Find default preferred voice
+        const defaultVoice = voices.find(
+          (voice) =>
+            voice.name.includes("Google") &&
+            voice.name.includes("US") &&
+            voice.name.includes("Female")
+        ) || voices[0];
+        
+        if (defaultVoice && !selectedVoiceName) {
+          setSelectedVoiceName(defaultVoice.name);
+        }
+      }
+    };
+
+    loadVoices();
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, [selectedVoiceName]);
 
   // Add a visibility change handler to stop speech when tab is hidden
   useEffect(() => {
@@ -873,13 +906,13 @@ export function ConversationalTutor() {
         const utterance = new SpeechSynthesisUtterance(optimizedText);
 
         // Configure the utterance
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
+        utterance.rate = voiceRate;
+        utterance.pitch = voicePitch;
         utterance.volume = 1.0;
 
-        // Try to use a better voice if available
+        // Try to use selected voice if available
         const voices = speechSynthesisRef.current.getVoices();
-        const preferredVoice = voices.find(
+        const preferredVoice = voices.find((v) => v.name === selectedVoiceName) || voices.find(
           (voice) =>
             voice.name.includes("Google") &&
             voice.name.includes("US") &&
@@ -937,6 +970,21 @@ export function ConversationalTutor() {
         console.error("Error optimizing text for speech:", error);
         // Fallback to speaking the original text
         const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = voiceRate;
+        utterance.pitch = voicePitch;
+        utterance.volume = 1.0;
+        
+        const voices = speechSynthesisRef.current.getVoices();
+        const preferredVoice = voices.find((v) => v.name === selectedVoiceName) || voices.find(
+          (voice) =>
+            voice.name.includes("Google") &&
+            voice.name.includes("US") &&
+            voice.name.includes("Female")
+        );
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+        }
+
         utterance.onend = () => {
           setIsSpeaking(false);
           setCurrentSpeakingMessageId(null);
@@ -1922,23 +1970,18 @@ export function ConversationalTutor() {
 
                 {micState === MicState.ACTIVE ? (
                   <div className="w-full flex flex-col items-center">
-                    <div className="flex items-center justify-center space-x-1 mb-2">
-                      <div
-                        className="bg-red-400 h-1.5 w-1.5 rounded-full animate-bounce"
-                        style={{ animationDelay: "0ms" }}
-                      ></div>
-                      <div
-                        className="bg-red-400 h-1.5 w-1.5 rounded-full animate-bounce"
-                        style={{ animationDelay: "150ms" }}
-                      ></div>
-                      <div
-                        className="bg-red-400 h-1.5 w-1.5 rounded-full animate-bounce"
-                        style={{ animationDelay: "300ms" }}
-                      ></div>
-                      <div
-                        className="bg-red-400 h-1.5 w-1.5 rounded-full animate-bounce"
-                        style={{ animationDelay: "450ms" }}
-                      ></div>
+                    <div className="flex items-end justify-center gap-1 mb-3 h-8 w-32 px-4">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+                        <div
+                          key={i}
+                          className="bg-red-500 rounded-full w-1"
+                          style={{
+                            height: '100%',
+                            animation: `recording-wave 0.8s ease-in-out infinite alternate`,
+                            animationDelay: `${i * 80}ms`
+                          }}
+                        ></div>
+                      ))}
                     </div>
                     <p className="text-sm text-red-500 font-medium">
                       Recording...
@@ -1985,6 +2028,63 @@ export function ConversationalTutor() {
                   {selectedSubject}
                 </Badge>
               </div>
+
+              {isVoiceEnabled && browserVoices.length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3 text-base text-gray-800">Voice Settings</h3>
+                  <div className="space-y-4">
+                    {/* Voice selector */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-500 block">Select Voice</label>
+                      <select
+                        value={selectedVoiceName}
+                        onChange={(e) => setSelectedVoiceName(e.target.value)}
+                        className="w-full text-xs p-2 border border-gray-200 rounded bg-white text-gray-700 outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {browserVoices.map((voice) => (
+                          <option key={voice.name} value={voice.name}>
+                            {voice.name} ({voice.lang})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Speed/Rate slider */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-semibold text-gray-500">
+                        <span>Speed</span>
+                        <span>{voiceRate.toFixed(1)}x</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2.0"
+                        step="0.1"
+                        value={voiceRate}
+                        onChange={(e) => setVoiceRate(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-gray-250 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                      />
+                    </div>
+
+                    {/* Pitch slider */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-semibold text-gray-500">
+                        <span>Pitch</span>
+                        <span>{voicePitch.toFixed(1)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2.0"
+                        step="0.1"
+                        value={voicePitch}
+                        onChange={(e) => setVoicePitch(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-gray-250 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <h3 className="font-medium mb-3 text-base">Quick Tips</h3>
