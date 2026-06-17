@@ -12,8 +12,6 @@ import {
   LogIn,
   Volume2,
   VolumeX,
-  Copy,
-  Check,
 } from "lucide-react";
 import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
