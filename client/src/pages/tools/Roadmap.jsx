@@ -42,10 +42,40 @@ const enforceMinimumLoadingTime = async (startTime, minimumTime = 1000) => {
 
 const getRoadmapProgress = (nodes) => {
   if (!nodes || !Array.isArray(nodes)) return 0;
-  const targetNodes = nodes.filter((n) => n.id !== "start");
+  // The first node (index 0) is the start point and has no checkbox, so filter it out.
+  // Also filter out any node with id "start" to be safe.
+  const targetNodes = nodes.filter((n, idx) => idx !== 0 && n.id !== "start");
   if (targetNodes.length === 0) return 0;
   const completedNodes = targetNodes.filter((n) => n.completed).length;
   return Math.round((completedNodes / targetNodes.length) * 100);
+};
+
+const getTargetCompletionDate = (roadmap) => {
+  if (!roadmap) return "N/A";
+  const dateSource = roadmap.created_at || roadmap.dateCreated;
+  if (!dateSource) return "N/A";
+  
+  const baseDate = new Date(dateSource);
+  if (isNaN(baseDate.getTime())) {
+    // Try to manually parse DD/MM/YYYY
+    const parts = String(dateSource).split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; // 0-indexed month
+      const year = parseInt(parts[2], 10);
+      const parsedDate = new Date(year, month, day);
+      if (!isNaN(parsedDate.getTime())) {
+        return new Date(
+          parsedDate.getTime() + (roadmap.duration || 12) * 7 * 24 * 60 * 60 * 1000
+        ).toLocaleDateString();
+      }
+    }
+    return "N/A";
+  }
+  
+  return new Date(
+    baseDate.getTime() + (roadmap.duration || 12) * 7 * 24 * 60 * 60 * 1000
+  ).toLocaleDateString();
 };
 
 export function Roadmap() {
@@ -57,7 +87,7 @@ export function Roadmap() {
   const [savedRoadmaps, setSavedRoadmaps] = useState([]);
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingRoadmapId, setDeletingRoadmapId] = useState(null);
   const [isLoadingRoadmaps, setIsLoadingRoadmaps] = useState(false);
   const [error, setError] = useState(null);
   const [selectedRoadmap, setSelectedRoadmap] = useState(null);
@@ -98,6 +128,7 @@ export function Roadmap() {
           title: roadmap.title,
           description: roadmap.description,
           duration: roadmap.duration_weeks,
+          created_at: roadmap.created_at,
           dateCreated: new Date(roadmap.created_at).toLocaleDateString(),
           data: roadmap.data,
           skills: roadmap.data.nodes
@@ -132,6 +163,7 @@ export function Roadmap() {
         title: roadmap.title,
         description: roadmap.description,
         duration: roadmap.duration_weeks,
+        created_at: roadmap.created_at,
         dateCreated: new Date(roadmap.created_at).toLocaleDateString(),
         data: roadmap.data,
         skills: roadmap.data.nodes
@@ -156,6 +188,7 @@ export function Roadmap() {
           title: roadmap.title,
           description: roadmap.description,
           duration: roadmap.duration_weeks,
+          created_at: roadmap.created_at,
           dateCreated: new Date(roadmap.created_at).toLocaleDateString(),
           data: roadmap.data,
           skills: roadmap.data.nodes
@@ -249,6 +282,7 @@ export function Roadmap() {
           title: detailedRoadmap.title,
           description: detailedRoadmap.description,
           duration: detailedRoadmap.duration_weeks,
+          created_at: detailedRoadmap.created_at,
           dateCreated: new Date(detailedRoadmap.created_at).toLocaleDateString(),
           data: detailedRoadmap.data,
           skills: detailedRoadmap.data.nodes
@@ -293,6 +327,7 @@ export function Roadmap() {
         title: detailedRoadmap.title,
         description: detailedRoadmap.description,
         duration: detailedRoadmap.duration_weeks,
+        created_at: detailedRoadmap.created_at,
         dateCreated: new Date(detailedRoadmap.created_at).toLocaleDateString(),
         data: detailedRoadmap.data,
         skills: detailedRoadmap.data.nodes
@@ -349,7 +384,7 @@ export function Roadmap() {
     }
 
     try {
-      setIsDeleting(true);
+      setDeletingRoadmapId(roadmapId);
       const response = await fetch(
         `${backEndURL}/api/roadmap/${roadmapId}?user_email=${user.email}`,
         {
@@ -374,7 +409,7 @@ export function Roadmap() {
       console.error("Error deleting roadmap:", error);
       alert("Failed to delete roadmap. Please try again later.");
     } finally {
-      setIsDeleting(false);
+      setDeletingRoadmapId(null);
     }
   };
 
@@ -780,9 +815,9 @@ export function Roadmap() {
                           e.stopPropagation();
                           deleteRoadmap(roadmap.id);
                         }}
-                        disabled={isDeleting}
+                        disabled={deletingRoadmapId !== null}
                       >
-                        {isDeleting ? (
+                        {deletingRoadmapId === roadmap.id ? (
                           <>
                             <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-2 animate-spin" />
                             Deleting...
@@ -897,10 +932,7 @@ export function Roadmap() {
                         Target Completion
                       </p>
                       <p className="text-xs xs:text-sm sm:text-base font-medium truncate">
-                        {new Date(
-                          new Date(selectedRoadmap.dateCreated).getTime() +
-                            selectedRoadmap.duration * 7 * 24 * 60 * 60 * 1000
-                        ).toLocaleDateString()}
+                        {getTargetCompletionDate(selectedRoadmap)}
                       </p>
                     </div>
                   </div>

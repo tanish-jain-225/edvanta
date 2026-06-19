@@ -96,6 +96,7 @@ def create_app() -> Flask:
     def health():
         """Health check endpoint with environment info."""
         from .config import Config
+        from .utils.mongo_utils import is_mongodb_connected
         config = Config()
         return {
             "status": "ok",
@@ -106,7 +107,8 @@ def create_app() -> Flask:
             "platform": _detect_platform(config),
             "registered_blueprints": list(app.blueprints.keys()) if hasattr(app, 'blueprints') else [],
             "total_blueprints": len(registered_blueprints),
-            "mongodb_uri_configured": bool(config.MONGODB_URI and config.MONGODB_URI != "mongodb://localhost:27017/")
+            "mongodb_uri_configured": bool(config.MONGODB_URI and config.MONGODB_URI != "mongodb://localhost:27017/"),
+            "mongodb_connected": is_mongodb_connected()
         }
 
     def _detect_platform(config):

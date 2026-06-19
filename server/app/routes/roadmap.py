@@ -6,6 +6,7 @@ Stores and retrieves roadmaps from MongoDB.
 from flask import Blueprint, request, jsonify, send_file
 import uuid
 from datetime import datetime
+import html
 from app.utils.ai_utils import generate_roadmap_content
 from app.utils.mongo_utils import connect_to_mongodb
 
@@ -26,13 +27,13 @@ def generate_roadmap():
     Steps:
       1. Validate request
       2. Call Gemini AI to outline milestones & sequencing
-      3. Store the generated roadmap in MongoDB
+      3. Store the generated roadmap in MongoDB or fallback store
       4. Return the roadmap data
     """
     # Check if MongoDB is available (if not, use in-memory fallback)
     global client, db, collection_name
     if db is None:
-        client, db, collection_name = connect_to_mongodb()
+        client, db, collection_name = connect_to_mongodb('MONGODB_ROADMAP_COLLECTION')
 
     data = request.get_json() or {}
     goal = data.get("goal")
@@ -72,13 +73,21 @@ def generate_roadmap():
             "data": roadmap_data
         }
 
-        # Save to MongoDB - REQUIRED
-        if db is None or collection_name is None:
-            raise Exception("MongoDB connection required for roadmap storage - no fallbacks available")
-        
-        roadmap_collection = db[collection_name]
-        roadmap_collection.insert_one(roadmap_document)
-        return jsonify({"success": True, "roadmap": roadmap_data})
+        # Save to MongoDB or fallback to in-memory
+        if db is not None and collection_name is not None:
+            roadmap_collection = db[collection_name]
+            roadmap_collection.insert_one(roadmap_document)
+            if "_id" in roadmap_document:
+                roadmap_document["_id"] = str(roadmap_document["_id"])
+        else:
+            # Fallback to in-memory store
+            _in_memory_roadmaps[roadmap_document["id"]] = roadmap_document
+
+        # Ensure created_at is serialized if it is a datetime object
+        if isinstance(roadmap_document.get("created_at"), datetime):
+            roadmap_document["created_at"] = roadmap_document["created_at"].isoformat()
+
+        return jsonify({"success": True, "roadmap": roadmap_document})
     except Exception as e:
         return jsonify({"error": f"Roadmap generation failed: {str(e)}"}), 500
 
@@ -93,7 +102,7 @@ def get_user_roadmaps():
     # Check if MongoDB is available
     global client, db, collection_name
     if db is None:
-        client, db, collection_name = connect_to_mongodb()
+        client, db, collection_name = connect_to_mongodb('MONGODB_ROADMAP_COLLECTION')
         # If still unavailable, proceed with in-memory fallback (do not 503)
 
     user_email = request.args.get("user_email") or request.args.get("userEmail")
@@ -107,10 +116,22 @@ def get_user_roadmaps():
             roadmaps = []
             for roadmap in roadmaps_cursor:
                 roadmap["_id"] = str(roadmap["_id"])
+                if "created_at" in roadmap and isinstance(roadmap["created_at"], datetime):
+                    roadmap["created_at"] = roadmap["created_at"].isoformat()
+                if "updated_at" in roadmap and isinstance(roadmap["updated_at"], datetime):
+                    roadmap["updated_at"] = roadmap["updated_at"].isoformat()
                 roadmaps.append(roadmap)
             return jsonify(roadmaps)
         # Fallback to in-memory
-        user_roadmaps = [r for r in _in_memory_roadmaps.values() if r.get("user_email") == user_email]
+        user_roadmaps = []
+        for r in _in_memory_roadmaps.values():
+            if r.get("user_email") == user_email:
+                r_copy = r.copy()
+                if "created_at" in r_copy and isinstance(r_copy["created_at"], datetime):
+                    r_copy["created_at"] = r_copy["created_at"].isoformat()
+                if "updated_at" in r_copy and isinstance(r_copy["updated_at"], datetime):
+                    r_copy["updated_at"] = r_copy["updated_at"].isoformat()
+                user_roadmaps.append(r_copy)
         return jsonify(user_roadmaps)
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve roadmaps: {str(e)}"}), 500
@@ -126,7 +147,7 @@ def get_roadmap_by_id(roadmap_id):
     # Check if MongoDB is available (use in-memory fallback if not)
     global client, db, collection_name
     if db is None:
-        client, db, collection_name = connect_to_mongodb()
+        client, db, collection_name = connect_to_mongodb('MONGODB_ROADMAP_COLLECTION')
 
     if not roadmap_id:
         return jsonify({"error": "Missing roadmap_id parameter"}), 400
@@ -166,6 +187,10 @@ def get_roadmap_by_id(roadmap_id):
                     roadmap = roadmap_collection.find_one(
                         {"id": roadmap_id, "user_email": user_email})
                     roadmap["_id"] = str(roadmap["_id"])
+                    if "created_at" in roadmap and isinstance(roadmap["created_at"], datetime):
+                        roadmap["created_at"] = roadmap["created_at"].isoformat()
+                    if "updated_at" in roadmap and isinstance(roadmap["updated_at"], datetime):
+                        roadmap["updated_at"] = roadmap["updated_at"].isoformat()
                     return jsonify({"success": True, "roadmap": roadmap}), 200
 
                 return jsonify({"success": True, "message": "No changes were made"}), 200
@@ -180,6 +205,10 @@ def get_roadmap_by_id(roadmap_id):
                     return jsonify({"error": "Failed to delete roadmap"}), 500
 
             roadmap["_id"] = str(roadmap["_id"])
+            if "created_at" in roadmap and isinstance(roadmap["created_at"], datetime):
+                roadmap["created_at"] = roadmap["created_at"].isoformat()
+            if "updated_at" in roadmap and isinstance(roadmap["updated_at"], datetime):
+                roadmap["updated_at"] = roadmap["updated_at"].isoformat()
             return jsonify(roadmap)
 
         # Fall back to in-memory store
@@ -199,13 +228,26 @@ def get_roadmap_by_id(roadmap_id):
                     r[field] = body[field]
             r["updated_at"] = datetime.utcnow()
             _in_memory_roadmaps[r.get("id")] = r
-            return jsonify({"success": True, "roadmap": r}), 200
+            
+            # Serialize for response
+            r_copy = r.copy()
+            if "created_at" in r_copy and isinstance(r_copy["created_at"], datetime):
+                r_copy["created_at"] = r_copy["created_at"].isoformat()
+            if "updated_at" in r_copy and isinstance(r_copy["updated_at"], datetime):
+                r_copy["updated_at"] = r_copy["updated_at"].isoformat()
+            return jsonify({"success": True, "roadmap": r_copy}), 200
 
         if request.method == "DELETE":
             _in_memory_roadmaps.pop(r.get("id"), None)
             return jsonify({"success": True, "message": "Roadmap deleted successfully"}), 200
 
-        return jsonify(r)
+        # Serialize for GET response
+        r_copy = r.copy()
+        if "created_at" in r_copy and isinstance(r_copy["created_at"], datetime):
+            r_copy["created_at"] = r_copy["created_at"].isoformat()
+        if "updated_at" in r_copy and isinstance(r_copy["updated_at"], datetime):
+            r_copy["updated_at"] = r_copy["updated_at"].isoformat()
+        return jsonify(r_copy)
 
     except Exception as e:
         return jsonify({"error": f"Operation failed: {str(e)}"}), 500
@@ -221,7 +263,7 @@ def download_roadmap(roadmap_id):
     # Check if MongoDB is available
     global client, db, collection_name
     if db is None:
-        client, db, collection_name = connect_to_mongodb()
+        client, db, collection_name = connect_to_mongodb('MONGODB_ROADMAP_COLLECTION')
 
     user_email = request.args.get("user_email") or request.args.get("userEmail")
     if not user_email:
@@ -264,14 +306,13 @@ def download_roadmap(roadmap_id):
         h2 = ParagraphStyle("Section", parent=styles["Heading2"], fontSize=13, spaceBefore=12, spaceAfter=6)
         normal = styles["BodyText"]
 
-
         story = []
         # Header
-        story.append(Paragraph(f"Roadmap: {roadmap['title']}", h1))
+        story.append(Paragraph(f"Roadmap: {html.escape(roadmap['title'])}", h1))
         story.append(Spacer(1, 6))
 
         # Description
-        story.append(Paragraph(roadmap['description'], normal))
+        story.append(Paragraph(html.escape(roadmap['description']), normal))
         story.append(Spacer(1, 12))
 
         # Duration
@@ -284,9 +325,15 @@ def download_roadmap(roadmap_id):
             created_date = roadmap['created_at']
             if isinstance(created_date, datetime):
                 created_str = created_date.strftime("%Y-%m-%d")
+            elif isinstance(created_date, str):
+                try:
+                    dt = datetime.fromisoformat(created_date.replace("Z", "+00:00"))
+                    created_str = dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    created_str = created_date[:10]
             else:
                 created_str = str(created_date)
-            story.append(Paragraph(f"Created: {created_str}", normal))
+            story.append(Paragraph(f"Created: {html.escape(created_str)}", normal))
             story.append(Spacer(1, 12))
 
         # Nodes
@@ -295,13 +342,13 @@ def download_roadmap(roadmap_id):
 
         nodes = roadmap['data'].get('nodes', [])
         for i, node in enumerate(nodes, 1):
-            story.append(Paragraph(f"{i}. {node['title']}", h2))
-            story.append(Paragraph(node['description'], normal))
+            story.append(Paragraph(f"{i}. {html.escape(node['title'])}", h2))
+            story.append(Paragraph(html.escape(node['description']), normal))
             if node.get('recommended_weeks'):
                 story.append(Paragraph(f"Recommended weeks: {node['recommended_weeks']}", normal))
             if node.get('resources') and node['resources']:
                 story.append(Paragraph("Resources:", normal))
-                bullets = [ListItem(Paragraph(str(r), normal)) for r in node['resources']]
+                bullets = [ListItem(Paragraph(html.escape(str(r)), normal)) for r in node['resources']]
                 story.append(ListFlowable(bullets, bulletType="bullet", leftIndent=12))
             story.append(Spacer(1, 12))
 
@@ -314,7 +361,7 @@ def download_roadmap(roadmap_id):
                 from_node = next((n for n in nodes if n['id'] == edge['from']), None)
                 to_node = next((n for n in nodes if n['id'] == edge['to']), None)
                 if from_node and to_node:
-                    story.append(Paragraph(f"{from_node['title']} → {to_node['title']}", normal))
+                    story.append(Paragraph(f"{html.escape(from_node['title'])} → {html.escape(to_node['title'])}", normal))
             story.append(Spacer(1, 12))
 
         doc.build(story)

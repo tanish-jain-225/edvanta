@@ -61,12 +61,20 @@ def get_user_stats():
         skills_pipeline = [
             {"$match": {"user_email": user_email}},
             {"$project": {
-                "skills": {"$ifNull": ["$data.nodes", []]}
+                "nodes": {"$ifNull": ["$data.nodes", []]}
+            }},
+            {"$unwind": "$nodes"},
+            {"$project": {
+                "skills": {"$cond": {
+                    "if": {"$isArray": "$nodes.skills"},
+                    "then": "$nodes.skills",
+                    "else": {"$cond": {"if": {"$and": [{"$ne": ["$nodes.title", None]}, {"$ne": ["$nodes.title", ""]}]}, "then": ["$nodes.title"], "else": []}}
+                }}
             }},
             {"$unwind": "$skills"},
+            {"$match": {"skills": {"$type": "string", "$ne": ""}}},
             {"$group": {
-                "_id": "$skills.id",
-                "skill_name": {"$first": "$skills.text"}
+                "_id": {"$toLower": {"$trim": {"input": "$skills"}}}
             }},
             {"$count": "unique_skills_count"}
         ]

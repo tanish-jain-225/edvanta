@@ -6,6 +6,7 @@ Provides:
 - Connection reuse for serverless environments
 """
 
+import time
 from pymongo import MongoClient
 from typing import Optional, Tuple
 from app.config import Config
@@ -18,68 +19,79 @@ _mongo_client_cache = None
 
 
 def get_mongo_client() -> Optional[MongoClient]:
-    """Get MongoDB client with connection reuse for serverless environments.
+    """Get MongoDB client with connection retry and reuse for serverless environments.
     
     Returns:
         MongoClient instance or None if connection fails
     """
     global _mongo_client_cache
     
-    try:
-        # Reuse connection in serverless environments
-        if Config.IS_SERVERLESS and _mongo_client_cache is not None:
-            try:
-                # Verify connection is still alive
-                _mongo_client_cache.admin.command('ping')
-                logger.debug("Reusing existing MongoDB connection")
-                return _mongo_client_cache
-            except Exception as e:
-                logger.info(f"Cached MongoDB connection expired: {e}, reconnecting...")
-                _mongo_client_cache = None
-        
-        connection_string = Config.MONGODB_URI
-        if not connection_string:
-            logger.warning("MONGODB_URI not configured")
-            return None
-        
-        # Configure connection based on environment
-        if Config.IS_SERVERLESS:
-            # Serverless-optimized settings (shorter timeouts, smaller pool)
-            client = MongoClient(
-                connection_string,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                socketTimeoutMS=10000,
-                maxPoolSize=1,  # Limit connections in serverless
-                minPoolSize=0,
-                maxIdleTimeMS=30000,
-                retryWrites=True
-            )
-            logger.info("MongoDB client created with serverless-optimized settings")
-        else:
-            # Local development settings (more generous timeouts, larger pool)
-            client = MongoClient(
-                connection_string,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=10000,
-                socketTimeoutMS=30000,
-                maxPoolSize=10,
-                minPoolSize=1
-            )
-            logger.info("MongoDB client created with development settings")
-        
-        # Test the connection
-        client.admin.command('ping')
-        
-        # Cache for serverless environments
-        if Config.IS_SERVERLESS:
-            _mongo_client_cache = client
-            logger.debug("MongoDB connection cached for reuse")
-        
-        return client
-    except Exception as e:
-        logger.error(f"MongoDB connection error: {e}")
+    connection_string = Config.MONGODB_URI
+    if not connection_string:
+        logger.warning("MONGODB_URI not configured")
         return None
+
+    # Setup connection settings
+    is_serverless = Config.IS_SERVERLESS
+    client_kwargs = {
+        "serverSelectionTimeoutMS": 5000,
+        "connectTimeoutMS": 5000 if is_serverless else 10000,
+        "socketTimeoutMS": 10000 if is_serverless else 30000,
+        "maxPoolSize": 1 if is_serverless else 10,
+        "minPoolSize": 0 if is_serverless else 1,
+        "retryWrites": True
+    }
+    
+    if is_serverless:
+        client_kwargs["maxIdleTimeMS"] = 30000
+
+    max_retries = 3
+    retry_delay = 0.5  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            # Reuse connection in serverless environments
+            if is_serverless and _mongo_client_cache is not None:
+                try:
+                    _mongo_client_cache.admin.command('ping')
+                    logger.debug("Reusing existing MongoDB connection")
+                    return _mongo_client_cache
+                except Exception as e:
+                    logger.info(f"Cached MongoDB connection expired: {e}, reconnecting...")
+                    _mongo_client_cache = None
+
+            client = MongoClient(connection_string, **client_kwargs)
+            client.admin.command('ping')
+            
+            if is_serverless:
+                _mongo_client_cache = client
+                logger.debug("MongoDB connection cached for reuse")
+                
+            return client
+        except Exception as e:
+            logger.warning(f"MongoDB connection attempt {attempt + 1}/{max_retries} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                logger.error(f"Failed to connect to MongoDB after {max_retries} attempts: {e}")
+                return None
+
+
+def is_mongodb_connected() -> bool:
+    """Helper to verify if the MongoDB server is actively reachable.
+    
+    Returns:
+        bool: True if reachable, False otherwise
+    """
+    client = get_mongo_client()
+    if not client:
+        return False
+    try:
+        client.admin.command('ping')
+        return True
+    except Exception:
+        return False
 
 
 def connect_to_mongodb(

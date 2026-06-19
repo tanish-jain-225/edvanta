@@ -78,10 +78,10 @@ const CORE_TOOLS = [
 
 const formatLearningTime = (totalMinutes) => {
   if (!totalMinutes || totalMinutes === 0) return "0 min";
-  
+
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  
+
   if (hours === 0) {
     return `${minutes} min`;
   } else if (minutes === 0) {
@@ -139,7 +139,7 @@ export function Dashboard() {
 
     try {
       const result = await edvantaAPI.getUserStats(user.email);
-      
+
       if (result.success) {
         const data = result.data;
         const statsObj = {
@@ -167,7 +167,7 @@ export function Dashboard() {
 
   const fetchDetailedData = async () => {
     if (!user?.email) return;
-    
+
     if (!navigator.onLine) {
       const cachedQuizHistory = getCachedData(user.email, "quiz_history");
       if (cachedQuizHistory) {
@@ -239,10 +239,10 @@ export function Dashboard() {
       label: "Quizzes Completed",
       value: userStats.quizzesTaken,
       icon: Brain,
-      change: userStats.quizzesTaken === 0 ? "Start your learning journey" : 
-              userStats.quizzesTaken === 1 ? "Great start! Take another" :
-              userStats.quizzesTaken < 5 ? "Building knowledge" :
-              userStats.quizzesTaken < 10 ? "Making great progress" :
+      change: userStats.quizzesTaken === 0 ? "Start your learning journey" :
+        userStats.quizzesTaken === 1 ? "Great start! Take another" :
+          userStats.quizzesTaken < 5 ? "Building knowledge" :
+            userStats.quizzesTaken < 10 ? "Making great progress" :
               "Quiz master in the making!",
       color: "text-green-600"
     },
@@ -251,9 +251,9 @@ export function Dashboard() {
       value: userStats.roadmapsActive,
       icon: MapPin,
       change: userStats.roadmapsActive === 0 ? "Create your first roadmap" :
-              userStats.roadmapsActive === 1 ? "Focused learning approach" :
-              userStats.roadmapsActive < 3 ? "Expanding your horizons" :
-              "Multi-path learner",
+        userStats.roadmapsActive === 1 ? "Focused learning approach" :
+          userStats.roadmapsActive < 3 ? "Expanding your horizons" :
+            "Multi-path learner",
       color: "text-blue-600"
     },
     {
@@ -261,9 +261,9 @@ export function Dashboard() {
       value: userStats.skillsLearning,
       icon: Target,
       change: userStats.skillsLearning === 0 ? "No skills tracked yet" :
-              userStats.skillsLearning === 1 ? "First skill unlocked" :
-              userStats.skillsLearning < 5 ? "Building skill foundation" :
-              userStats.skillsLearning < 10 ? "Diverse skill development" :
+        userStats.skillsLearning === 1 ? "First skill unlocked" :
+          userStats.skillsLearning < 5 ? "Building skill foundation" :
+            userStats.skillsLearning < 10 ? "Diverse skill development" :
               "Skill portfolio growing",
       color: "text-orange-600"
     },
@@ -272,9 +272,9 @@ export function Dashboard() {
       value: formatLearningTime(userStats.learningMinutes),
       icon: Clock,
       change: userStats.learningMinutes === 0 ? "Ready to start learning" :
-              userStats.learningMinutes < 60 ? "First steps taken" :
-              userStats.learningMinutes < 180 ? "Consistent progress" :
-              userStats.learningMinutes < 360 ? "Dedicated learner" :
+        userStats.learningMinutes < 60 ? "First steps taken" :
+          userStats.learningMinutes < 180 ? "Consistent progress" :
+            userStats.learningMinutes < 360 ? "Dedicated learner" :
               "Learning champion",
       color: "text-purple-600"
     },
@@ -283,9 +283,9 @@ export function Dashboard() {
       value: userStats.roadmapsCreated,
       icon: BookOpen,
       change: userStats.roadmapsCreated === 0 ? "Plan your learning journey" :
-              userStats.roadmapsCreated === 1 ? "Learning path established" :
-              userStats.roadmapsCreated < 3 ? "Exploring different areas" :
-              "Comprehensive learning approach",
+        userStats.roadmapsCreated === 1 ? "Learning path established" :
+          userStats.roadmapsCreated < 3 ? "Exploring different areas" :
+            "Comprehensive learning approach",
       color: "text-indigo-600"
     }
   ];
@@ -408,7 +408,7 @@ export function Dashboard() {
               <p className="text-sm text-gray-600">Ask any question and get instant AI-powered answers</p>
             </div>
           </div>
-          
+
           <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-200">
             <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
               <span className="text-sm font-bold text-purple-600">2</span>
@@ -418,7 +418,7 @@ export function Dashboard() {
               <p className="text-sm text-gray-600">Get a personalized path for any subject you want to learn</p>
             </div>
           </div>
-          
+
           <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-200">
             <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
               <span className="text-sm font-bold text-green-600">3</span>
@@ -485,8 +485,8 @@ export function Dashboard() {
               <div className="text-center py-6">
                 <Brain className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-600">No quizzes taken yet</p>
-                <Button 
-                  className="mt-3" 
+                <Button
+                  className="mt-3"
                   size="sm"
                   onClick={() => navigate("/tools/quizzes")}
                 >
@@ -509,19 +509,18 @@ export function Dashboard() {
                       </p>
                     </div>
                     <div className="text-right ml-3">
-                      <div className={`text-lg font-bold ${
-                        (quiz.percentage || 0) >= 80 ? 'text-green-600' :
-                        (quiz.percentage || 0) >= 60 ? 'text-yellow-600' :
-                        'text-red-500'
-                      }`}>
+                      <div className={`text-lg font-bold ${(quiz.percentage || 0) >= 80 ? 'text-green-600' :
+                          (quiz.percentage || 0) >= 60 ? 'text-yellow-600' :
+                            'text-red-500'
+                        }`}>
                         {quiz.percentage || 0}%
                       </div>
                       <div className="text-xs text-gray-500">
-                        {quiz.completedAt ? 
+                        {quiz.completedAt ?
                           new Date(quiz.completedAt).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric'
-                          }) : 
+                          }) :
                           'Recently'
                         }
                       </div>
@@ -529,9 +528,9 @@ export function Dashboard() {
                   </div>
                 ))}
                 {quizHistory.length > 0 && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-full mt-3"
                     onClick={() => navigate("/tools/quizzes")}
                   >
@@ -559,8 +558,8 @@ export function Dashboard() {
               <div className="text-center py-6">
                 <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-600">No roadmaps created yet</p>
-                <Button 
-                  className="mt-3" 
+                <Button
+                  className="mt-3"
                   size="sm"
                   onClick={() => navigate("/tools/roadmap")}
                 >
@@ -576,11 +575,11 @@ export function Dashboard() {
                         {roadmap.title || roadmap.topic || "Learning Roadmap"}
                       </h4>
                       <span className="text-xs text-gray-500 whitespace-nowrap">
-                        {roadmap.created_at ? 
+                        {roadmap.created_at ?
                           new Date(roadmap.created_at).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric'
-                          }) : 
+                          }) :
                           'Recent'
                         }
                       </span>
@@ -598,12 +597,11 @@ export function Dashboard() {
                         )}
                       </div>
                       <div className="text-xs font-medium">
-                        <span className={`px-2 py-1 rounded ${
-                          roadmap.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
-                          roadmap.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                          roadmap.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
+                        <span className={`px-2 py-1 rounded ${roadmap.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
+                            roadmap.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                              roadmap.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                                'bg-blue-100 text-blue-700'
+                          }`}>
                           {roadmap.difficulty || "Progressive"}
                         </span>
                       </div>
@@ -611,9 +609,9 @@ export function Dashboard() {
                   </div>
                 ))}
                 {userRoadmaps.length > 0 && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-full mt-3"
                     onClick={() => navigate("/tools/roadmap")}
                   >

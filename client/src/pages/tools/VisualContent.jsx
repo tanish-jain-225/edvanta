@@ -69,15 +69,15 @@ const VisualContent = () => {
       }
 
       const data = await response.json();
-      
+
       // Get video statistics for each video
       const videoIds = data.items.map(item => item.id.videoId).join(',');
       const statsResponse = await fetch(
         `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${videoIds}&key=${YOUTUBE_API_KEY}`
       );
-      
+
       const statsData = await statsResponse.json();
-      
+
       // Merge video data with statistics
       const videosWithStats = data.items.map(item => {
         const stats = statsData.items.find(stat => stat.id === item.id.videoId);
@@ -108,11 +108,11 @@ const VisualContent = () => {
     if (!duration) return '';
     const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
     if (!match) return '';
-    
+
     const hours = match[1] ? parseInt(match[1].slice(0, -1)) : 0;
     const minutes = match[2] ? parseInt(match[2].slice(0, -1)) : 0;
     const seconds = match[3] ? parseInt(match[3].slice(0, -1)) : 0;
-    
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
@@ -129,13 +129,13 @@ const VisualContent = () => {
   const handleSearchQueryChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
-    
+
     // Clear error and reset search state when user starts typing
     if (error && value.trim()) {
       setError('');
       setHasSearched(false);
     }
-    
+
     // If search query becomes empty, clear videos and reset to original state
     if (!value.trim()) {
       setVideos([]);
@@ -155,7 +155,7 @@ const VisualContent = () => {
           <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
             Visual Content Explorer
           </h1>
-          
+
           {!isOnline && (
             <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg text-orange-800 flex items-start gap-3 text-sm mb-6">
               <AlertCircle className="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" />
@@ -200,7 +200,7 @@ const VisualContent = () => {
                 )}
               </button>
             </div>
-            
+
             {error && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
                 {error}
@@ -214,9 +214,8 @@ const VisualContent = () => {
               {videos.map((video) => (
                 <div
                   key={video.id.videoId}
-                  className={`bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 ${
-                    isOnline ? 'hover:shadow-xl cursor-pointer' : 'opacity-75 cursor-not-allowed'
-                  }`}
+                  className={`bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 ${isOnline ? 'hover:shadow-xl cursor-pointer' : 'opacity-75 cursor-not-allowed'
+                    }`}
                   onClick={() => {
                     if (!isOnline) return;
                     setSelectedVideo(video);
@@ -232,7 +231,7 @@ const VisualContent = () => {
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity duration-200 flex items-center justify-center">
                       <Play className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                     </div>
-                    
+
                     {/* Duration */}
                     {video.contentDetails?.duration && (
                       <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
@@ -248,7 +247,7 @@ const VisualContent = () => {
                       {video.snippet.title}
                     </h3>
                     <p className="text-gray-600 text-sm mb-2">{video.snippet.channelTitle}</p>
-                    
+
                     {/* Stats */}
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <div className="flex items-center gap-1">
@@ -319,7 +318,7 @@ const VisualContent = () => {
                     ×
                   </button>
                 </div>
-                
+
                 {/* Video Embed */}
                 <div className="aspect-video mb-4">
                   <iframe
@@ -329,7 +328,7 @@ const VisualContent = () => {
                     allowFullScreen
                   ></iframe>
                 </div>
-                
+
                 {/* Video Info */}
                 <div className="space-y-2 p-2">
                   <div>
@@ -355,7 +354,7 @@ const VisualContent = () => {
                       </span>
                     )}
                   </div>
-                  
+
                   <div className="pt-4">
                     <button
                       onClick={() => openVideoInNewTab(selectedVideo.id.videoId)}

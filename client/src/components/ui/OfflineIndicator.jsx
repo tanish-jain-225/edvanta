@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { processSyncQueue } from '../../lib/offlineStorage';
+import { disableNetwork, enableNetwork } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 /**
  * Floating Offline Indicator
@@ -14,11 +16,28 @@ export default function OfflineIndicator() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      enableNetwork(db).catch((err) => {
+        console.error("Error enabling Firestore network:", err);
+      });
     };
 
     const handleOffline = () => {
       setIsOnline(false);
+      disableNetwork(db).catch((err) => {
+        console.error("Error disabling Firestore network:", err);
+      });
     };
+
+    // Set initial network state for Firestore based on current connectivity
+    if (!navigator.onLine) {
+      disableNetwork(db).catch((err) => {
+        console.error("Error disabling Firestore network on init:", err);
+      });
+    } else {
+      enableNetwork(db).catch((err) => {
+        console.error("Error enabling Firestore network on init:", err);
+      });
+    }
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);

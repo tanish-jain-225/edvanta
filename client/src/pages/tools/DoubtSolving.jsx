@@ -1,4 +1,3 @@
-import { useState, useRef, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -13,543 +12,38 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
 import { getUserProfileImage } from "../../lib/utils";
-import { getCachedData, setCachedData, queueSyncAction, getSessionIdMapping } from "../../lib/offlineStorage";
+import { useChat } from "../../hooks/useChat";
 
 export function DoubtSolving() {
-  const [messages, setMessages] = useState([]);
-  const [currentMessage, setCurrentMessage] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [chatSessions, setChatSessions] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentlySpeakingId, setCurrentlySpeakingId] = useState(null);
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
-  const utteranceRef = useRef(null);
-
-  // Use authentication to get user email
   const { user, userProfile, loading: authLoading } = useAuth();
-
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Initialize the component when user authentication is ready
-  useEffect(() => {
-    if (!authLoading) {
-      initializeChat();
-    }
-  }, [authLoading, user]);
-
-  // Cleanup SpeechSynthesis on unmount
-  useEffect(() => {
-    return () => {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
-  const initializeChat = async () => {
-    try {
-      setIsLoading(true);
-      if (user && user.email) {
-        await loadChatSessions();
-      }
-    } catch (error) {
-      console.error("Failed to initialize chat:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadChatSessions = async () => {
-    if (!user || !user.email) return;
-
-    if (!navigator.onLine) {
-      const cached = getCachedData(user.email, "chat_sessions", []);
-      setChatSessions(cached);
-      if (cached.length > 0) {
-        const currentId = cached[0].id;
-        setCurrentSessionId(currentId);
-        setMessages(cached[0].messages || []);
-      }
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${backEndURL}/api/chat/loadChat?userEmail=${encodeURIComponent(
-          user.email
-        )}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setChatSessions(data.sessions || []);
-          setCachedData(user.email, "chat_sessions", data.sessions || []);
-          if (data.currentSessionId) {
-            setCurrentSessionId(data.currentSessionId);
-            // Load messages from current session
-            const currentSession = data.sessions.find(
-              (s) => s.id === data.currentSessionId
-            );
-            if (currentSession && currentSession.messages) {
-              setMessages(currentSession.messages || []);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load chat sessions:", error);
-      const cached = getCachedData(user.email, "chat_sessions", []);
-      setChatSessions(cached);
-    }
-  };
-
-  const createNewSession = async () => {
-    if (!user || !user.email) return;
-
-    const now = new Date();
-    const sessionName = `Chat ${now.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })} at ${now.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    })}`;
-
-    if (!navigator.onLine) {
-      const tempSessionId = `temp-session-${Date.now()}`;
-      const newSession = {
-        id: tempSessionId,
-        sessionName: sessionName,
-        messages: [],
-        messageCount: 0,
-        lastActivity: now.toISOString(),
-      };
-      const updatedSessions = [newSession, ...chatSessions];
-      setChatSessions(updatedSessions);
-      setCachedData(user.email, "chat_sessions", updatedSessions);
-      setCurrentSessionId(tempSessionId);
-      setMessages([]);
-      setIsHistoryOpen(false);
-
-      // Queue background action to create session once online
-      queueSyncAction(user.email, "CREATE_CHAT_SESSION", {
-        sessionName,
-        userEmail: user.email,
-        tempSessionId,
-      });
-      return;
-    }
-
-    try {
-      const response = await fetch(`${backEndURL}/api/chat/createChat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionName: sessionName,
-          userEmail: user.email,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          const updatedSessions = [data.session, ...chatSessions];
-          setChatSessions(updatedSessions);
-          setCachedData(user.email, "chat_sessions", updatedSessions);
-          setCurrentSessionId(data.session.id);
-          setMessages([]);
-          setIsHistoryOpen(false);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to create new session:", error);
-    }
-  };
-
-  const switchToSession = async (sessionId) => {
-    if (!user || !user.email) return;
-
-    try {
-      setCurrentSessionId(sessionId);
-      const session = chatSessions.find((s) => s.id === sessionId);
-      if (session) {
-        setMessages(session.messages || []);
-
-        if (navigator.onLine && !sessionId.startsWith("temp-")) {
-          // Update activity
-          await fetch(
-            `${backEndURL}/api/chat/updateActivity/${sessionId}/activity`,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ userEmail: user.email }),
-            }
-          );
-        }
-      }
-      setIsHistoryOpen(false);
-    } catch (error) {
-      console.error("Failed to switch session:", error);
-    }
-  };
-
-  const deleteSession = async (sessionId) => {
-    if (!user || !user.email) return;
-
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this session? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
-    if (!navigator.onLine) {
-      const remainingSessions = chatSessions.filter((s) => s.id !== sessionId);
-      setChatSessions(remainingSessions);
-      setCachedData(user.email, "chat_sessions", remainingSessions);
-
-      if (sessionId === currentSessionId) {
-        if (remainingSessions.length > 0) {
-          setCurrentSessionId(remainingSessions[0].id);
-          setMessages(remainingSessions[0].messages || []);
-        } else {
-          setCurrentSessionId(null);
-          setMessages([]);
-        }
-      }
-
-      // Queue sync delete action once online
-      queueSyncAction(user.email, "DELETE_CHAT_SESSION", {
-        sessionId,
-        userEmail: user.email,
-      });
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${backEndURL}/api/chat/deleteChat/${sessionId}?userEmail=${encodeURIComponent(
-          user.email
-        )}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setChatSessions(data.remainingSessions || []);
-          setCachedData(user.email, "chat_sessions", data.remainingSessions || []);
-          if (sessionId === currentSessionId) {
-            if (data.remainingSessions.length > 0) {
-              setCurrentSessionId(data.remainingSessions[0].id);
-              setMessages(data.remainingSessions[0].messages || []);
-            } else {
-              setCurrentSessionId(null);
-              setMessages([]);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to delete session:", error);
-    }
-  };
-
-  // Background synchronization listener
-  useEffect(() => {
-    const handleSyncComplete = (event) => {
-      if (event.detail && event.detail.type === "chat") {
-        if (user?.email) {
-          const mappedId = getSessionIdMapping(user.email, currentSessionId);
-          const cached = getCachedData(user.email, "chat_sessions", []);
-          setChatSessions(cached);
-          
-          const targetSessionId = mappedId || currentSessionId;
-          if (targetSessionId) {
-            setCurrentSessionId(targetSessionId);
-            const activeSession = cached.find((s) => s.id === targetSessionId);
-            if (activeSession) {
-              setMessages(activeSession.messages || []);
-            }
-          }
-        }
-      }
-    };
-    window.addEventListener("edvanta-sync-complete", handleSyncComplete);
-    return () => window.removeEventListener("edvanta-sync-complete", handleSyncComplete);
-  }, [user?.email, currentSessionId]);
-
-  const handleSendMessage = async () => {
-    if (!currentMessage.trim() || !user || !user.email) return;
-
-    const tempMsgId = `temp-msg-${Date.now()}`;
-    const userMessage = {
-      id: tempMsgId,
-      role: "user",
-      content: currentMessage,
-      timestamp: new Date().toISOString(), // Temporary timestamp, will be updated with server timestamp
-    };
-
-    const questionToSend = currentMessage;
-    setCurrentMessage("");
-    setIsTyping(true);
-
-    if (!navigator.onLine) {
-      let sessionId = currentSessionId;
-      const now = new Date();
-      
-      // If no current session, create a temp one locally
-      if (!sessionId) {
-        const sessionName = `Chat ${now.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })} at ${now.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        })}`;
-        sessionId = `temp-session-${Date.now()}`;
-        setCurrentSessionId(sessionId);
-
-        const newSession = {
-          id: sessionId,
-          sessionName: sessionName,
-          messages: [],
-          messageCount: 0,
-          lastActivity: now.toISOString(),
-        };
-        const updatedSessions = [newSession, ...chatSessions];
-        setChatSessions(updatedSessions);
-        setCachedData(user.email, "chat_sessions", updatedSessions);
-
-        // Queue server sync for creating the session once online
-        queueSyncAction(user.email, "CREATE_CHAT_SESSION", {
-          sessionName,
-          userEmail: user.email,
-          tempSessionId: sessionId,
-        });
-      }
-
-      const botResponse = {
-        id: `bot-temp-${tempMsgId}`,
-        role: "assistant",
-        content: "You are currently offline. Your question has been saved and queued. It will be sent to the AI tutor automatically when you go back online, and this message will update with the tutor's response.",
-        timestamp: now.toISOString(),
-        isOfflinePlaceholder: true,
-      };
-
-      const finalMessages = [...messages, userMessage, botResponse];
-      setMessages(finalMessages);
-
-      const updatedSessions = chatSessions.map((session) =>
-        session.id === sessionId
-          ? {
-              ...session,
-              messages: finalMessages,
-              messageCount: finalMessages.length,
-              lastActivity: now.toISOString(),
-            }
-          : session
-      );
-      setChatSessions(updatedSessions);
-      setCachedData(user.email, "chat_sessions", updatedSessions);
-
-      // Queue background message sending action
-      queueSyncAction(user.email, "SEND_CHAT_MESSAGE", {
-        message: questionToSend,
-        userEmail: user.email,
-        chatHistory: messages,
-        sessionId: sessionId,
-        tempMsgId,
-      });
-
-      setIsTyping(false);
-      return;
-    }
-
-    try {
-      // If no current session, create one
-      let sessionId = currentSessionId;
-      if (!sessionId) {
-        const now = new Date();
-        const sessionName = `Chat ${now.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })} at ${now.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        })}`;
-
-        const createResponse = await fetch(
-          `${backEndURL}/api/chat/createChat`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionName: sessionName,
-              userEmail: user.email,
-            }),
-          }
-        );
-
-        if (createResponse.ok) {
-          const createData = await createResponse.json();
-          if (createData.success) {
-            sessionId = createData.session.id;
-            setCurrentSessionId(sessionId);
-            const updatedSessions = [createData.session, ...chatSessions];
-            setChatSessions(updatedSessions);
-            setCachedData(user.email, "chat_sessions", updatedSessions);
-          }
-        }
-      }
-
-      // Add user message to UI immediately for responsive feel
-      setMessages((prev) => [...prev, userMessage]);
-
-      // Send message to AI with conversation context (excluding the temporary user message we just added)
-      const response = await fetch(`${backEndURL}/api/chat/message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: questionToSend,
-          userEmail: user.email,
-          chatHistory: messages, // Use original messages, not the updated ones
-          sessionId: sessionId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Use server timestamp for both user and AI messages
-        const serverTimestamp = data.timestamp;
-        const updatedUserMessage = {
-          ...userMessage,
-          timestamp: serverTimestamp,
-        };
-
-        const botResponse = {
-          role: "assistant",
-          content: data.message,
-          timestamp: serverTimestamp,
-        };
-
-        // Replace the temporary user message with the server-timestamped one and add bot response
-        const finalMessages = [...messages, updatedUserMessage, botResponse];
-        setMessages(finalMessages);
-
-        // Update the session in local state and cache
-        const updatedSessions = chatSessions.map((session) =>
-          session.id === sessionId
-            ? {
-                ...session,
-                messages: finalMessages,
-                messageCount: finalMessages.length,
-                lastActivity: serverTimestamp,
-              }
-            : session
-        );
-        setChatSessions(updatedSessions);
-        setCachedData(user.email, "chat_sessions", updatedSessions);
-      }
-    } catch (error) {
-      console.error("Error calling API:", error);
-
-      // Fallback response with server-like timestamp
-      const errorResponse = {
-        role: "assistant",
-        content: `I'm sorry, I'm having trouble connecting to the server right now. However, I can see you're asking about "${questionToSend}". 
-
-Here are some general tips:
-1. **Break down the problem** - Try to identify the specific part you're struggling with
-2. **Check the basics** - Make sure you understand the fundamental concepts  
-3. **Look for examples** - Similar problems might help clarify the approach
-4. **Practice step by step** - Work through the problem methodically
-
-Please try again in a moment, and I'll be happy to provide a more detailed explanation!`,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorResponse]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
+  
+  const {
+    messages,
+    currentMessage,
+    setCurrentMessage,
+    isTyping,
+    chatSessions,
+    currentSessionId,
+    isHistoryOpen,
+    setIsHistoryOpen,
+    isLoading,
+    currentlySpeakingId,
+    messagesEndRef,
+    inputRef,
+    createNewSession,
+    switchToSession,
+    deleteSession,
+    handleSendMessage,
+    toggleSpeakMessage,
+  } = useChat(user, authLoading);
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
-
-  const toggleSpeakMessage = (messageId, text) => {
-    if (!window.speechSynthesis) {
-      alert("Text-to-speech is not supported in this browser.");
-      return;
-    }
-
-    const synth = window.speechSynthesis;
-
-    if (currentlySpeakingId === messageId) {
-      synth.cancel();
-      setCurrentlySpeakingId(null);
-      return;
-    }
-
-    // Stop any existing speech
-    synth.cancel();
-
-    // Clean text: strip markdown code blocks and formatting
-    let cleanText = text
-      .replace(/```[\s\S]*?```/g, "") // remove code blocks
-      .replace(/`([^`]+)`/g, "$1")    // remove inline code formatting
-      .replace(/\*\*(.*?)\*\*/g, "$1") // remove bold formatting
-      .replace(/\*(.*?)\*/g, "$1")     // remove italic formatting
-      .replace(/<[^>]*>/g, "")        // remove HTML tags
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1"); // remove markdown links
-
-    if (!cleanText.trim()) return;
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utteranceRef.current = utterance;
-
-    utterance.onend = () => {
-      setCurrentlySpeakingId(null);
-    };
-
-    utterance.onerror = (e) => {
-      console.error("Speech error:", e);
-      setCurrentlySpeakingId(null);
-    };
-
-    setCurrentlySpeakingId(messageId);
-    synth.speak(utterance);
   };
 
   const formatUserContent = (content) => {
@@ -889,23 +383,20 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
               const isUserMessage = message.role === "user";
 
               // Message bubble styles based on sender
-              const messageBubbleClasses = `max-w-[85%] p-4 rounded-lg shadow-sm ${
-                isUserMessage ? "bg-blue-600 text-white" : "bg-white border"
-              }`;
+              const messageBubbleClasses = `max-w-[85%] p-4 rounded-lg shadow-sm ${isUserMessage ? "bg-blue-600 text-white" : "bg-white border"
+                }`;
 
               // Content styles based on sender
-              const contentClasses = `prose prose-sm max-w-none text-sm leading-relaxed ${
-                isUserMessage
+              const contentClasses = `prose prose-sm max-w-none text-sm leading-relaxed ${isUserMessage
                   ? "!text-white"
                   : "prose-headings:text-gray-800 prose-p:text-gray-700 prose-li:text-gray-700 prose-code:text-blue-600"
-              }`;
+                }`;
 
               return (
                 <div
                   key={index}
-                  className={`flex gap-3 ${
-                    isUserMessage ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex gap-3 ${isUserMessage ? "justify-end" : "justify-start"
+                    }`}
                 >
                   {/* AI Avatar - Only show for AI messages */}
                   {!isUserMessage && (
@@ -940,22 +431,20 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
                     <div className="flex items-center justify-between gap-4 mt-2 border-t border-gray-100/50 pt-1">
                       {message.timestamp && (
                         <div
-                          className={`text-[10px] xs:text-xs ${
-                            isUserMessage ? "text-blue-100" : "text-gray-400"
-                          }`}
+                          className={`text-[10px] xs:text-xs ${isUserMessage ? "text-blue-100" : "text-gray-400"
+                            }`}
                         >
                           <div className="font-medium">
                             {formatExactTimestamp(message.timestamp)}
                           </div>
                         </div>
                       )}
-                      
+
                       {!isUserMessage && (
                         <button
                           onClick={() => toggleSpeakMessage(index, message.content)}
-                          className={`p-1 rounded cursor-pointer transition-colors flex items-center justify-center ${
-                            currentlySpeakingId === index ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                          }`}
+                          className={`p-1 rounded cursor-pointer transition-colors flex items-center justify-center ${currentlySpeakingId === index ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                            }`}
                           title={currentlySpeakingId === index ? "Stop speaking" : "Speak answer"}
                           type="button"
                         >
@@ -1080,11 +569,10 @@ Please try again in a moment, and I'll be happy to provide a more detailed expla
                 chatSessions.map((session) => (
                   <div
                     key={session.id}
-                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer flex items-center justify-between transition-colors ${
-                      session.id === currentSessionId
+                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer flex items-center justify-between transition-colors ${session.id === currentSessionId
                         ? "bg-blue-50 border-blue-200"
                         : ""
-                    }`}
+                      }`}
                     onClick={() => switchToSession(session.id)}
                   >
                     <div className="flex-1 min-w-0 pr-3">

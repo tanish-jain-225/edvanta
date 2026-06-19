@@ -682,8 +682,6 @@ export function ConversationalTutor() {
       };
 
       recognition.onerror = (event) => {
-        console.log('Recognition error:', event.error);
-        
         // Handle different types of speech recognition errors gracefully
         switch (event.error) {
           case "no-speech":
@@ -692,7 +690,6 @@ export function ConversationalTutor() {
             
           case "aborted":
             // Speech recognition was aborted - usually during stop/start
-            console.log('Recognition aborted');
             break;
             
           case "not-allowed":
@@ -740,7 +737,6 @@ export function ConversationalTutor() {
       };
 
       recognition.onend = () => {
-        console.log('Recognition ended');
         
         // Check if this was a manual stop and handle accordingly
         const wasManualStop = speechRecognitionRef.current?.manualStop === true;

@@ -504,6 +504,7 @@ export function Quizzes() {
 
         // Cache the history locally and queue for background sync
         const completionData = {
+          id: `history-temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           quizId: currentQuiz.id,
           quizTitle: currentQuiz.title,
           topic: currentQuiz.quiz_data.topic,
@@ -1140,9 +1141,9 @@ export function Quizzes() {
 
                   {/* History List */}
                   <div className="space-y-2 sm:space-y-3 max-h-96 overflow-y-auto">
-                    {quizHistory.map((historyItem) => (
+                    {quizHistory.map((historyItem, index) => (
                       <div
-                        key={historyItem.id}
+                        key={historyItem.id || `history-${historyItem.completedAt || index}`}
                         className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
