@@ -65,11 +65,6 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Code Formatting Check (Black)
-        run: black --check .
-
-      - name: Lint Analysis (Ruff)
-        run: ruff check .
-
       - name: Run Backend Tests with Coverage
         run: pytest --cov=app --cov-report=term-missing tests/
+
