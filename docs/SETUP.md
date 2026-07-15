@@ -15,7 +15,7 @@ Before you begin, ensure you have the following installed:
 
 ## 🏗️ 1. Backend Setup (Flask)
 
-The backend handles AI processing, database communication, and business logic.
+The backend handles AI processing, database communication and business logic.
 
 ### Steps:
 1.  **Navigate to server directory**:
@@ -37,7 +37,7 @@ The backend handles AI processing, database communication, and business logic.
     ```
 4.  **Configure environment variables**:
     - Copy `.env.example` to `.env`.
-    - Fill in your `MONGODB_URI`, `GEMINI_API_KEY`, and Cloudinary variables (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`).
+    - Fill in your `MONGODB_URI`, `GEMINI_API_KEY` and Cloudinary variables (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`).
 5.  **Run the server**:
     ```bash
     python app.py
@@ -112,8 +112,8 @@ pytest
 
 ### Cloudinary (Resume Storage)
 1. Sign up for a free account at [Cloudinary](https://cloudinary.com/).
-2. Copy your **Cloud Name**, **API Key**, and **API Secret** from the dashboard.
-3. Add these to your server `.env` as `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`.
+2. Copy your **Cloud Name**, **API Key** and **API Secret** from the dashboard.
+3. Add these to your server `.env` as `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET`.
 
 ---
 

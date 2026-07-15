@@ -1,7 +1,7 @@
 /**
  * Centralized API utility for Edvanta client
  * 
- * Provides consistent error handling, loading states, and network retry logic
+ * Provides consistent error handling, loading states and network retry logic
  * for seamless backend integration across all components.
  * Works in all environments: development, production, Vercel, Netlify, etc.
  */

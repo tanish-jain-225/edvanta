@@ -1,7 +1,7 @@
 {
   "name": "Edvanta - AI-Powered Learning Platform",
   "short_name": "Edvanta",
-  "description": "AI-powered learning platform for personalized learning, quizzes, roadmaps, and career tools. Works offline!",
+  "description": "AI-powered learning platform for personalized learning, quizzes, roadmaps and career tools. Works offline!",
   "start_url": "/",
   "display": "browser",
   "background_color": "#ffffff",
@@ -10,7 +10,11 @@
   "scope": "/",
   "lang": "en",
   "dir": "ltr",
-  "categories": ["education", "productivity", "utilities"],
+  "categories": [
+    "education",
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/edvanta-logo.png",
@@ -66,21 +70,36 @@
       "short_name": "Dashboard",
       "description": "View your learning progress",
       "url": "/dashboard",
-      "icons": [{ "src": "/edvanta-logo.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/edvanta-logo.png",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "Quizzes",
       "short_name": "Quizzes",
       "description": "Take practice quizzes",
       "url": "/tools/quizzes",
-      "icons": [{ "src": "/edvanta-logo.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/edvanta-logo.png",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "Offline Mode",
       "short_name": "Offline",
       "description": "Access offline content",
       "url": "/dashboard",
-      "icons": [{ "src": "/edvanta-logo.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/edvanta-logo.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ],
   "related_applications": [],

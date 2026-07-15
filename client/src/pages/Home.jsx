@@ -46,7 +46,7 @@ const features = [
     icon: MapPin,
     title: "Career Roadmaps",
     description:
-      "Get personalized learning paths with milestones, resources, and progress tracking for your goals.",
+      "Get personalized learning paths with milestones, resources and progress tracking for your goals.",
     gradient: "from-orange-500 to-amber-500",
   },
 ];

@@ -9,7 +9,7 @@
 [![Flask](https://img.shields.io/badge/Flask-3.1.1-black.svg)](https://palletsprojects.com/p/flask/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](../docs/LICENSE)
 
-A Flask-based REST API backend powering the Edvanta educational platform. Features AI-powered learning tools including chatbots, quiz generation, roadmap creation, and more.
+A Flask-based REST API backend powering the Edvanta educational platform. Features AI-powered learning tools including chatbots, quiz generation, roadmap creation and more.
 
 ## 🌟 Key Features
 
@@ -26,11 +26,11 @@ Works seamlessly across all hosting platforms without configuration:
 ### **AI-Powered Learning Tools**
 - 🤖 **Conversational Chatbot** - Context-aware doubt solving with chat history.
 - 📝 **Quiz Generation** - AI-generated quizzes with automatic scoring & analytics.
-- 🗺️ **Learning Roadmaps** - Personalized learning paths with direct parameter syncing, milestone state updates, and persistent DB updates.
-- 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support, featuring robust try-except exception containment to handle API quota limits (429) gracefully without returning 500, and a connection test route returning 503 on service unavailability.
+- 🗺️ **Learning Roadmaps** - Personalized learning paths with direct parameter syncing, milestone state updates and persistent DB updates.
+- 👨‍🏫 **AI Tutor** - Interactive tutoring with voice & text support, featuring robust try-except exception containment to handle API quota limits (429) gracefully without returning 500 and a connection test route returning 503 on service unavailability.
 - 📊 **User Analytics** - Comprehensive learning progress & performance tracking.
 - 🎬 **Visual Content Explorer** - Client-side YouTube API integration (no backend required).
-- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed uploads.
+- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring and job role mapping with Cloudinary-backed uploads.
 
 ### **Robust Architecture**
 - 🔄 **Auto-Environment Detection** - Automatically adapts to deployment platform
@@ -324,7 +324,7 @@ The server automatically detects and configures based on the deployment platform
 ```bash
 GET /
 ```
-Returns service status, environment info, and registered API blueprints.
+Returns service status, environment info and registered API blueprints.
 
 **Feature Status Check**
 ```bash
@@ -504,7 +504,7 @@ Example error response:
 
 ## Backend testing instructions
 
-Recommended test stack: `pytest`, `pytest-cov`, and `requests` or `httpx` for integration tests.
+Recommended test stack: `pytest`, `pytest-cov` and `requests` or `httpx` for integration tests.
 
 Example commands (run from `server/`):
 
@@ -518,7 +518,7 @@ pytest -q
 
 Tips:
 - Mock external services (Gemini, MongoDB) using `responses`, `httpretty`, or `mongomock` for unit tests.
-- Provide a `tests/` folder with unit tests for `ai_utils`, `mongo_utils`, and route tests using the Flask test client.
+- Provide a `tests/` folder with unit tests for `ai_utils`, `mongo_utils` and route tests using the Flask test client.
 
 ## Dependency overview
 

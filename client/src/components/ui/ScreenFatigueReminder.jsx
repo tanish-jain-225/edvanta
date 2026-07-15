@@ -23,7 +23,7 @@ const SCREEN_FATIGUE_TIPS = [
   {
     title: "Take Regular Breaks",
     description:
-      "Stand up, stretch, and walk around for 5-10 minutes every hour to reduce eye strain and improve circulation.",
+      "Stand up, stretch and walk around for 5-10 minutes every hour to reduce eye strain and improve circulation.",
     icon: Clock,
   },
   {

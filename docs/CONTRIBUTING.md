@@ -4,13 +4,13 @@ First off, thank you for considering contributing to Edvanta! It's people like y
 
 ## 🌈 Code of Conduct
 
-By participating in this project, you agree to abide by our code of conduct: be respectful, be inclusive, and be constructive.
+By participating in this project, you agree to abide by our code of conduct: be respectful, be inclusive and be constructive.
 
 ## 🚀 How Can I Contribute?
 
 ### Reporting Bugs
 - Check the [Issues](https://github.com/tanish-jain-225/edvanta/issues) page to see if the bug has already been reported.
-- If not, open a new issue. Include a clear title, a description of the problem, and steps to reproduce.
+- If not, open a new issue. Include a clear title, a description of the problem and steps to reproduce.
 
 ### Suggesting Enhancements
 - Open an issue with the "enhancement" label.

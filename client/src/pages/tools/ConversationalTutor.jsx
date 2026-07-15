@@ -1057,7 +1057,7 @@ export function ConversationalTutor() {
     setIsSpeaking(false);
     setCurrentSpeakingMessageId(null);
 
-    // Auto-on mic if requested, session is active, and mic is not already active
+    // Auto-on mic if requested, session is active and mic is not already active
     if (autoMicOn && isSessionActive && micState !== MicState.ACTIVE) {
       // Small delay to ensure speech is fully stopped, then start mic
       setTimeout(() => {
@@ -1654,7 +1654,7 @@ export function ConversationalTutor() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                The AI Conversational Tutor requires an active internet connection to synthesize text, recognize voice inputs, and generate real-time audio responses.
+                The AI Conversational Tutor requires an active internet connection to synthesize text, recognize voice inputs and generate real-time audio responses.
               </p>
               <p className="text-xs text-orange-600 font-medium">
                 Please reconnect to your network to start a session.

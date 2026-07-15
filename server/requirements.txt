@@ -6,7 +6,7 @@
 # Optimized for Vercel Serverless deployment
 # ==============================================================================
 # This requirements.txt has been automatically generated based on comprehensive
-# analysis of the entire server codebase including all routes, utilities, and
+# analysis of the entire server codebase including all routes, utilities and
 # configuration files to ensure all dependencies are properly included.
 # ==============================================================================
 

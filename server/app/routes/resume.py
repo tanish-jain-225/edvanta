@@ -55,7 +55,7 @@ def extract_text_from_pdf(file_bytes):
 
 @resume_bp.route("/api/resume/analyze", methods=["POST"])
 def analyze_resume():
-    """Endpoint to upload resume to Cloudinary, extract text, and analyze with Gemini AI."""
+    """Endpoint to upload resume to Cloudinary, extract text and analyze with Gemini AI."""
     if 'file' not in request.files:
         return jsonify({"error": "No file part in request"}), 400
     

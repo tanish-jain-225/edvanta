@@ -5,7 +5,7 @@
 # Edvanta
 **AI-powered personalised learning & career acceleration platform**
 
-A comprehensive full-stack educational platform that revolutionizes learning through artificial intelligence, offering personalized learning tools, beautiful responsive design, and seamless deployment across any platform.
+A comprehensive full-stack educational platform that revolutionizes learning through artificial intelligence, offering personalized learning tools, beautiful responsive design and seamless deployment across any platform.
 
 <!-- Project badges -->
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](docs/LICENSE) [![Version](https://img.shields.io/badge/version-0.0.0-blue.svg)](client/package.json) [![Deploy](https://img.shields.io/badge/deploy-vercel-brightgreen.svg)](https://vercel.com)
@@ -13,17 +13,17 @@ A comprehensive full-stack educational platform that revolutionizes learning thr
 ## 🌟 Key Features
 
 ### **AI-Powered Learning Ecosystem**
-- 🤖 **Intelligent Doubt Solver** - Context-aware chatbot with quick starter prompts, code syntax highlighting with copy-code feedback, and an integrated Text-to-Speech (TTS) speech reader.
-- 📝 **Smart Quiz System** - AI-generated personalized quizzes with automatic scoring, instant review, and history logs.
+- 🤖 **Intelligent Doubt Solver** - Context-aware chatbot with quick starter prompts, code syntax highlighting with copy-code feedback and an integrated Text-to-Speech (TTS) speech reader.
+- 📝 **Smart Quiz System** - AI-generated personalized quizzes with automatic scoring, instant review and history logs.
 - 👨‍🏫 **AI Tutor** - Voice-enabled interactive conversational tutor with customizable speech synthesis (pitch slider, rate slider, system voices dropdown) and a pulsating audio wave recording visualizer.
-- 🗺️ **Learning Roadmaps** - Personalized career learning paths with interactive milestone tracking (completion checkboxes), progress bar cards, and persistent server-side MongoDB syncing.
+- 🗺️ **Learning Roadmaps** - Personalized career learning paths with interactive milestone tracking (completion checkboxes), progress bar cards and persistent server-side MongoDB syncing.
 - 🎬 **Visual Content Explorer** - YouTube API integration for educational video discovery and embed previews.
-- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring, and job role mapping with Cloudinary-backed PDF/TXT uploads, featuring a custom animated ATS Score circular gauge chart.
+- 📄 **Resume Analyzer** - AI-powered resume feedback, scoring and job role mapping with Cloudinary-backed PDF/TXT uploads, featuring a custom animated ATS Score circular gauge chart.
 
 ### **Modern React Application**
 - 📱 **Responsive Design** - Mobile-first interface optimized for all screen sizes and devices.
 - ⚡ **Lightning Fast** - Powered by Vite build system with fast hot-reloading (HMR).
-- 🎨 **Premium Light Mode Design** - Refined, modern corporate educational theme with clean typography (Poppins/Inter), soft cards, elegant glassmorphic components, and elevation shadows. Locked to Light Mode to maximize visual accessibility.
+- 🎨 **Premium Light Mode Design** - Refined, modern corporate educational theme with clean typography (Poppins/Inter), soft cards, elegant glassmorphic components and elevation shadows. Locked to Light Mode to maximize visual accessibility.
 - 🔥 **Hot Reload** - Instant development feedback with Vite HMR.
 - 🌙 **Screen Fatigue Prevention** - Smart break reminders with customizable timer reset.
 - 🌐 **Basic PWA** - Offline support with network status alerts and background sync queueing.
@@ -32,7 +32,7 @@ A comprehensive full-stack educational platform that revolutionizes learning thr
 - 🌐 **Platform Agnostic** - Fully compatible with Vercel serverless, AWS, Railway, Render, or local setups.
 - 🚀 **Serverless Ready** - Optimized backend routing and modular Python handlers.
 - 📦 **Zero Configuration** - Auto-resolves development vs production endpoints.
-- 🛡️ **Production Grade** - Secure API keys, input validation, and structured error boundaries.
+- 🛡️ **Production Grade** - Secure API keys, input validation and structured error boundaries.
 - 🔌 **Offline Access** - Cached assets and local storage integration for resilient usability.
 
 ## 🏗️ Architecture Overview
@@ -323,7 +323,7 @@ See `client/.env.example` for:
 
 
 ### 🎨 Frontend Stack
-- **React 18.3.1** - Modern React with hooks, Suspense, and concurrent features
+- **React 18.3.1** - Modern React with hooks, Suspense and concurrent features
 - **Vite 6.3.5** - Next-generation frontend build tool with HMR
 - **React Router DOM 7.8.0** - Declarative routing with nested route support
 - **TailwindCSS 4.1.12** - Utility-first CSS framework with JIT compiler
@@ -401,7 +401,7 @@ See `client/.env.example` for:
 
 ## 🤝 Contributing
 
-**Contribution guidelines:** See `docs/CONTRIBUTING.md` for detailed guidelines, testing rules, and PR process.
+**Contribution guidelines:** See `docs/CONTRIBUTING.md` for detailed guidelines, testing rules and PR process.
 
 ### Development Workflow
 1. **Fork** the repository
@@ -500,4 +500,4 @@ Contributions and suggestions welcome — please open an issue or a PR.
 
 **🚀 Built for the Future of Education**
 
-Edvanta combines cutting-edge AI technology with modern React development practices to create a scalable, accessible, and powerful learning platform that delivers exceptional user experiences across all devices.
+Edvanta combines cutting-edge AI technology with modern React development practices to create a scalable, accessible and powerful learning platform that delivers exceptional user experiences across all devices.

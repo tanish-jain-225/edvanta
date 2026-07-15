@@ -1,7 +1,7 @@
 """Doubt Solving Chatbot API endpoints.
 
 Handles conversational Q&A for student doubts with chat session management,
-message persistence, and AI responses using centralized AI system.
+message persistence and AI responses using centralized AI system.
 """
 from flask import Blueprint, request, jsonify
 from bson import ObjectId
@@ -54,7 +54,7 @@ SYSTEM_PROMPT = """You are an expert educational tutor helping students with the
 4. Break down complex concepts into digestible parts
 5. Encourage learning with follow-up questions
 6. If it's a coding question, provide code examples with explanations
-7. Be patient, supportive, and encouraging
+7. Be patient, supportive and encouraging
 8. Adapt your teaching style to the student's level of understanding
 9. Reference previous messages in the conversation when relevant
 10. Build upon concepts discussed earlier in the session

@@ -1,6 +1,6 @@
 """Roadmap generation endpoints.
 
-Generates a learning roadmap with milestones, resources, and estimated durations using centralized AI.
+Generates a learning roadmap with milestones, resources and estimated durations using centralized AI.
 Stores and retrieves roadmaps from MongoDB.
 """
 from flask import Blueprint, request, jsonify, send_file

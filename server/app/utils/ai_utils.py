@@ -54,7 +54,7 @@ SYSTEM_PROMPTS = {
 4. Break down complex concepts into digestible parts
 5. Encourage learning with follow-up questions
 6. If it's a coding question, provide code examples with explanations
-7. Be patient, supportive, and encouraging
+7. Be patient, supportive and encouraging
 8. Adapt your teaching style to the student's level of understanding
 9. IMPORTANT: Always reference and build upon our conversation history when relevant
 10. Connect new concepts to topics we've already discussed
@@ -65,10 +65,10 @@ SYSTEM_PROMPTS = {
 
     'chatbot': """You are an intelligent educational assistant helping students with their academic questions. 
 Provide accurate, helpful responses while maintaining a supportive and encouraging tone. 
-Keep responses concise but comprehensive, and always encourage further learning.""",
+Keep responses concise but comprehensive and always encourage further learning.""",
 
     'roadmap': """You are an expert learning path designer. Create comprehensive, practical learning roadmaps 
-that are achievable and well-structured. Include realistic timeframes, key milestones, and relevant resources.""",
+that are achievable and well-structured. Include realistic timeframes, key milestones and relevant resources.""",
 
 
     'quiz': """You are an educational content creator specializing in assessment design. Create fair, 
@@ -268,7 +268,7 @@ def generate_ai_response(
         raise e
 
 def clean_json_string(s: str) -> str:
-    """Escape control characters like literal newlines and tabs inside JSON string values, and escape invalid backslashes."""
+    """Escape control characters like literal newlines and tabs inside JSON string values and escape invalid backslashes."""
     result = []
     in_string = False
     i = 0
@@ -557,7 +557,7 @@ Resume Content:
 
 CRITICAL REQUIREMENTS:
 - Return ONLY a valid JSON object, no markdown code block wrapper, no other text.
-- Be objective, constructive, and detailed.
+- Be objective, constructive and detailed.
 - Return the response exactly in the following JSON format:
 {{
   "score": <an integer between 0 and 100 representing the overall strength of the resume>,
@@ -566,7 +566,7 @@ CRITICAL REQUIREMENTS:
   "improvements": ["<improvement suggestion 1>", "<improvement suggestion 2>", ...],
   "skills_found": ["<key skill identified 1>", "<key skill identified 2>", ...],
   "suggested_roles": ["<suggested target job role 1>", "<suggested target job role 2>", ...],
-  "detailed_feedback": "<comprehensive evaluation in Markdown format covering formatting, content impact, sections layout, and custom action items>"
+  "detailed_feedback": "<comprehensive evaluation in Markdown format covering formatting, content impact, sections layout and custom action items>"
 }}
 """
 

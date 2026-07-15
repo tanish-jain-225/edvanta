@@ -11,7 +11,7 @@ Last validated against current build: June 22, 2026
 1. Hook the problem quickly.
 2. Show AI data capture (Resume Analysis) in action.
 3. Show AI outcome intelligence (Roadmaps & AI Tutor) in action.
-4. Prove governance, health safeguards, and PWA readiness.
+4. Prove governance, health safeguards and PWA readiness.
 5. Close with deployment and impact.
 
 ## Full Recording Script (Edvanta)
@@ -30,7 +30,7 @@ Screen action:
 - Keep the landing page visible, showing the various tool cards (Doubt Solver, AI Tutor, Quizzes, Roadmaps, Resume Analyzer).
 
 Say:
-- "This responsive platform built with React, Flask, and Firebase provides students with personalized tools: conversational voice tutors, interactive roadmap builders, instant quizzes, and ATS resume scanning."
+- "This responsive platform built with React, Flask and Firebase provides students with personalized tools: conversational voice tutors, interactive roadmap builders, instant quizzes and ATS resume scanning."
 
 ### 0:25-0:35 | Sign-in Context
 
@@ -38,7 +38,7 @@ Screen action:
 - Click Sign In/Sign Up to show the authenticated navigation state.
 
 Say:
-- "Authorized entry is governed by Firebase Authentication, securing user progress statistics, active sessions, and personal doubt histories."
+- "Authorized entry is governed by Firebase Authentication, securing user progress statistics, active sessions and personal doubt histories."
 
 ### 0:35-1:10 | Student Flow: Smart Analysis
 
@@ -46,10 +46,10 @@ Screen action:
 - Navigate to the Resume Analysis page.
 - Drag and drop a sample resume.
 - Show the upload progress indicator.
-- Display the AI-generated analysis: ATS Score circular gauge, feedback list, and career role mapping.
+- Display the AI-generated analysis: ATS Score circular gauge, feedback list and career role mapping.
 
 Say:
-- "Here is the Resume Analyzer. Instead of guessing career readiness, the student uploads their resume. Gemini parses the file, extracting an ATS gauge score, critical strength breakdowns, weaknesses, and matching job paths."
+- "Here is the Resume Analyzer. Instead of guessing career readiness, the student uploads their resume. Gemini parses the file, extracting an ATS gauge score, critical strength breakdowns, weaknesses and matching job paths."
 - "This extracted assessment maps out their starting profile, letting users see exactly where they stand in seconds."
 
 Say while waiting for response:
@@ -60,7 +60,7 @@ Say while waiting for response:
 Screen action:
 - Navigate to the Learning Roadmap page.
 - Enter a career goal (e.g. "Full Stack Developer") and click Generate.
-- Display the milestone roadmap, check off a milestone, and point to the progress bar increasing.
+- Display the milestone roadmap, check off a milestone and point to the progress bar increasing.
 
 Say:
 - "Once goals are defined, students generate an interactive Learning Roadmap. Checking off milestones updates their progress bar in real-time, syncing directly to MongoDB so their learning path is saved."
@@ -73,13 +73,13 @@ Screen action:
 - Ask a question (by text or voice) and point to the pulsating audio wave recording visualizer as the AI voice responds.
 
 Say:
-- "Next is the Conversational Tutor. Students can interact vocally with their AI guide, control speech synthesis pitches or rates, and watch a pulsating wave visualizer as the AI replies, simulating a real-time classroom conversation."
+- "Next is the Conversational Tutor. Students can interact vocally with their AI guide, control speech synthesis pitches or rates and watch a pulsating wave visualizer as the AI replies, simulating a real-time classroom conversation."
 
 ### 1:55-2:20 | Smart Quizzes & Health Governance
 
 Screen action:
 - Open the Quizzes page.
-- Select a topic, submit a quiz, and show the automatic score evaluation.
+- Select a topic, submit a quiz and show the automatic score evaluation.
 - Point to the Screen Fatigue break reminder timer and the offline/online network indicator badge.
 
 Say:
@@ -120,7 +120,7 @@ Then jump directly to the Conversational AI Tutor section.
 2. Never wait silently during AI calls; narrate database persistence and Flask backend APIs.
 3. Use one concrete student goal example (e.g. developer career) from resume upload to roadmap.
 4. Use "AI-assisted" wording, not complete automation claims.
-5. End with measurable value: career readiness scores, learning pace, and physical health safeguards.
+5. End with measurable value: career readiness scores, learning pace and physical health safeguards.
 
 ## Pre-Recording Setup
 

@@ -296,7 +296,7 @@ const VisualContent = () => {
                 Discover Educational Content
               </h2>
               <p className="text-gray-500">
-                Search for educational videos, tutorials, and learning content from YouTube
+                Search for educational videos, tutorials and learning content from YouTube
               </p>
             </div>
           )}

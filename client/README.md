@@ -21,10 +21,10 @@ A modern React-based educational platform built with cutting-edge technologies f
 - 🌐 **Progressive Web App** - Installable with offline support and caching
 
 ### **AI-Powered Learning Tools**
-- 🤖 **Doubt Solving Chatbot** - AI chatbot with quick starter prompts, code copy feedback, and Web SpeechSynthesis Text-to-Speech (TTS) reading.
+- 🤖 **Doubt Solving Chatbot** - AI chatbot with quick starter prompts, code copy feedback and Web SpeechSynthesis Text-to-Speech (TTS) reading.
 - 📝 **Quiz Generator** - AI-generated personalized quizzes with scoring and history logs.
-- 👨‍🏫 **Conversational Tutor** - Voice tutoring system with pitch/rate speech customization, system voice selection dropdown, and pulsating recording wave animations.
-- 🗺️ **Learning Roadmaps** - Learning paths with milestone checkboxes, completion progress percentage bars, and persistent server-side MongoDB syncing.
+- 👨‍🏫 **Conversational Tutor** - Voice tutoring system with pitch/rate speech customization, system voice selection dropdown and pulsating recording wave animations.
+- 🗺️ **Learning Roadmaps** - Learning paths with milestone checkboxes, completion progress percentage bars and persistent server-side MongoDB syncing.
 - 🎬 **Visual Content Explorer** - YouTube API integration for educational videos and embed previews.
 - 📄 **Resume Analyzer** - AI resume feedback and job mapping with Cloudinary uploading, featuring an animated circular ATS score progress ring.
 
@@ -216,7 +216,7 @@ If you add larger features, consider introducing Zustand or Redux Toolkit with s
 
 - The app ships with a service worker (`public/sw.js`) for caching static assets and basic offline support. 
 - To test installability: open in Chrome → App menu → Install (or check the install prompt in the address bar).
-- Update the `manifest.json` in `public/` to customize name, icons, and theme color for better install UX.
+- Update the `manifest.json` in `public/` to customize name, icons and theme color for better install UX.
 
 ## Build & deployment guide
 
@@ -287,7 +287,7 @@ Add CI integration (GitHub Actions) to run tests on PRs.
 ## 🛠️ Technology Stack
 
 ### **Core Framework**
-- **React 18.3.1** - Modern React with hooks, Suspense, and concurrent features
+- **React 18.3.1** - Modern React with hooks, Suspense and concurrent features
 - **Vite 6.3.5** - Next-generation frontend build tool with HMR
 - **React Router DOM 7.8.0** - Declarative routing with nested route support
 
@@ -302,7 +302,7 @@ Add CI integration (GitHub Actions) to run tests on PRs.
 - **Clsx 2.1.1 + Tailwind Merge 3.3.1** - Conditional class name utilities
 
 ### **State & Data Management**
-- **Firebase 12.1.0** - Authentication, Firestore database, and storage
+- **Firebase 12.1.0** - Authentication, Firestore database and storage
 - **Axios 1.11.0** - Promise-based HTTP client for API communication
 - **Custom React Hooks** - Authentication, responsive design utilities
 
@@ -402,7 +402,7 @@ See `.env.example` for complete setup guides including:
 ## 🔍 Debugging & Development
 
 ### **Development Tools**
-- **React DevTools** - Component inspection, profiling, and state management
+- **React DevTools** - Component inspection, profiling and state management
 - **Vite DevTools** - Build analysis and dependency inspection
 - **Network Tab** - API request monitoring and performance analysis
 - **Console Debugging** - Enhanced error logging and development warnings
@@ -436,15 +436,15 @@ See `.env.example` for complete setup guides including:
 ## 📊 User Analytics & Monitoring
 
 ### **Learning Analytics**
-- **Quiz Performance** - Score tracking, completion rates, and progress over time
+- **Quiz Performance** - Score tracking, completion rates and progress over time
 - **Tool Usage Patterns** - Feature adoption and user engagement metrics
 - **Learning Progress** - Roadmap completion and milestone achievements
 - **Session Tracking** - Time spent per tool and interaction patterns
 
 ### **Technical Performance**
-- **Core Web Vitals** - LCP, FID, and CLS measurements for user experience
+- **Core Web Vitals** - LCP, FID and CLS measurements for user experience
 - **Bundle Analysis** - JavaScript chunk sizes and dependency optimization
-- **API Performance** - Response times, error rates, and endpoint usage
+- **API Performance** - Response times, error rates and endpoint usage
 - **User Flow Analytics** - Navigation patterns and conversion funnel analysis
 
 ## 🔐 Security
