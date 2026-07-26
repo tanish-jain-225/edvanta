@@ -635,13 +635,11 @@ export function ConversationalTutor() {
         window.SpeechRecognition || window.webkitSpeechRecognition;
 
       if (!SpeechRecognition) {
-        setLastError({
-          message: "Voice speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari for voice interaction.",
-          timestamp: Date.now()
-        });
+        console.warn("Speech recognition is not supported in this browser.");
         setMicState(MicState.INACTIVE);
         return;
       }
+
 
 
       const recognition = new SpeechRecognition();
