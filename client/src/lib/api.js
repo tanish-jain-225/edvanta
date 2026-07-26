@@ -141,6 +141,9 @@ export class APIClient {
         case 400:
           errorType = ErrorTypes.VALIDATION_ERROR;
           break;
+        case 413:
+          errorType = ErrorTypes.VALIDATION_ERROR;
+          break;
         case 401:
         case 403:
           errorType = ErrorTypes.AUTH_ERROR;
@@ -156,6 +159,7 @@ export class APIClient {
         default:
           errorType = ErrorTypes.SERVER_ERROR;
       }
+
 
       const errorMessage = data?.error || data?.message || `HTTP ${response.status}`;
       return APIResponse.error(errorMessage, response.status, errorType);

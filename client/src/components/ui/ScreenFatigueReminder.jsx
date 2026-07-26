@@ -94,6 +94,13 @@ export function ScreenFatigueReminder() {
   }, [isVisible, tipCycleKey]); // Include tipCycleKey to restart timer when it changes
 
   const showReminder = () => {
+    // Only show reminder if tab is currently active
+    if (document.hidden) {
+      // Postpone reminder by 2 minutes if tab is hidden
+      setTimeout(() => showReminder(), 2 * 60 * 1000);
+      return;
+    }
+
     // Select a random tip
     const randomTipIndex = Math.floor(
       Math.random() * SCREEN_FATIGUE_TIPS.length
@@ -104,6 +111,7 @@ export function ScreenFatigueReminder() {
     const now = Date.now();
     localStorage.setItem("screenFatigueLastShown", now.toString());
   };
+
 
   const handleClose = () => {
     setIsVisible(false);

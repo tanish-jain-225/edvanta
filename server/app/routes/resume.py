@@ -3,11 +3,12 @@ import io
 import PyPDF2
 import cloudinary
 import cloudinary.uploader
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from app.config import Config
 from app.utils.ai_utils import analyze_resume_text
-from app.utils.mongo_utils import connect_to_mongodb
+from app.utils.mongo_utils import connect_to_mongodb, safe_object_id
+
 
 resume_bp = Blueprint('resume', __name__)
 
@@ -65,8 +66,15 @@ def analyze_resume():
     
     user_email = request.form.get('user_email') or request.args.get('user_email')
     
+    # Check file size limit (10MB) before reading into memory
+    content_length = request.content_length
+    if content_length and content_length > 10 * 1024 * 1024:
+        return jsonify({"error": "File size exceeds 10MB limit."}), 400
+
     # Read the file bytes
     file_bytes = file.read()
+    if len(file_bytes) > 10 * 1024 * 1024:
+        return jsonify({"error": "File size exceeds 10MB limit."}), 400
     
     # Check file type and extract text
     filename = file.filename.lower()
@@ -92,11 +100,8 @@ def analyze_resume():
 
     try:
         file_stream = io.BytesIO(file_bytes)
-        # Cloudinary auto-appends format extensions for images/PDFs but not for raw files (like TXT).
-        # We upload PDFs as 'auto' (which Cloudinary treats as image) so they can be viewed inline,
-        # and TXT files with an explicit '.txt' extension as raw/auto.
         is_pdf = filename.endswith('.pdf')
-        public_id = f"resume_{int(datetime.utcnow().timestamp())}"
+        public_id = f"resume_{int(datetime.now(timezone.utc).timestamp())}"
         if not is_pdf:
             public_id += ".txt"
 
@@ -134,7 +139,7 @@ def analyze_resume():
                     "filename": file.filename,
                     "file_url": secure_url,
                     "analysis": analysis_result['analysis'],
-                    "created_at": datetime.utcnow()
+                    "created_at": datetime.now(timezone.utc)
                 }
                 result = col.insert_one(resume_doc)
                 response_payload["id"] = str(result.inserted_id)
@@ -177,14 +182,19 @@ def get_resume_history():
 @resume_bp.route("/api/resume/history/<id>", methods=["DELETE"])
 def delete_resume_analysis(id):
     """Delete a specific resume analysis by its ID."""
+    oid = safe_object_id(id)
+    if not oid:
+        return jsonify({"error": "Invalid resume ID format"}), 400
+
     col = get_resumes_collection()
     if col is None:
         return jsonify({"error": "Database connection not available"}), 500
         
     try:
-        result = col.delete_one({"_id": ObjectId(id)})
+        result = col.delete_one({"_id": oid})
         if result.deleted_count == 0:
             return jsonify({"error": "Resume analysis not found"}), 404
         return jsonify({"success": True, "message": "Resume analysis deleted successfully"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to delete resume analysis: {str(e)}"}), 500
+

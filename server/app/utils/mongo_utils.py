@@ -12,10 +12,26 @@ from typing import Optional, Tuple
 from app.config import Config
 import logging
 
+from bson import ObjectId
+from bson.errors import InvalidId
+
 logger = logging.getLogger(__name__)
 
 # Global connection cache for serverless environments
 _mongo_client_cache = None
+
+
+def safe_object_id(val) -> Optional[ObjectId]:
+    """Safely convert a string or value into a MongoDB ObjectId, returning None if invalid."""
+    if not val:
+        return None
+    if isinstance(val, ObjectId):
+        return val
+    try:
+        return ObjectId(str(val))
+    except (InvalidId, TypeError, ValueError):
+        return None
+
 
 
 def get_mongo_client() -> Optional[MongoClient]:

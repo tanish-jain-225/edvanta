@@ -9,8 +9,6 @@ import {
   Trash2,
   X,
   LogIn,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { getUserProfileImage } from "../../lib/utils";
@@ -29,15 +27,14 @@ export function DoubtSolving() {
     isHistoryOpen,
     setIsHistoryOpen,
     isLoading,
-    currentlySpeakingId,
     messagesEndRef,
     inputRef,
     createNewSession,
     switchToSession,
     deleteSession,
     handleSendMessage,
-    toggleSpeakMessage,
   } = useChat(user, authLoading);
+
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -427,9 +424,9 @@ export function DoubtSolving() {
                       }}
                     />
 
-                    {/* Timestamp & Controls */}
-                    <div className="flex items-center justify-between gap-4 mt-2 border-t border-gray-100/50 pt-1">
-                      {message.timestamp && (
+                    {/* Timestamp */}
+                    {message.timestamp && (
+                      <div className="mt-2 border-t border-gray-100/50 pt-1">
                         <div
                           className={`text-[10px] xs:text-xs ${isUserMessage ? "text-blue-100" : "text-gray-400"
                             }`}
@@ -438,24 +435,9 @@ export function DoubtSolving() {
                             {formatExactTimestamp(message.timestamp)}
                           </div>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {!isUserMessage && (
-                        <button
-                          onClick={() => toggleSpeakMessage(index, message.content)}
-                          className={`p-1 rounded cursor-pointer transition-colors flex items-center justify-center ${currentlySpeakingId === index ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                            }`}
-                          title={currentlySpeakingId === index ? "Stop speaking" : "Speak answer"}
-                          type="button"
-                        >
-                          {currentlySpeakingId === index ? (
-                            <VolumeX className="w-3.5 h-3.5 animate-pulse" />
-                          ) : (
-                            <Volume2 className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      )}
-                    </div>
                   </div>
 
                   {/* User Profile */}

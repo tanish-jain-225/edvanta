@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -14,36 +14,52 @@ import { ScreenFatigueReminder } from "./components/ui/ScreenFatigueReminder";
 import ScrollToTop from "./components/ui/ScrollToTop";
 import OfflineIndicator from "./components/ui/OfflineIndicator";
 
-// Pages
-import Home from "./pages/Home";
-import { Login } from "./pages/auth/Login";
-import { Signup } from "./pages/auth/Signup";
-import { Dashboard } from "./pages/Dashboard";
-import { DoubtSolving } from "./pages/tools/DoubtSolving";
-import { Quizzes } from "./pages/tools/Quizzes";
-import { ConversationalTutor } from "./pages/tools/ConversationalTutor";
-import { Roadmap } from "./pages/tools/Roadmap";
-import VisualContent from "./pages/tools/VisualContent";
-import { ResumeAnalysis } from "./pages/tools/ResumeAnalysis";
+// Lazy-loaded route components for performance & bundle splitting
+const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./pages/auth/Login").then(m => ({ default: m.Login })));
+const Signup = lazy(() => import("./pages/auth/Signup").then(m => ({ default: m.Signup })));
+const Dashboard = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })));
+const DoubtSolving = lazy(() => import("./pages/tools/DoubtSolving").then(m => ({ default: m.DoubtSolving })));
+const Quizzes = lazy(() => import("./pages/tools/Quizzes").then(m => ({ default: m.Quizzes })));
+const ConversationalTutor = lazy(() => import("./pages/tools/ConversationalTutor").then(m => ({ default: m.ConversationalTutor })));
+const Roadmap = lazy(() => import("./pages/tools/Roadmap").then(m => ({ default: m.Roadmap })));
+const VisualContent = lazy(() => import("./pages/tools/VisualContent"));
+const ResumeAnalysis = lazy(() => import("./pages/tools/ResumeAnalysis").then(m => ({ default: m.ResumeAnalysis })));
 
 // Preload logo image instantly on app start
 const LOGO_SRC = "/edvanta-logo.png";
 const logoImg = new window.Image();
 logoImg.src = LOGO_SRC;
 
-// Unified loading logic hook
+// Loading Spinner Component
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-100">
+      <div className="text-center">
+        <img
+          src={LOGO_SRC}
+          alt="Loading..."
+          className="mx-auto animate-pulse w-20 h-20"
+          style={{ opacity: logoImg.complete ? 1 : 0, transition: 'opacity 0.1s' }}
+          draggable={false}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Dynamic loading hook that checks auth status without artificial delays
 function useUnifiedLoading(location, authLoading) {
-  // Only show loading for 3 seconds on initial mount (refresh)
-  const LOADING_MINIMUM_TIME = 3000;
   const [initialLoading, setInitialLoading] = useState(true);
-  const timerRef = useRef(null);
 
   useEffect(() => {
-    timerRef.current = setTimeout(() => setInitialLoading(false), LOADING_MINIMUM_TIME);
-    return () => clearTimeout(timerRef.current);
-  }, []);
+    // Immediate unlock if auth is finished
+    if (!authLoading) {
+      setInitialLoading(false);
+    }
+  }, [authLoading]);
 
-  return authLoading || initialLoading;
+  return authLoading && initialLoading;
 }
 
 // Layout Component for Dashboard Pages
@@ -58,13 +74,11 @@ function DashboardLayout({ children }) {
   );
 }
 
-
-
 // Protected Route Component
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) {
-    return null; // or a loading spinner
+    return <LoadingFallback />;
   }
   if (!user) {
     return <Navigate to="/" replace />;
@@ -72,127 +86,115 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-
-
-
 function AppRoutes() {
   const location = useLocation();
   const { loading: authLoading } = useAuth();
   const isLoading = useUnifiedLoading(location, authLoading);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-100">
-        <div className="text-center">
-          <img
-            src={LOGO_SRC}
-            alt="Loading..."
-            className="mx-auto animate-pulse w-20 h-20"
-            style={{ opacity: logoImg.complete ? 1 : 0, transition: 'opacity 0.1s' }}
-            draggable={false}
-          />
-        </div>
-      </div>
-    );
+    return <LoadingFallback />;
   }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <div className="flex-1 pt-16">
-        <Routes>
-          {/* Public Routes */}
-          <Route
-            path="/"
-            element={<PageTransition><Home /></PageTransition>}
-          />
-          <Route
-            path="/auth/login"
-            element={<PageTransition><Login /></PageTransition>}
-          />
-          <Route
-            path="/auth/signup"
-            element={<PageTransition><Signup /></PageTransition>}
-          />
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            {/* Public Routes */}
+            <Route
+              path="/"
+              element={<PageTransition><Home /></PageTransition>}
+            />
+            <Route
+              path="/auth/login"
+              element={<PageTransition><Login /></PageTransition>}
+            />
+            <Route
+              path="/auth/signup"
+              element={<PageTransition><Signup /></PageTransition>}
+            />
 
-          {/* Protected Dashboard Routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <Dashboard />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tools/doubt-solving"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <DoubtSolving />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tools/quizzes"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <Quizzes />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tools/conversational-tutor"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <ConversationalTutor />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tools/roadmap"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <Roadmap />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tools/visual-content"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <VisualContent />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tools/resume-analysis"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout>
-                  <ResumeAnalysis />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          {/* Catch all route - redirect to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Protected Dashboard Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <Dashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/doubt-solving"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <DoubtSolving />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/quizzes"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <Quizzes />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/conversational-tutor"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <ConversationalTutor />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/roadmap"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <Roadmap />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/visual-content"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <VisualContent />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/resume-analysis"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <ResumeAnalysis />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            {/* Catch all route - redirect to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </div>
   );
 }
+
 
 function App() {
   return (

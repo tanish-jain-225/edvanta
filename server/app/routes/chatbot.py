@@ -6,12 +6,13 @@ message persistence and AI responses using centralized AI system.
 from flask import Blueprint, request, jsonify
 from bson import ObjectId
 from ..config import Config
-from datetime import datetime
+from datetime import datetime, timezone
 from app.utils.ai_utils import get_tutor_response
 
-from app.utils.mongo_utils import connect_to_mongodb
+from app.utils.mongo_utils import connect_to_mongodb, safe_object_id
 
 chatbot_bp = Blueprint("chatbot", __name__)
+
 
 class LazyCollectionProxy:
     def __init__(self, init_fn):
@@ -91,23 +92,26 @@ def append_session_message(session_id, identifier_field, identifier, role, conte
     if not session_id or not identifier:
         return False
 
+    oid = safe_object_id(session_id)
+    if not oid:
+        return False
+
     message = {
         "role": role,
         "content": content,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
-
-
     chat_sessions_col.update_one(
-        {"_id": ObjectId(session_id), identifier_field: identifier},
+        {"_id": oid, identifier_field: identifier},
         {
             "$push": {"messages": message},
-            "$set": {"lastActivity": datetime.utcnow().isoformat()},
+            "$set": {"lastActivity": datetime.now(timezone.utc).isoformat()},
             "$inc": {"messageCount": 1}
         }
     )
     return True
+
 
 
 def get_ai_response(question: str, context: str = "", chat_history: list = None):
@@ -180,26 +184,30 @@ def save_chat_sessions():
         return jsonify({"error": "userEmail or userId is required"}), 400
 
     try:
-        # Remove all old sessions for this user
-        chat_sessions_col.delete_many({identifier_field: identifier})
-
-        # Insert new sessions
+        # Upsert each session safely without wiping user history on transient failures
+        saved_ids = []
         for session in sessions:
             if session:
-                session_id = session.get(
-                    "id") if "id" in session and session["id"] else None
-                session["_id"] = ObjectId(
-                    session_id) if session_id else ObjectId()
+                session_id = session.get("id") if "id" in session and session["id"] else None
+                oid = safe_object_id(session_id) or ObjectId()
+                session["_id"] = oid
                 session[identifier_field] = identifier
-                # Keep both fields for transitional period
                 if user_email:
                     session["userEmail"] = user_email
                 if user_id:
                     session["userId"] = user_id
-                chat_sessions_col.replace_one(
-                    {"_id": session["_id"]}, session, upsert=True)
+                chat_sessions_col.replace_one({"_id": oid}, session, upsert=True)
+                saved_ids.append(oid)
+
+        # Only clean up sessions for this user if an explicit session array was provided
+        if sessions and len(saved_ids) > 0:
+            chat_sessions_col.delete_many({
+                identifier_field: identifier,
+                "_id": {"$nin": saved_ids}
+            })
 
         return jsonify({"success": True})
+
     except Exception:
         return jsonify({"error": "Failed to save chat sessions"}), 500
 

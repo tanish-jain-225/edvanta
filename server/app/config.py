@@ -33,6 +33,8 @@ class Config:
     # Flask core settings
     SECRET_KEY = os.getenv("SECRET_KEY", "edvanta-dev-secret-key")
     FLASK_ENV = os.getenv("FLASK_ENV", "development").lower()
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max upload limit
+
     
     @classmethod
     def get_environment(cls):
