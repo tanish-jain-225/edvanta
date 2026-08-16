@@ -8,8 +8,8 @@ import uuid
 from datetime import datetime
 from ..utils.quizzes_utils import create_quiz
 from ..config import Config
-
 from app.utils.mongo_utils import connect_to_mongodb
+from app.middleware.auth import require_auth, verify_user_ownership
 
 quizzes_bp = Blueprint("quizzes", __name__)
 
@@ -32,6 +32,7 @@ except Exception as e:
 
 
 @quizzes_bp.route("/api/quizzes/generate", methods=["POST"])
+@require_auth
 def generate_quiz():
     """Generate a quiz from provided topic text or summary.
 
@@ -71,6 +72,7 @@ def generate_quiz():
 
 
 @quizzes_bp.route("/api/tools/quizzes", methods=["GET", "POST"])
+@require_auth
 def manage_quizzes():
     """Handle quiz management.
     
@@ -85,6 +87,9 @@ def manage_quizzes():
             
             if not user_email:
                 return jsonify({"error": "user_email parameter is required"}), 400
+
+            if not verify_user_ownership(user_email):
+                return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
             
             # Fetch quizzes for the specific user from MongoDB
             quizzes_cursor = quizzes_collection.find({"created_by": user_email})
@@ -120,8 +125,9 @@ def manage_quizzes():
             if not quiz_data or not isinstance(quiz_data, dict):
                 return jsonify({"error": "Invalid quiz data"}), 400
             
-            # Get user email from request headers or body (for future auth integration)
             user_email = quiz_data.get('user_email', 'anonymous@example.com')
+            if user_email and not verify_user_ownership(user_email):
+                return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
             
             # Generate UUID-based ID
             quiz_uuid = str(uuid.uuid4())
@@ -151,12 +157,17 @@ def manage_quizzes():
 
 
 @quizzes_bp.route("/api/tools/quizzes/<quiz_id>", methods=["DELETE"])
+@require_auth
 def delete_quiz(quiz_id):
     """Delete a quiz by UUID.
     
     DELETE: Remove a quiz from the saved quizzes list
     """
     try:
+        user_email = request.args.get('user_email')
+        if user_email and not verify_user_ownership(user_email):
+            return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
         # Delete from MongoDB using the custom UUID field
         result = quizzes_collection.delete_one({"id": quiz_id})
         
@@ -173,6 +184,7 @@ def delete_quiz(quiz_id):
 
 
 @quizzes_bp.route("/api/quizzes/submit", methods=["POST"])
+@require_auth
 def submit_quiz():
     """Evaluate submitted answers and return score & feedback.
 
@@ -234,6 +246,7 @@ def submit_quiz():
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 @quizzes_bp.route("/api/quiz-history", methods=["GET", "POST", "DELETE"])
+@require_auth
 def quiz_history_endpoint():
     """Handle quiz history operations."""
     
@@ -243,6 +256,9 @@ def quiz_history_endpoint():
             
             if not user_email:
                 return jsonify({"error": "user_email parameter is required"}), 400
+
+            if not verify_user_ownership(user_email):
+                return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
             
             history_cursor = quiz_history_collection.find({"user_email": user_email}).sort("completedAt", -1)
             history_list = []
@@ -264,6 +280,8 @@ def quiz_history_endpoint():
                 return jsonify({"error": "No JSON data provided"}), 400
 
             user_email = data.get("user_email") or data.get("userEmail") or data.get("userId") or data.get("user_id") or "anonymous@example.com"
+            if user_email and not verify_user_ownership(user_email):
+                return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
             
             history_uuid = str(uuid.uuid4())
             
@@ -301,6 +319,9 @@ def quiz_history_endpoint():
             
             if not user_email:
                 return jsonify({"error": "user_email parameter is required"}), 400
+
+            if not verify_user_ownership(user_email):
+                return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
             
             result = quiz_history_collection.delete_many({"user_email": user_email})
             

@@ -13,12 +13,12 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-
 import {
   Mail,
   Lock,
   User,
 } from "lucide-react";
+import { getFirebaseAuthErrorMessage } from "../../lib/utils";
 
 export function Signup() {
   const [formData, setFormData] = useState({
@@ -87,8 +87,8 @@ export function Signup() {
                     createdAt: new Date(),
                   });
                   navigate("/dashboard");
-                } catch (error) {
-                  setError(error.message);
+                } catch (err) {
+                  setError(getFirebaseAuthErrorMessage(err));
                 } finally {
                   setLoading(false);
                 }

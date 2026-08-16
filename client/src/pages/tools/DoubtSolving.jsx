@@ -11,7 +11,7 @@ import {
   LogIn,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
-import { getUserProfileImage } from "../../lib/utils";
+import { getUserProfileImage, escapeHtml } from "../../lib/utils";
 import { useChat } from "../../hooks/useChat";
 
 export function DoubtSolving() {
@@ -44,12 +44,14 @@ export function DoubtSolving() {
   };
 
   const formatUserContent = (content) => {
-    // Simplified formatting for user messages with explicit white text
-    return `<p class="text-white">${content.replace(/\n/g, "<br>")}</p>`;
+    if (!content || typeof content !== "string") return "";
+    // Simplified formatting for user messages with explicit white text and XSS escaping
+    return `<p class="text-white">${escapeHtml(content).replace(/\n/g, "<br>")}</p>`;
   };
 
   const formatContent = (content) => {
-    // Enhanced markdown formatting for AI responses, with improved code block handling
+    if (!content || typeof content !== "string") return "";
+    // Enhanced markdown formatting for AI responses, with improved code block handling and XSS protection
     // 1. Handle code blocks first to avoid interfering with inline code/markdown
     let formatted = content;
 
@@ -61,17 +63,21 @@ export function DoubtSolving() {
         const idx = codeBlocks.length;
         codeBlocks.push({
           lang: lang || "",
-          code: code.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+          code: escapeHtml(code),
           raw: code,
         });
         return `[[CODEBLOCK_${idx}]]`;
       }
     );
 
+    // Escape raw HTML entities in the remaining text
+    formatted = escapeHtml(formatted);
+
     // Bold (**text**)
     formatted = formatted.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     // Italic (*text*)
     formatted = formatted.replace(/\*(.*?)\*/g, "<em>$1</em>");
+
     // Inline code (`code`)
     formatted = formatted.replace(
       /`([^`]+)`/g,
@@ -112,7 +118,11 @@ export function DoubtSolving() {
     // Links
     formatted = formatted.replace(
       /\[([^\]]+)\]\(([^)]+)\)/g,
-      '<a href="$2" target="_blank" class="text-blue-600 underline hover:text-blue-800">$1</a>'
+      (match, label, href) => {
+        const isSafe = /^https?:\/\//i.test(href) || /^mailto:/i.test(href) || href.startsWith('/');
+        const safeUrl = isSafe ? href : '#';
+        return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${label}</a>`;
+      }
     );
     // Horizontal rule
     formatted = formatted.replace(

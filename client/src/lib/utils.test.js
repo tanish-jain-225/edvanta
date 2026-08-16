@@ -5,6 +5,8 @@ import {
   generateId,
   truncateText,
   getUserProfileImage,
+  escapeHtml,
+  getFirebaseAuthErrorMessage,
 } from "./utils";
 
 describe("utils", () => {
@@ -33,4 +35,32 @@ describe("utils", () => {
     const profile = { profileImageUrl: null };
     expect(getUserProfileImage(user, profile)).toBe("/default-avatar.svg");
   });
+
+  it("escapes dangerous HTML characters to prevent XSS", () => {
+    expect(escapeHtml("<script>alert(1)</script>")).toBe(
+      "&lt;script&gt;alert(1)&lt;/script&gt;"
+    );
+    expect(escapeHtml('<img src=x onerror="alert(\'XSS\')">')).toBe(
+      "&lt;img src=x onerror=&quot;alert(&#39;XSS&#39;)&quot;&gt;"
+    );
+    expect(escapeHtml("A & B")).toBe("A &amp; B");
+    expect(escapeHtml(null)).toBe("");
+  });
+
+  it("maps Firebase auth errors to friendly user messages", () => {
+    expect(getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" })).toBe(
+      "Invalid email or password. Please check your credentials."
+    );
+    expect(getFirebaseAuthErrorMessage({ code: "auth/email-already-in-use" })).toBe(
+      "An account with this email already exists. Please sign in instead."
+    );
+    expect(getFirebaseAuthErrorMessage({ code: "auth/weak-password" })).toBe(
+      "Password should be at least 6 characters long."
+    );
+    expect(getFirebaseAuthErrorMessage(null)).toBe(
+      "An unexpected error occurred. Please try again."
+    );
+  });
 });
+
+

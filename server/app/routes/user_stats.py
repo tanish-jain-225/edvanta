@@ -1,10 +1,8 @@
 from flask import Blueprint, request, jsonify
 from app.config import Config
 from datetime import datetime
-
-user_stats_bp = Blueprint('user_stats', __name__)
-
 from app.utils.mongo_utils import connect_to_mongodb
+from app.middleware.auth import require_auth, verify_user_ownership
 
 user_stats_bp = Blueprint('user_stats', __name__)
 
@@ -27,12 +25,18 @@ except Exception as e:
 
 
 @user_stats_bp.route("/api/user-stats", methods=["GET"])
+@require_auth
 def get_user_stats():
     """Get real-time user statistics: Active Roadmaps, Skills Learning, Quizzes Made"""
     try:
         user_email = request.args.get('user_email') or request.args.get('userEmail')
         if not user_email:
             return jsonify({"error": "user_email parameter is required"}), 400
+        
+        # IDOR/BOLA Protection: Verify authenticated user matches requested email
+        if not verify_user_ownership(user_email):
+            return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
         
         # Check if MongoDB is available
         if db is None or quiz_history_collection is None or roadmaps_collection is None:

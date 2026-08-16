@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Search, Play, ExternalLink, Clock, Eye, AlertCircle } from 'lucide-react';
+import { edvantaAPI } from '../../lib/api';
 
 const VisualContent = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,10 +33,6 @@ const VisualContent = () => {
     }
   }, [isOnline]);
 
-  // YouTube API configuration
-  const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
-  const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3/search';
-
   const searchVideos = useCallback(async () => {
     if (!navigator.onLine) {
       setError('Search is not available in offline mode.');
@@ -49,52 +46,26 @@ const VisualContent = () => {
       return;
     }
 
-    if (!YOUTUBE_API_KEY) {
-      setError('YouTube API key not configured. Please add VITE_YOUTUBE_API_KEY to your .env file');
-      setHasSearched(true);
-      return;
-    }
-
     setLoading(true);
     setError('');
     setHasSearched(true);
 
     try {
-      const response = await fetch(
-        `${YOUTUBE_API_URL}?part=snippet&maxResults=12&q=${encodeURIComponent(searchQuery)}&type=video&key=${YOUTUBE_API_KEY}`
-      );
+      const response = await edvantaAPI.searchVideos(searchQuery);
 
-      if (!response.ok) {
-        throw new Error(`YouTube API error: ${response.status}`);
+      if (!response.success) {
+        throw new Error(response.error?.message || response.error || 'Failed to search videos');
       }
 
-      const data = await response.json();
-
-      // Get video statistics for each video
-      const videoIds = data.items.map(item => item.id.videoId).join(',');
-      const statsResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${videoIds}&key=${YOUTUBE_API_KEY}`
-      );
-
-      const statsData = await statsResponse.json();
-
-      // Merge video data with statistics
-      const videosWithStats = data.items.map(item => {
-        const stats = statsData.items.find(stat => stat.id === item.id.videoId);
-        return {
-          ...item,
-          statistics: stats?.statistics || {},
-          contentDetails: stats?.contentDetails || {}
-        };
-      });
-
-      setVideos(videosWithStats);
+      const items = response.data?.items || [];
+      setVideos(items);
     } catch (err) {
-      setError(`Failed to search videos: ${err.message}`);
+      setError(err.message || 'Failed to search videos. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, YOUTUBE_API_KEY]);
+  }, [searchQuery]);
+
 
   const formatViews = (views) => {
     if (!views) return '0';

@@ -9,6 +9,7 @@ from datetime import datetime
 import html
 from app.utils.ai_utils import generate_roadmap_content
 from app.utils.mongo_utils import connect_to_mongodb
+from app.middleware.auth import require_auth, verify_user_ownership
 
 roadmap_bp = Blueprint("roadmap", __name__)
 
@@ -20,6 +21,7 @@ _in_memory_roadmaps = {}
 
 
 @roadmap_bp.route("/api/roadmap/generate", methods=["POST"])
+@require_auth
 def generate_roadmap():
     """Generate roadmap for a target skill or goal.
 
@@ -51,6 +53,9 @@ def generate_roadmap():
 
     if not user_email:
         return jsonify({"error": "Missing user email"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     # Use centralized AI to generate roadmap
     try:
@@ -93,6 +98,7 @@ def generate_roadmap():
 
 
 @roadmap_bp.route("/api/roadmap/user", methods=["GET"])
+@require_auth
 def get_user_roadmaps():
     """Get all roadmaps for a specific user.
 
@@ -108,6 +114,9 @@ def get_user_roadmaps():
     user_email = request.args.get("user_email") or request.args.get("userEmail")
     if not user_email:
         return jsonify({"error": "Missing user_email parameter"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
         if db is not None and collection_name is not None:
@@ -132,12 +141,13 @@ def get_user_roadmaps():
                 if "updated_at" in r_copy and isinstance(r_copy["updated_at"], datetime):
                     r_copy["updated_at"] = r_copy["updated_at"].isoformat()
                 user_roadmaps.append(r_copy)
-        return jsonify(user_roadmaps)
+            return jsonify(user_roadmaps)
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve roadmaps: {str(e)}"}), 500
 
 
 @roadmap_bp.route("/api/roadmap/<roadmap_id>", methods=["GET", "PUT", "DELETE"])
+@require_auth
 def get_roadmap_by_id(roadmap_id):
     """Get, update, or delete a specific roadmap by ID.
 
@@ -155,6 +165,10 @@ def get_roadmap_by_id(roadmap_id):
     user_email = request.args.get("user_email") or request.args.get("userEmail")
     if not user_email:
         return jsonify({"error": "Missing user_email parameter"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
 
     try:
         # If DB is available, operate against MongoDB
@@ -254,6 +268,7 @@ def get_roadmap_by_id(roadmap_id):
 
 
 @roadmap_bp.route("/api/roadmap/download/<roadmap_id>", methods=["GET"])
+@require_auth
 def download_roadmap(roadmap_id):
     """Download a roadmap as PDF.
 
@@ -268,6 +283,10 @@ def download_roadmap(roadmap_id):
     user_email = request.args.get("user_email") or request.args.get("userEmail")
     if not user_email:
         return jsonify({"error": "Missing user_email parameter"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
 
     try:
         # Fetch roadmap

@@ -10,6 +10,27 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
   build: {
     target: "esnext",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-firebase-auth": [
+            "firebase/app",
+            "firebase/auth",
+            "firebase/storage",
+          ],
+          "vendor-firebase-firestore": ["firebase/firestore"],
+          "vendor-ui": [
+            "lucide-react",
+            "framer-motion",
+            "@radix-ui/react-progress",
+            "@radix-ui/react-slot",
+            "@radix-ui/react-tabs",
+          ],
+          "vendor-utils": ["axios", "clsx", "tailwind-merge", "sonner"],
+        },
+      },
+    },
   },
   esbuild: {
     target: "esnext",

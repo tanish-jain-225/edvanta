@@ -9,6 +9,7 @@ from .tutor import tutor_bp
 from .roadmap import roadmap_bp
 from .user_stats import user_stats_bp
 from .resume import resume_bp
+from .videos import videos_bp
 
 __all__ = [
     'chatbot_bp', 
@@ -16,5 +17,7 @@ __all__ = [
     'tutor_bp',
     'roadmap_bp',
     'user_stats_bp',
-    'resume_bp'
+    'resume_bp',
+    'videos_bp'
 ]
+

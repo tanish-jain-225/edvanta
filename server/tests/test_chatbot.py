@@ -113,3 +113,20 @@ def test_delete_chat_session(mock_col, client):
         "_id": ObjectId("60c72b2f9b1d8e1f5c8b4568"),
         "userEmail": "test@example.com"
     })
+
+
+def test_invalid_session_id_handling(client):
+    """Test that invalid session IDs return 400 Bad Request instead of 500 error."""
+    # Test delete with invalid hex/non-ObjectId string
+    resp1 = client.delete("/api/chat/deleteChat/invalid-id-123?userEmail=test@example.com")
+    assert resp1.status_code == 400
+    assert "Invalid session ID" in resp1.get_json()["error"]
+
+    # Test update with invalid hex string
+    resp2 = client.put("/api/chat/updateMessages/invalid-id-123/messages", json={
+        "userEmail": "test@example.com",
+        "messages": []
+    })
+    assert resp2.status_code == 400
+    assert "Invalid session ID" in resp2.get_json()["error"]
+

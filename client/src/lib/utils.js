@@ -50,3 +50,53 @@ export function getUserProfileImage(user, userProfile) {
   
   return profileImage;
 }
+
+/**
+ * Escapes special HTML characters to prevent XSS attacks
+ * @param {string} str - Raw string
+ * @returns {string} - Escaped string safe for HTML rendering
+ */
+export function escapeHtml(str) {
+  if (!str || typeof str !== 'string') return '';
+  const htmlEscapes = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return str.replace(/[&<>"']/g, (char) => htmlEscapes[char]);
+}
+
+/**
+ * Maps Firebase auth error codes into friendly user messages
+ * @param {Error|Object} error - Error thrown by Firebase
+ * @returns {string} - Human-readable message
+ */
+export function getFirebaseAuthErrorMessage(error) {
+  if (!error) return 'An unexpected error occurred. Please try again.';
+  const code = error.code || '';
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Invalid email or password. Please check your credentials.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists. Please sign in instead.';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters long.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait a moment before trying again.';
+    case 'auth/popup-closed-by-user':
+      return 'Google sign-in was cancelled.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection.';
+    default:
+      return error.message ? error.message.replace(/^Firebase:\s*(Error\s*)?(\([^)]+\)\.?\s*)?/i, '') : 'Authentication failed. Please try again.';
+  }
+}
+

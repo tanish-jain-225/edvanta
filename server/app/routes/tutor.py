@@ -1,7 +1,3 @@
-"""Conversational Tutor endpoints.
-
-Combines AI tutoring responses with Gemini AI for seamless voice interaction
-"""
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from app.utils.ai_utils import (
@@ -15,11 +11,13 @@ from app.utils.ai_utils import (
     get_chat_history,
     clear_chat_history
 )
+from app.middleware.auth import require_auth, verify_user_ownership
 
 tutor_bp = Blueprint('tutor', __name__)
 
 
 @tutor_bp.route("/api/tutor/ask", methods=["POST"])
+@require_auth
 def tutor_ask():
     """Receive a tutoring question/prompt and return guidance optimized for voice or text.
 
@@ -45,6 +43,9 @@ def tutor_ask():
 
     if not user_email:
         return jsonify({"error": "User email is required for conversation tracking"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
 
@@ -106,6 +107,7 @@ def tutor_ask():
 
 
 @tutor_bp.route("/api/tutor/session/start", methods=["POST"])
+@require_auth
 def start_session():
     """Start a new tutoring session with voice-aware initialization.
 
@@ -124,6 +126,9 @@ def start_session():
 
     if not user_email:
         return jsonify({"error": "User email is required"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     if not subject.strip():
         return jsonify({"error": "Subject is required"}), 400
@@ -195,6 +200,7 @@ def start_session():
 
 
 @tutor_bp.route("/api/tutor/session/end", methods=["POST"])
+@require_auth
 def end_session():
     """End a tutoring session with proper cleanup.
 
@@ -214,6 +220,9 @@ def end_session():
 
     if not user_email:
         return jsonify({"error": "User email is required for conversation tracking"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
 
@@ -239,6 +248,7 @@ def end_session():
 
 
 @tutor_bp.route("/api/tutor/voice/toggle", methods=["POST"])
+@require_auth
 def toggle_voice():
     """Toggle voice output on/off with immediate feedback.
 
@@ -261,6 +271,9 @@ def toggle_voice():
 
     if not user_email:
         return jsonify({"error": "User email is required for conversation tracking"}), 400
+
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
 
@@ -303,6 +316,7 @@ def toggle_voice():
 
 
 @tutor_bp.route("/api/tutor/session/active", methods=["GET"])
+@require_auth
 def check_active_session():
     """Check if a user has an active tutoring session.
 
@@ -313,6 +327,9 @@ def check_active_session():
 
     if not user_email:
         return jsonify({"error": "User email is required"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
 
@@ -350,6 +367,7 @@ def check_active_session():
 
 
 @tutor_bp.route("/api/tutor/chat/history", methods=["GET"])
+@require_auth
 def get_chat_history_endpoint():
     """Get chat history for a user with pagination and filtering.
 
@@ -369,6 +387,9 @@ def get_chat_history_endpoint():
 
     if not user_email:
         return jsonify({"error": "User email is required"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
         # Get chat history for the specific session
@@ -406,6 +427,7 @@ def get_chat_history_endpoint():
 
 
 @tutor_bp.route("/api/tutor/chat/clear", methods=["POST"])
+@require_auth
 def clear_chat_history_endpoint():
     """Clear chat history for a user with confirmation.
 
@@ -424,6 +446,10 @@ def clear_chat_history_endpoint():
 
     if not user_email:
         return jsonify({"error": "User email is required"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
 
     if not confirm:
         return jsonify({"error": "Confirmation is required to clear chat history"}), 400

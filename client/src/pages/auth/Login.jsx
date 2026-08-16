@@ -15,6 +15,7 @@ import {
 } from "../../components/ui/card";
 
 import { Mail, Lock } from "lucide-react";
+import { getFirebaseAuthErrorMessage } from "../../lib/utils";
 
 export function Login() {
   const [email, setEmail] = useState("");
@@ -38,8 +39,8 @@ export function Login() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       navigate("/dashboard");
-    } catch (error) {
-      setError(error.message);
+    } catch (err) {
+      setError(getFirebaseAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -70,8 +71,8 @@ export function Login() {
       }
 
       navigate("/dashboard");
-    } catch (error) {
-      setError(error.message);
+    } catch (err) {
+      setError(getFirebaseAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }

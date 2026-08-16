@@ -7,6 +7,7 @@
  */
 
 import backEndURL from '../hooks/helper';
+import { auth } from './firebase';
 
 // Environment-aware API URL resolution
 const getAPIBaseURL = () => {
@@ -88,6 +89,18 @@ export class APIClient {
         ...this.defaultHeaders,
         ...options.headers,
       };
+
+      // Automatically inject Firebase ID token if user is signed in
+      if (!requestHeaders['Authorization'] && auth?.currentUser) {
+        try {
+          const token = await auth.currentUser.getIdToken();
+          if (token) {
+            requestHeaders['Authorization'] = `Bearer ${token}`;
+          }
+        } catch (e) {
+          console.debug('Failed to get Firebase token:', e);
+        }
+      }
 
       if (options.body instanceof FormData) {
         delete requestHeaders['Content-Type'];
@@ -369,6 +382,11 @@ export const edvantaAPI = {
     return api.delete(`/api/resume/history/${id}`);
   },
 
+  // Videos (YouTube search proxy)
+  searchVideos(query, maxResults = 12) {
+    return api.get('/api/videos/search', { q: query, max_results: maxResults });
+  },
+
   // Health checks
   getHealth() {
     return api.get('/api/health');
@@ -378,6 +396,7 @@ export const edvantaAPI = {
     return api.get('/api/runtime-features');
   },
 };
+
 
 // Error handling utilities
 export const handleAPIError = (error, fallbackMessage = 'Something went wrong') => {

@@ -79,7 +79,10 @@ def create_app() -> Flask:
          fromlist=['user_stats_bp']).user_stats_bp),
         ('resume', lambda: __import__(
             'app.routes.resume', fromlist=['resume_bp']).resume_bp),
+        ('videos', lambda: __import__(
+            'app.routes.videos', fromlist=['videos_bp']).videos_bp),
     ]
+
 
     registered_blueprints = []
     for name, blueprint_loader in blueprints_to_register:

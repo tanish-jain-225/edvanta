@@ -8,6 +8,7 @@ from bson import ObjectId
 from ..config import Config
 from datetime import datetime, timezone
 from app.utils.ai_utils import get_tutor_response
+from app.middleware.auth import require_auth, verify_user_ownership
 
 from app.utils.mongo_utils import connect_to_mongodb, safe_object_id
 
@@ -134,6 +135,7 @@ def get_ai_response(question: str, context: str = "", chat_history: list = None)
 # ================= Route Definitions =================
 
 @chatbot_bp.route("/api/chat/loadChat", methods=["GET"])
+@require_auth
 def load_chat_sessions():
     """Load all chat sessions for a user by email."""
     user_email = request.args.get("user_email") or request.args.get("userEmail")
@@ -144,6 +146,9 @@ def load_chat_sessions():
 
     if not identifier:
         return jsonify({"error": "userEmail or userId is required"}), 400
+
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
         sessions = list(chat_sessions_col.find(
@@ -166,6 +171,7 @@ def load_chat_sessions():
 
 
 @chatbot_bp.route("/api/chat/saveChat", methods=["PUT"])
+@require_auth
 def save_chat_sessions():
     """Save multiple chat sessions for a user."""
     data = request.get_json()
@@ -183,6 +189,9 @@ def save_chat_sessions():
     if not identifier:
         return jsonify({"error": "userEmail or userId is required"}), 400
 
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
     try:
         # Upsert each session safely without wiping user history on transient failures
         saved_ids = []
@@ -199,13 +208,6 @@ def save_chat_sessions():
                 chat_sessions_col.replace_one({"_id": oid}, session, upsert=True)
                 saved_ids.append(oid)
 
-        # Only clean up sessions for this user if an explicit session array was provided
-        if sessions and len(saved_ids) > 0:
-            chat_sessions_col.delete_many({
-                identifier_field: identifier,
-                "_id": {"$nin": saved_ids}
-            })
-
         return jsonify({"success": True})
 
     except Exception:
@@ -213,6 +215,7 @@ def save_chat_sessions():
 
 
 @chatbot_bp.route("/api/chat/createChat", methods=["POST"])
+@require_auth
 def create_chat_session():
     """Create a new chat session."""
     data = request.get_json()
@@ -228,6 +231,9 @@ def create_chat_session():
 
     if not identifier:
         return jsonify({"error": "userEmail or userId is required"}), 400
+
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
         session = {
@@ -254,6 +260,7 @@ def create_chat_session():
 
 
 @chatbot_bp.route("/api/chat/updateMessages/<session_id>/messages", methods=["PUT"])
+@require_auth
 def update_session_messages(session_id):
     """Update messages in a specific chat session."""
     data = request.get_json()
@@ -271,9 +278,16 @@ def update_session_messages(session_id):
     if not identifier:
         return jsonify({"error": "userEmail or userId is required"}), 400
 
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
+    oid = safe_object_id(session_id)
+    if not oid:
+        return jsonify({"error": "Invalid session ID format"}), 400
+
     try:
         result = chat_sessions_col.update_one(
-            {"_id": ObjectId(session_id), identifier_field: identifier},
+            {"_id": oid, identifier_field: identifier},
             {"$set": {
                 "messages": messages,
                 "lastActivity": datetime.utcnow().isoformat(),
@@ -287,6 +301,7 @@ def update_session_messages(session_id):
 
 
 @chatbot_bp.route("/api/chat/deleteChat/<session_id>", methods=["DELETE"])
+@require_auth
 def delete_chat_session(session_id):
     """Delete a chat session."""
     user_email = request.args.get("user_email") or request.args.get("userEmail")
@@ -298,9 +313,16 @@ def delete_chat_session(session_id):
     if not identifier:
         return jsonify({"error": "userEmail or userId is required"}), 400
 
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
+    oid = safe_object_id(session_id)
+    if not oid:
+        return jsonify({"error": "Invalid session ID format"}), 400
+
     try:
         chat_sessions_col.delete_one(
-            {"_id": ObjectId(session_id), identifier_field: identifier})
+            {"_id": oid, identifier_field: identifier})
 
         # Return remaining sessions for this user
         sessions = list(chat_sessions_col.find(
@@ -314,6 +336,7 @@ def delete_chat_session(session_id):
 
 
 @chatbot_bp.route("/api/chat/updateActivity/<session_id>/activity", methods=["PATCH"])
+@require_auth
 def update_session_activity(session_id):
     """Update the last activity timestamp for a session."""
     data = request.get_json()
@@ -330,9 +353,16 @@ def update_session_activity(session_id):
     if not identifier:
         return jsonify({"error": "userEmail or userId is required"}), 400
 
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
+    oid = safe_object_id(session_id)
+    if not oid:
+        return jsonify({"error": "Invalid session ID format"}), 400
+
     try:
         result = chat_sessions_col.update_one(
-            {"_id": ObjectId(session_id), identifier_field: identifier},
+            {"_id": oid, identifier_field: identifier},
             {"$set": {"lastActivity": datetime.utcnow().isoformat()}}
         )
 
@@ -342,6 +372,7 @@ def update_session_activity(session_id):
 
 
 @chatbot_bp.route('/api/chat/message', methods=['POST'])
+@require_auth
 def send_message():
     """Send a message and get AI response with full conversation context."""
     data = request.get_json()
@@ -350,8 +381,8 @@ def send_message():
         return jsonify({"error": "No JSON data provided"}), 400
 
     user_message = data.get('input', '').strip()
-    user_email = data.get('userEmail')
-    user_id = data.get('userId')  # Keep for backward compatibility
+    user_email = data.get('userEmail') or data.get('user_email')
+    user_id = data.get('userId') or data.get('user_id')  # Keep for backward compatibility
     chat_history = data.get('chatHistory', [])
     session_id = data.get('sessionId')
 
@@ -360,6 +391,10 @@ def send_message():
 
     if not user_message or not identifier:
         return jsonify({"error": "Message and userEmail/userId are required"}), 400
+
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
 
     try:
         # Format conversation history for AI (last 10 messages only for context management)
@@ -398,22 +433,24 @@ def send_message():
                         "timestamp": datetime.utcnow().isoformat()}
                 ]
 
-                update_query = {"_id": ObjectId(session_id)}
-                if user_email:
-                    update_query["userEmail"] = user_email
-                elif user_id:
-                    update_query["userId"] = user_id
+                oid = safe_object_id(session_id)
+                if oid:
+                    update_query = {"_id": oid}
+                    if user_email:
+                        update_query["userEmail"] = user_email
+                    elif user_id:
+                        update_query["userId"] = user_id
 
-                chat_sessions_col.update_one(
-                    update_query,
-                    {
-                        "$set": {
-                            "messages": updated_history,
-                            "lastActivity": datetime.utcnow().isoformat(),
-                        },
-                        "$inc": {"messageCount": 2} # User message + AI response
-                    }
-                )
+                    chat_sessions_col.update_one(
+                        update_query,
+                        {
+                            "$set": {
+                                "messages": updated_history,
+                                "lastActivity": datetime.utcnow().isoformat(),
+                            },
+                            "$inc": {"messageCount": 2} # User message + AI response
+                        }
+                    )
             except Exception:
                 return jsonify({"error": "Failed to update chat session with new messages"}), 500
 

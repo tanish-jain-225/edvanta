@@ -8,6 +8,7 @@ from bson import ObjectId
 from app.config import Config
 from app.utils.ai_utils import analyze_resume_text
 from app.utils.mongo_utils import connect_to_mongodb, safe_object_id
+from app.middleware.auth import require_auth, verify_user_ownership
 
 
 resume_bp = Blueprint('resume', __name__)
@@ -55,6 +56,7 @@ def extract_text_from_pdf(file_bytes):
 
 
 @resume_bp.route("/api/resume/analyze", methods=["POST"])
+@require_auth
 def analyze_resume():
     """Endpoint to upload resume to Cloudinary, extract text and analyze with Gemini AI."""
     if 'file' not in request.files:
@@ -65,6 +67,9 @@ def analyze_resume():
         return jsonify({"error": "No file selected"}), 400
     
     user_email = request.form.get('user_email') or request.args.get('user_email')
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
     
     # Check file size limit (10MB) before reading into memory
     content_length = request.content_length
@@ -152,11 +157,15 @@ def analyze_resume():
 
 
 @resume_bp.route("/api/resume/history", methods=["GET"])
+@require_auth
 def get_resume_history():
     """Fetch saved resume analyses for a user."""
     user_email = request.args.get('user_email')
     if not user_email:
         return jsonify({"error": "user_email parameter is required"}), 400
+
+    if not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
     
     col = get_resumes_collection()
     if col is None:
@@ -180,18 +189,26 @@ def get_resume_history():
 
 
 @resume_bp.route("/api/resume/history/<id>", methods=["DELETE"])
+@require_auth
 def delete_resume_analysis(id):
     """Delete a specific resume analysis by its ID."""
     oid = safe_object_id(id)
     if not oid:
         return jsonify({"error": "Invalid resume ID format"}), 400
 
+    user_email = request.args.get('user_email')
+    if user_email and not verify_user_ownership(user_email):
+        return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
+
     col = get_resumes_collection()
     if col is None:
         return jsonify({"error": "Database connection not available"}), 500
         
     try:
-        result = col.delete_one({"_id": oid})
+        delete_filter = {"_id": oid}
+        if user_email:
+            delete_filter["user_email"] = user_email
+        result = col.delete_one(delete_filter)
         if result.deleted_count == 0:
             return jsonify({"error": "Resume analysis not found"}), 404
         return jsonify({"success": True, "message": "Resume analysis deleted successfully"}), 200

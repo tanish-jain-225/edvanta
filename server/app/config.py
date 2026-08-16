@@ -97,3 +97,7 @@ class Config:
     CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
     CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 
+    # YouTube Data API Configuration
+    YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY") or os.getenv("VITE_YOUTUBE_API_KEY")
+
+

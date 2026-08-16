@@ -28,7 +28,23 @@ import {
 import { Input } from "../../components/ui/input";
 import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
+import { auth } from "../../lib/firebase";
 import axios from "axios";
+
+// Automatically inject Firebase ID token for axios calls
+axios.interceptors.request.use(async (config) => {
+  if (auth?.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (e) {
+      console.debug("Axios token injection error:", e);
+    }
+  }
+  return config;
+});
 
 // UI text constants to avoid hardcoding
 const UI_TEXT = {
