@@ -9,14 +9,17 @@ export const registerServiceWorker = () => {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
-
-          // Check for updates periodically
+          // Check for updates periodically only when online
           setInterval(() => {
-            registration.update();
+            if (navigator.onLine) {
+              registration.update().catch((err) => {
+                console.debug('[PWA] Service Worker update check skipped:', err);
+              });
+            }
           }, 60000); // Check every minute
         })
         .catch((error) => {
-          console.error('[PWA] Service Worker registration failed:', error);
+          console.debug('[PWA] Service Worker registration failed:', error);
         });
     });
   }

@@ -1,5 +1,5 @@
-// Edvanta Service Worker - Simple Offline Support
-const CACHE_VERSION = 'edvanta-v1';
+// Edvanta Service Worker - Offline Support & Asset Cache
+const CACHE_VERSION = 'edvanta-v2';
 const CACHE_NAME = `${CACHE_VERSION}-all`;
 
 // Assets to cache immediately on install
@@ -13,13 +13,10 @@ const STATIC_ASSETS = [
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Installing...');
-  
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching static assets');
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.log('[Service Worker] Cache addAll error:', err);
+        console.debug('[Service Worker] Cache addAll error:', err);
       });
     }).then(() => {
       return self.skipWaiting();
@@ -34,9 +31,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys
           .filter((key) => key.startsWith('edvanta-') && key !== CACHE_NAME)
-          .map((key) => {
-            return caches.delete(key);
-          })
+          .map((key) => caches.delete(key))
       );
     }).then(() => {
       return self.clients.claim();
@@ -44,7 +39,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - cache everything, serve from cache when offline
+// Fetch event - cache-first or network-with-cache-fallback
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -54,55 +49,54 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip external API calls (let them fail gracefully in app)
+  // Skip external API calls
   if (url.origin !== self.location.origin && 
       !url.href.includes('fonts.googleapis.com') && 
       !url.href.includes('fonts.gstatic.com')) {
     return;
   }
 
+  // For static assets / bundle chunks: Stale-While-Revalidate or Network-First
   event.respondWith(
-    // Try network first with short timeout
-    Promise.race([
-      fetch(request)
-        .then((response) => {
-          // Cache successful responses
-          if (response && response.status === 200) {
-            const responseClone = response.clone();
+    caches.match(request, { ignoreSearch: true }).then((cachedResponse) => {
+      // If we have cached response and are offline, return it immediately
+      if (cachedResponse && !navigator.onLine) {
+        return cachedResponse;
+      }
+
+      // Try network
+      return fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(request, responseClone);
             });
           }
-          return response;
-        }),
-      // Timeout after 5 seconds
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('timeout')), 5000)
-      )
-    ])
-    .catch(() => {
-      // Network failed or timed out, try cache immediately
-      return caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        
-        // For navigation requests, return index.html
-        if (request.destination === 'document') {
-          return caches.match('/index.html');
-        }
-        
-        // For images, return placeholder
-        if (request.destination === 'image') {
-          return caches.match('/default-avatar.svg');
-        }
-        
-        // Otherwise, return offline response immediately
-        return new Response('Offline - No cached version available', { 
-          status: 503,
-          statusText: 'Service Unavailable'
+          return networkResponse;
+        })
+        .catch(() => {
+          // If network fails, return cached response if available
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+
+          // For navigation requests, return index.html
+          if (request.mode === 'navigate' || request.destination === 'document') {
+            return caches.match('/index.html');
+          }
+
+          // For images, return default avatar
+          if (request.destination === 'image') {
+            return caches.match('/default-avatar.svg');
+          }
+
+          return new Response('Offline - Resource not cached', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({ 'Content-Type': 'text/plain' })
+          });
         });
-      });
     })
   );
 });
