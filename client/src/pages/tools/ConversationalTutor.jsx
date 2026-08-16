@@ -37,7 +37,12 @@ axios.interceptors.request.use(async (config) => {
     try {
       const token = await auth.currentUser.getIdToken();
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+        if (config.headers && typeof config.headers.set === "function") {
+          config.headers.set("Authorization", `Bearer ${token}`);
+        } else {
+          config.headers = config.headers || {};
+          config.headers.Authorization = `Bearer ${token}`;
+        }
       }
     } catch (e) {
       console.debug("Axios token injection error:", e);

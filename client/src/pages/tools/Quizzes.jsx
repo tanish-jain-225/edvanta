@@ -30,9 +30,9 @@ import {
   Trash2,
   AlertCircle,
 } from "lucide-react";
-import backEndURL from "../../hooks/helper";
 import { useLocation } from "react-router-dom";
 import { getCachedData, setCachedData, queueSyncAction } from "../../lib/offlineStorage";
+import { edvantaAPI } from "../../lib/api";
 
 export function Quizzes() {
   const location = useLocation();
@@ -131,13 +131,9 @@ export function Quizzes() {
         return;
       }
 
-      const response = await fetch(
-        `${backEndURL}/api/tools/quizzes?user_email=${encodeURIComponent(
-          user.email
-        )}`
-      );
-      if (response.ok) {
-        const data = await response.json();
+      const result = await edvantaAPI.getUserQuizzes(user.email);
+      if (result.success) {
+        const data = result.data || [];
         setQuizzes(data);
         setCachedData(user.email, "quizzes", data);
       } else {
@@ -193,13 +189,9 @@ export function Quizzes() {
         return;
       }
 
-      const response = await fetch(
-        `${backEndURL}/api/quiz-history?user_email=${encodeURIComponent(
-          user.email
-        )}`
-      );
-      if (response.ok) {
-        const data = await response.json();
+      const result = await edvantaAPI.getQuizHistory(user.email);
+      if (result.success) {
+        const data = result.data || [];
         setQuizHistory(data);
         setCachedData(user.email, "quiz_history", data);
       } else {
@@ -244,21 +236,14 @@ export function Quizzes() {
         return;
       }
 
-      const response = await fetch(
-        `${backEndURL}/api/quiz-history?user_email=${encodeURIComponent(
-          user.email
-        )}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const result = await edvantaAPI.clearQuizHistory(user.email);
 
-      if (response.ok) {
+      if (result.success) {
         // Clear local state
         setQuizHistory([]);
         setCachedData(user.email, "quiz_history", []);
       } else {
-        throw new Error("Failed to clear quiz history");
+        throw new Error(result.error?.message || "Failed to clear quiz history");
       }
     } catch (error) {
       console.error("Failed to clear quiz history:", error);
@@ -281,40 +266,22 @@ export function Quizzes() {
       const startTime = Date.now();
 
       // Generate quiz
-      const generateResponse = await fetch(
-        `${backEndURL}/api/quizzes/generate`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            topic: newQuizTopic,
-            difficulty: difficulty,
-            numberOfQuestions: numberOfQuestions,
-          }),
-        }
+      const generateResult = await edvantaAPI.generateQuiz(
+        newQuizTopic,
+        difficulty,
+        numberOfQuestions
       );
 
-      if (!generateResponse.ok) {
-        throw new Error("Failed to generate quiz");
+      if (!generateResult.success) {
+        throw new Error(generateResult.error?.message || "Failed to generate quiz");
       }
 
-      const quizData = await generateResponse.json();
-
-      // Add user email to quiz data
-      quizData.user_email = currentUser.email;
+      const quizData = generateResult.data;
 
       // Save quiz to browsing list
-      const saveResponse = await fetch(`${backEndURL}/api/tools/quizzes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(quizData),
-      });
+      const saveResult = await edvantaAPI.saveQuiz(quizData, user.email);
 
-      if (saveResponse.ok) {
+      if (saveResult.success) {
         // Ensure minimum loading time of 1 second
         await enforceMinimumLoadingTime(startTime);
 
@@ -326,6 +293,8 @@ export function Quizzes() {
         setNumberOfQuestions(10);
         // Switch to browse tab
         setActiveTab("browse");
+      } else {
+        throw new Error(saveResult.error?.message || "Failed to save quiz");
       }
     } catch (error) {
       console.error("Failed to generate quiz:", error);
@@ -389,18 +358,13 @@ export function Quizzes() {
         return;
       }
 
-      const response = await fetch(
-        `${backEndURL}/api/tools/quizzes/${quizId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const result = await edvantaAPI.deleteQuiz(quizId);
 
-      if (response.ok) {
+      if (result.success) {
         // Reload quizzes to update the list
         await loadQuizzes();
       } else {
-        throw new Error("Failed to delete quiz");
+        throw new Error(result.error?.message || "Failed to delete quiz");
       }
     } catch (error) {
       console.error("Failed to delete quiz:", error);
@@ -440,16 +404,10 @@ export function Quizzes() {
     };
 
     try {
-      // Post to quiz-history endpoint
-      const response = await fetch(`${backEndURL}/api/quiz-history`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(completionData),
-      });
+      // Post to quiz-history endpoint using edvantaAPI
+      const result = await edvantaAPI.logQuizHistory(completionData);
 
-      if (response.ok) {
+      if (result.success) {
         // Reload history if on history tab
         if (activeTab === "history") {
           await loadQuizHistory();
@@ -457,7 +415,7 @@ export function Quizzes() {
       } else {
         console.warn(
           "⚠️ Failed to log quiz completion to history:",
-          response.statusText
+          result.error
         );
       }
     } catch (error) {
@@ -532,25 +490,18 @@ export function Quizzes() {
         return;
       }
 
-      const response = await fetch(`${backEndURL}/api/quizzes/submit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          quiz_id: currentQuiz.id,
-          answers: answersArray,
-        }),
-      });
+      const result = await edvantaAPI.submitQuiz(currentQuiz.id, answersArray);
 
-      if (response.ok) {
-        const resultData = await response.json();
+      if (result.success) {
+        const resultData = result.data;
 
         // Log quiz completion to history endpoint
         await logQuizCompletion(currentQuiz, resultData);
 
         setResults(resultData);
         setShowResults(true);
+      } else {
+        throw new Error(result.error?.message || "Failed to submit quiz");
       }
     } catch (error) {
       console.error("Failed to submit quiz:", error);

@@ -26,10 +26,9 @@ import {
   Calendar,
 } from "lucide-react";
 
-import backEndURL from "../../hooks/helper";
 import { useAuth } from "../../hooks/useAuth";
 import { getCachedData, setCachedData, queueSyncAction } from "../../lib/offlineStorage";
-import { edvantaAPI } from "../../lib/api";
+import { edvantaAPI, api } from "../../lib/api";
 
 const enforceMinimumLoadingTime = async (startTime, minimumTime = 1000) => {
   const timeElapsed = Date.now() - startTime;
@@ -145,16 +144,13 @@ export function Roadmap() {
         return;
       }
 
-      const response = await fetch(
-        `${backEndURL}/api/roadmap/user?user_email=${user.email}`
-      );
+      const result = await edvantaAPI.getUserRoadmaps(user.email);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch roadmaps");
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to fetch roadmaps");
       }
 
-      const roadmapsData = await response.json();
+      const roadmapsData = result.data || [];
       setCachedData(user.email, "user_roadmaps", roadmapsData);
 
       // Transform the data to match the expected format
@@ -166,7 +162,7 @@ export function Roadmap() {
         created_at: roadmap.created_at,
         dateCreated: new Date(roadmap.created_at).toLocaleDateString(),
         data: roadmap.data,
-        skills: roadmap.data.nodes
+        skills: roadmap.data?.nodes
           ? roadmap.data.nodes
               .filter((node) => node.id !== "start")
               .slice(0, 3)
@@ -191,7 +187,7 @@ export function Roadmap() {
           created_at: roadmap.created_at,
           dateCreated: new Date(roadmap.created_at).toLocaleDateString(),
           data: roadmap.data,
-          skills: roadmap.data.nodes
+          skills: roadmap.data?.nodes
             ? roadmap.data.nodes
                 .filter((node) => node.id !== "start")
                 .slice(0, 3)
@@ -229,25 +225,16 @@ export function Roadmap() {
       setIsGenerating(true);
       setError(null);
 
-      const response = await fetch(`${backEndURL}/api/roadmap/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          goal: customGoal,
-          background: customBackground,
-          duration_weeks: parseInt(customDuration),
-          user_email: user.email,
-        }),
-      });
+      const result = await edvantaAPI.generateRoadmap(
+        customGoal,
+        customBackground,
+        parseInt(customDuration),
+        user.email
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate roadmap");
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to generate roadmap");
       }
-
-      await response.json();
 
       // Fetch updated roadmaps after successful generation
       fetchUserRoadmaps();
@@ -310,15 +297,13 @@ export function Roadmap() {
       }
 
       // Otherwise fetch the detailed roadmap from the server
-      const response = await fetch(
-        `${backEndURL}/api/roadmap/${roadmap.id}?user_email=${user.email}`
-      );
+      const result = await edvantaAPI.getRoadmapDetails(roadmap.id, user.email);
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch roadmap details");
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to fetch roadmap details");
       }
 
-      const detailedRoadmap = await response.json();
+      const detailedRoadmap = result.data;
       setCachedData(user.email, `roadmap_detail_${roadmap.id}`, detailedRoadmap);
 
       // Transform to match expected format if needed
@@ -330,7 +315,7 @@ export function Roadmap() {
         created_at: detailedRoadmap.created_at,
         dateCreated: new Date(detailedRoadmap.created_at).toLocaleDateString(),
         data: detailedRoadmap.data,
-        skills: detailedRoadmap.data.nodes
+        skills: detailedRoadmap.data?.nodes
           ? detailedRoadmap.data.nodes
               .filter((node) => node.id !== "start")
               .slice(0, 3)
@@ -385,16 +370,10 @@ export function Roadmap() {
 
     try {
       setDeletingRoadmapId(roadmapId);
-      const response = await fetch(
-        `${backEndURL}/api/roadmap/${roadmapId}?user_email=${user.email}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const result = await edvantaAPI.deleteRoadmap(roadmapId, user.email);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete roadmap");
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to delete roadmap");
       }
 
       // If the deleted roadmap is currently selected, close the modal
@@ -437,12 +416,12 @@ export function Roadmap() {
     if (!selectedRoadmap || !user?.email) return;
 
     try {
-      const response = await fetch(
-        `${backEndURL}/api/roadmap/download/${selectedRoadmap.id}?user_email=${user.email}`
+      const response = await api.fetchWithRetry(
+        `${api.baseURL}/api/roadmap/download/${selectedRoadmap.id}?user_email=${encodeURIComponent(user.email)}`
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Download failed");
       }
 

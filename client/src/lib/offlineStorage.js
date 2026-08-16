@@ -1,7 +1,7 @@
 /**
  * Offline Storage and Synchronization Engine for Edvanta PWA
  */
-import backEndURL from "../hooks/helper";
+import { api } from "./api";
 
 // Cache Keys namespaces
 const CACHE_PREFIX = "edvanta_cache_";
@@ -194,44 +194,32 @@ export const processSyncQueue = async (userEmail) => {
     try {
       switch (action.type) {
         case "LOG_QUIZ_HISTORY": {
-          const response = await fetch(`${backEndURL}/api/quiz-history`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(action.data),
-          });
-          if (!response.ok) throw new Error("Quiz history log failed");
+          const result = await api.post("/api/quiz-history", action.data);
+          if (!result.success) throw new Error(result.error?.message || "Quiz history log failed");
           isQuizChanged = true;
           break;
         }
 
         case "CLEAR_QUIZ_HISTORY": {
-          const response = await fetch(
-            `${backEndURL}/api/quiz-history?user_email=${encodeURIComponent(userEmail)}`,
-            { method: "DELETE" }
+          const result = await api.delete(
+            `/api/quiz-history?user_email=${encodeURIComponent(userEmail)}`
           );
-          if (!response.ok) throw new Error("Clear quiz history failed");
+          if (!result.success) throw new Error(result.error?.message || "Clear quiz history failed");
           isQuizChanged = true;
           break;
         }
 
         case "CREATE_CHAT_SESSION": {
-          const response = await fetch(`${backEndURL}/api/chat/createChat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionName: action.data.sessionName,
-              userEmail: action.data.userEmail,
-            }),
+          const result = await api.post("/api/chat/createChat", {
+            sessionName: action.data.sessionName,
+            userEmail: action.data.userEmail,
           });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              setSessionIdMapping(userEmail, action.data.tempSessionId, data.session.id);
-              updateChatSessionId(userEmail, action.data.tempSessionId, data.session.id);
-              isChatChanged = true;
-            }
+          if (result.success && result.data?.success) {
+            setSessionIdMapping(userEmail, action.data.tempSessionId, result.data.session.id);
+            updateChatSessionId(userEmail, action.data.tempSessionId, result.data.session.id);
+            isChatChanged = true;
           } else {
-            throw new Error("Chat creation sync failed");
+            throw new Error(result.error?.message || "Chat creation sync failed");
           }
           break;
         }
@@ -250,25 +238,18 @@ export const processSyncQueue = async (userEmail) => {
             }
           }
 
-          const response = await fetch(`${backEndURL}/api/chat/message`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              input: action.data.message,
-              userEmail: action.data.userEmail,
-              chatHistory: action.data.chatHistory,
-              sessionId: targetSessionId,
-            }),
+          const result = await api.post("/api/chat/message", {
+            input: action.data.message,
+            userEmail: action.data.userEmail,
+            chatHistory: action.data.chatHistory,
+            sessionId: targetSessionId,
           });
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              updateLocalChatMessage(userEmail, targetSessionId, action.data.tempMsgId, data);
-              isChatChanged = true;
-            }
+          if (result.success && result.data?.success) {
+            updateLocalChatMessage(userEmail, targetSessionId, action.data.tempMsgId, result.data);
+            isChatChanged = true;
           } else {
-            throw new Error("Chat message sync failed");
+            throw new Error(result.error?.message || "Chat message sync failed");
           }
           break;
         }
@@ -285,51 +266,46 @@ export const processSyncQueue = async (userEmail) => {
             }
           }
 
-          const response = await fetch(
-            `${backEndURL}/api/chat/deleteChat/${targetSessionId}?userEmail=${encodeURIComponent(
+          const result = await api.delete(
+            `/api/chat/deleteChat/${targetSessionId}?userEmail=${encodeURIComponent(
               userEmail
-            )}`,
-            { method: "DELETE" }
+            )}`
           );
-          if (!response.ok && response.status !== 404) {
-            throw new Error("Chat deletion sync failed");
+          if (!result.success && result.status !== 404) {
+            throw new Error(result.error?.message || "Chat deletion sync failed");
           }
           isChatChanged = true;
           break;
         }
 
         case "DELETE_QUIZ": {
-          const response = await fetch(`${backEndURL}/api/tools/quizzes/${action.data.quizId}`, {
-            method: "DELETE",
-          });
-          if (!response.ok && response.status !== 404) {
-            throw new Error("Quiz deletion sync failed");
+          const result = await api.delete(`/api/tools/quizzes/${action.data.quizId}`);
+          if (!result.success && result.status !== 404) {
+            throw new Error(result.error?.message || "Quiz deletion sync failed");
           }
           isQuizChanged = true;
           break;
         }
 
         case "DELETE_ROADMAP": {
-          const response = await fetch(
-            `${backEndURL}/api/roadmap/${action.data.roadmapId}?user_email=${encodeURIComponent(
+          const result = await api.delete(
+            `/api/roadmap/${action.data.roadmapId}?user_email=${encodeURIComponent(
               userEmail
-            )}`,
-            { method: "DELETE" }
+            )}`
           );
-          if (!response.ok && response.status !== 404) {
-            throw new Error("Roadmap deletion sync failed");
+          if (!result.success && result.status !== 404) {
+            throw new Error(result.error?.message || "Roadmap deletion sync failed");
           }
           isRoadmapChanged = true;
           break;
         }
 
         case "DELETE_RESUME": {
-          const response = await fetch(
-            `${backEndURL}/api/resume/history/${action.data.resumeId}`,
-            { method: "DELETE" }
+          const result = await api.delete(
+            `/api/resume/history/${action.data.resumeId}`
           );
-          if (!response.ok && response.status !== 404) {
-            throw new Error("Resume deletion sync failed");
+          if (!result.success && result.status !== 404) {
+            throw new Error(result.error?.message || "Resume deletion sync failed");
           }
           isResumeChanged = true;
           break;
