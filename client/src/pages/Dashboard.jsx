@@ -22,7 +22,8 @@ import {
   Activity,
   LogIn,
   Target,
-  FileText
+  FileText,
+  Video
 } from "lucide-react";
 
 // ============================================================================
@@ -60,6 +61,14 @@ const CORE_TOOLS = [
     description: "AI-generated personalized learning paths",
     href: "/tools/roadmap",
     color: "bg-indigo-100 text-indigo-700",
+    status: "working"
+  },
+  {
+    icon: Video,
+    title: "Visual Explorer",
+    description: "Search and explore educational video lessons",
+    href: "/tools/visual-content",
+    color: "bg-amber-100 text-amber-700",
     status: "working"
   },
   {

@@ -7,6 +7,7 @@ const VisualContent = () => {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -36,18 +37,21 @@ const VisualContent = () => {
   const searchVideos = useCallback(async () => {
     if (!navigator.onLine) {
       setError('Search is not available in offline mode.');
+      setNotice('');
       setHasSearched(true);
       return;
     }
 
     if (!searchQuery.trim()) {
       setError('Please enter a search query');
+      setNotice('');
       setHasSearched(true);
       return;
     }
 
     setLoading(true);
     setError('');
+    setNotice('');
     setHasSearched(true);
 
     try {
@@ -59,6 +63,9 @@ const VisualContent = () => {
 
       const items = response.data?.items || [];
       setVideos(items);
+      if (response.data?.notice) {
+        setNotice(response.data.notice);
+      }
     } catch (err) {
       setError(err.message || 'Failed to search videos. Please try again.');
     } finally {
@@ -175,6 +182,13 @@ const VisualContent = () => {
             {error && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
                 {error}
+              </div>
+            )}
+
+            {notice && !error && (
+              <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-purple-800 text-xs sm:text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                <span>{notice}</span>
               </div>
             )}
           </div>

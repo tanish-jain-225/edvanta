@@ -14,14 +14,16 @@ def test_videos_search_missing_query():
 
 
 def test_videos_search_missing_api_key():
-    """Test /api/videos/search when YouTube API key is missing."""
+    """Test /api/videos/search when YouTube API key is missing returns curated educational fallback."""
     with patch.object(Config, 'YOUTUBE_API_KEY', None):
         app = create_app()
         client = app.test_client()
         response = client.get("/api/videos/search?q=python")
-        assert response.status_code == 503
+        assert response.status_code == 200
         data = response.get_json()
-        assert "YouTube API key not configured" in data["error"]
+        assert data["success"] is True
+        assert data.get("fallback") is True
+        assert len(data["items"]) > 0
 
 
 @patch('app.routes.videos.requests.get')

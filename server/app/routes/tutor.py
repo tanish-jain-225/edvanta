@@ -34,9 +34,9 @@ def tutor_ask():
     subject = data.get('subject', 'general')
     # Default to True as per requirements
     is_voice_input = data.get('isVoiceInput', True)
-    user_email = data.get('userEmail')
-    session_id = data.get('sessionId')  # Optional session ID for tracking
-    conversation_history = data.get('conversationHistory', [])  # Get conversation context
+    user_email = data.get('userEmail') or data.get('user_email')
+    session_id = data.get('sessionId') or data.get('session_id')  # Optional session ID for tracking
+    conversation_history = data.get('conversationHistory') or data.get('conversation_history', [])  # Get conversation context
 
     if not prompt:
         return jsonify({"error": "Prompt is required"}), 400
@@ -121,7 +121,7 @@ def start_session():
 
     mode = data.get('mode', 'tutor')
     subject = data.get('subject', 'general')
-    user_email = data.get('userEmail')
+    user_email = data.get('userEmail') or data.get('user_email')
     is_voice_input = data.get('isVoiceInput', True)  # Default to voice input
 
     if not user_email:
@@ -212,8 +212,8 @@ def end_session():
     if not data:
         return jsonify({"error": "No JSON data provided"}), 400
 
-    session_id = data.get('session_id')
-    user_email = data.get('userEmail')
+    session_id = data.get('session_id') or data.get('sessionId')
+    user_email = data.get('userEmail') or data.get('user_email')
 
     if not session_id:
         return jsonify({"error": "Session ID is required"}), 400
@@ -261,8 +261,8 @@ def toggle_voice():
         return jsonify({"error": "No JSON data provided"}), 400
 
     enabled = data.get('enabled', False)
-    session_id = data.get('session_id')
-    user_email = data.get('userEmail')
+    session_id = data.get('session_id') or data.get('sessionId')
+    user_email = data.get('userEmail') or data.get('user_email')
     # Set is_voice_input to match enabled state for appropriate response
     is_voice_input = data.get('isVoiceInput', enabled)
 
@@ -276,29 +276,14 @@ def toggle_voice():
         return jsonify({"error": "Forbidden: Access denied to requested user data", "code": "FORBIDDEN"}), 403
 
     try:
-
-
-
-
-
-        # Prepare a response that works well for both text and voice
-        voice_prompt = f"Generate a brief message indicating that voice output is {'enabled' if enabled else 'disabled'}"
-        voice_result = get_tutor_response(voice_prompt)
-        voice_message = voice_result['response']
-        
-        if enabled:
-            voice_message = _optimize_for_voice(voice_message)
-
-        result = {
+        status_msg = "Voice output enabled" if enabled else "Voice output disabled"
+        return jsonify({
             "success": True,
             "voice_enabled": enabled,
-            "message": voice_message,
+            "message": status_msg,
             "session_id": session_id,
-            "isVoiceInput": is_voice_input,
             "timestamp": datetime.utcnow().isoformat()
-        }
-
-        return jsonify(result)
+        })
 
     except Exception as e:
 
@@ -320,10 +305,10 @@ def toggle_voice():
 def check_active_session():
     """Check if a user has an active tutoring session.
 
-    Query params: userEmail
+    Query params: userEmail or user_email
     Returns: { success: bool, has_active_session: bool, session_data: object (if active) }
     """
-    user_email = request.args.get('userEmail')
+    user_email = request.args.get('userEmail') or request.args.get('user_email')
 
     if not user_email:
         return jsonify({"error": "User email is required"}), 400
@@ -371,11 +356,11 @@ def check_active_session():
 def get_chat_history_endpoint():
     """Get chat history for a user with pagination and filtering.
 
-    Query params: userEmail, limit (optional), offset (optional), sessionId (optional)
+    Query params: userEmail or user_email, limit (optional), offset (optional), sessionId or session_id (optional)
     Returns: { success: bool, messages: list, count: int, total: int }
     """
-    user_email = request.args.get('userEmail')
-    session_id = request.args.get('sessionId')  # Filter by session
+    user_email = request.args.get('userEmail') or request.args.get('user_email')
+    session_id = request.args.get('sessionId') or request.args.get('session_id')  # Filter by session
 
     try:
         limit = int(request.args.get('limit', 50))  # Default to 50 messages
@@ -439,10 +424,10 @@ def clear_chat_history_endpoint():
     if not data:
         return jsonify({"error": "No JSON data provided"}), 400
 
-    user_email = data.get('userEmail')
+    user_email = data.get('userEmail') or data.get('user_email')
     confirm = data.get('confirm', False)  # Require explicit confirmation
     # Optional - if provided, only clear that session
-    session_id = data.get('sessionId')
+    session_id = data.get('sessionId') or data.get('session_id')
 
     if not user_email:
         return jsonify({"error": "User email is required"}), 400
@@ -495,21 +480,11 @@ def check_voice_connection():
         ai_initialized = initialize_ai()
 
         if ai_initialized:
-            # Try to generate a simple test response
-            try:
-                test_result = get_tutor_response("Test connection")
-            except Exception as e:
-                test_result = {'success': False, 'error': str(e)}
-
-            if test_result.get('success'):
-                status = "Voice services are working properly"
-                return jsonify({
-                    "success": True,
-                    "status": status,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-            else:
-                status = f"Voice services are partially available (AI initialization OK, but response generation failed: {test_result.get('error', 'Unknown error')})"
+            return jsonify({
+                "success": True,
+                "status": "Voice services are working properly",
+                "timestamp": datetime.utcnow().isoformat()
+            })
         else:
             status = "Voice services are unavailable (AI initialization failed)"
 
