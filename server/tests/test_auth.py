@@ -1,7 +1,7 @@
 """Tests for Authentication Middleware and IDOR/BOLA Protection."""
 import pytest
 from app import create_app
-from app.middleware.auth import verify_token, verify_user_ownership
+from app.middleware.auth import verify_token, verify_user_ownership, _get_unverified_jwt_claims
 
 
 @pytest.fixture
@@ -34,6 +34,19 @@ def test_verify_token_empty():
     """Verify empty token returns None."""
     assert verify_token("") is None
     assert verify_token(None) is None
+
+
+def test_get_unverified_jwt_claims():
+    """Verify decoding of JWT payload without signature verification."""
+    import base64
+    import json
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "RS256"}).encode()).decode().rstrip("=")
+    payload = base64.urlsafe_b64encode(json.dumps({"aud": "edvanta-test", "email": "test@example.com"}).encode()).decode().rstrip("=")
+    dummy_jwt = f"{header}.{payload}.signature"
+    claims = _get_unverified_jwt_claims(dummy_jwt)
+    assert claims.get("aud") == "edvanta-test"
+    assert claims.get("email") == "test@example.com"
+    assert _get_unverified_jwt_claims("invalid-token") == {}
 
 
 def test_verify_user_ownership(app):
