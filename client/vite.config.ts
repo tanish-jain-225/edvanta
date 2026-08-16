@@ -45,5 +45,14 @@ export default defineConfig(({ mode }) => ({
     environment: "happy-dom",
     setupFiles: ["./src/test/setup.js"],
     include: ["src/**/*.test.{js,jsx,ts,tsx}"],
+    env: {
+      VITE_FIREBASE_API_KEY: "dummy-api-key-for-test",
+      VITE_FIREBASE_AUTH_DOMAIN: "edvanta-test.firebaseapp.com",
+      VITE_FIREBASE_PROJECT_ID: "edvanta-test",
+      VITE_FIREBASE_STORAGE_BUCKET: "edvanta-test.appspot.com",
+      VITE_FIREBASE_MESSAGING_SENDER_ID: "1234567890",
+      VITE_FIREBASE_APP_ID: "1:1234567890:web:dummy",
+      VITE_API_BASE_URL: "http://localhost:5000",
+    },
   },
 }));
